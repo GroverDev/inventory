@@ -160,16 +160,16 @@ export default {
       beforeEnter: [isAuthenticatedGuard],
       meta: { requiresAuth: true, title: 'PV - Detalle de Venta', titleForm: 'Detalle de Venta' },
     },
-    {
-      path: 'point-of-sale',
-      name: 'point-sale-admin',
-      component: () => import(/* webpackChunkName: "point-of-sale" */ '@/modules/inventory/views/point-of-sale/PointOfSaleView.vue'),
-      beforeEnter: [isAuthenticatedGuard],
-      meta: {
-        requiresAuth: true,
-        title: 'PV - Punto de venta',
-        titleForm: 'Punto de venta'
-      },
-    },
+    // {
+    //   path: 'point-of-sale',
+    //   name: 'point-sale-admin',
+    //   component: () => import(/* webpackChunkName: "point-of-sale" */ '@/modules/inventory/views/point-of-sale/PointOfSaleView.vue'),
+    //   beforeEnter: [isAuthenticatedGuard],
+    //   meta: {
+    //     requiresAuth: true,
+    //     title: 'PV - Punto de venta',
+    //     titleForm: 'Punto de venta'
+    //   },
+    // },
   ],
 };

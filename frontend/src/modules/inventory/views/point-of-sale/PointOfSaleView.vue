@@ -607,7 +607,8 @@ const resetAll = () => {
   .pos-page {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - var(--app-header-height, 5.5rem));
+    height: calc(100vh - 1rem);
+    /* height: calc(100vh - var(--app-header-height, 5.5rem));  Calculo antes */
     overflow: hidden;
   }
   /* Cabecera POS (volver + título): altura fija, no hace scroll */
