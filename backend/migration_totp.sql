@@ -1,0 +1,5 @@
+-- Migración: Agregar soporte TOTP a sec.users
+ALTER TABLE sec.users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64) NULL;
+ALTER TABLE sec.users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE sec.users ADD COLUMN IF NOT EXISTS totp_failed_attempts SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE sec.users ADD COLUMN IF NOT EXISTS totp_locked_until TIMESTAMPTZ NULL;

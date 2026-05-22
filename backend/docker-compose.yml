@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:17
+    container_name: punto_venta_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"  # Expuesto para DBeaver (en producción considera usar SSH tunnel por seguridad)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+      - ./init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend .NET
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: punto_venta_api
+    restart: always
+    environment:
+      #ASPNETCORE_ENVIRONMENT: Production
+      #ASPNETCORE_URLS: http://+:5000
+      # Cadenas de conexión para múltiples bases de datos
+      ConnectionStrings__SeguridadConnection: "Server=db;Database=punto_venta_pg;User Id=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
+      ConnectionStrings__InventoryConnection: "Server=db;Database=punto_venta_pg;User Id=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
+    ports:
+      - "6001:6001"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    # No exponemos el puerto directamente, solo acceso a través del frontend
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,14 @@
+﻿using Seguridad.Domain;
+using Seguridad.Domain.Requests;
+
+namespace Seguridad.Infrastructure;
+
+public interface IUsersRepository
+{
+    public Task<List<UsersResponse>> GetUsers(UserSearchRequest userSearchRequest);
+    public Task<bool> CreateUser(Users user, int userId);
+    public Task<bool> CreateUserOutPassword(Users user, int userId);
+    public Task<UsersResponse> GetUser(Guid uuid);
+    public Task<bool> UpdateUser(Users user, int modifiedBy);
+    public Task<bool> DeleteUser(Guid uuid, int modifiedBy);
+}

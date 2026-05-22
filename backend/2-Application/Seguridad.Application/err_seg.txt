@@ -1,0 +1,16 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Common.Utilities -> d:\desarrollo\restProyectos\App-Api\Common.Utilities\bin\Debug\net8.0\Common.Utilities.dll
+  Seguridad.Domain -> d:\desarrollo\restProyectos\App-Api\4-Domain\Seguridad.Domain\bin\Debug\net8.0\Seguridad.Domain.dll
+  Seguridad.Infrastructure -> d:\desarrollo\restProyectos\App-Api\3-Infrastructure\Seguridad.Infrastructure\bin\Debug\net8.0\Seguridad.Infrastructure.dll
+d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Interfaces\IUsersApplication.cs(9,57): error CS0246: The type or namespace name 'UserSearchRequest' could not be found (are you missing a using directive or an assembly reference?) [d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Seguridad.Application.csproj]
+d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Services\UsersApplication.cs(35,59): error CS0246: The type or namespace name 'UserSearchRequest' could not be found (are you missing a using directive or an assembly reference?) [d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Seguridad.Application.csproj]
+
+Build FAILED.
+
+d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Interfaces\IUsersApplication.cs(9,57): error CS0246: The type or namespace name 'UserSearchRequest' could not be found (are you missing a using directive or an assembly reference?) [d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Seguridad.Application.csproj]
+d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Services\UsersApplication.cs(35,59): error CS0246: The type or namespace name 'UserSearchRequest' could not be found (are you missing a using directive or an assembly reference?) [d:\desarrollo\restProyectos\App-Api\2-Application\Seguridad.Application\Seguridad.Application.csproj]
+    0 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:02.53

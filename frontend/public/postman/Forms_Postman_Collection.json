@@ -1,0 +1,166 @@
+{
+	"info": {
+		"_postman_id": "b7879e71-8728-449e-a615-568324838645",
+		"name": "Forms API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get Forms",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/Forms?nameForm=",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"Forms"
+					],
+					"query": [
+						{
+							"key": "nameForm",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Form",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/Forms/1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"Forms",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Form",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"formId\": 1,\n  \"nameForm\": \"New Form\",\n  \"description\": \"Description of the form\",\n  \"orden\": 1,\n  \"route\": \"/new-form\",\n  \"controller\": \"NewFormController\",\n  \"iconCss\": \"fa-file\",\n  \"showMenu\": true,\n  \"isFormRegister\": false,\n  \"moduleId\": 1\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/Forms",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"Forms"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Form",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"id\": 1,\n  \"formId\": 1,\n  \"nameForm\": \"Updated Form Name\",\n  \"description\": \"Updated Description\",\n  \"orden\": 2,\n  \"route\": \"/updated-form\",\n  \"controller\": \"UpdatedFormController\",\n  \"iconCss\": \"fa-edit\",\n  \"showMenu\": true,\n  \"isFormRegister\": true,\n  \"moduleId\": 1\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/Forms/1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"Forms",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Form",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/Forms/1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"Forms",
+						"1"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000"
+		},
+		{
+			"key": "token",
+			"value": ""
+		}
+	]
+}
