@@ -19,6 +19,7 @@ public static class InjectionExtensionsInventoryInfraestructure
         services.AddScoped<IPurchaseRepository, PurchaseRepository>();
         services.AddScoped<IPurchaseStatusRepository, PurchaseStatusRepository>();
         services.AddScoped<IUnitsOfMeasurementRepository,UnitsOfMeasurementRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
         return services;
     }
 }

@@ -61,6 +61,17 @@ public class InventoryMappingConfig : IRegister
             .Map(dest => dest.PurchaseId, src => src.PurchaseId.ToString())
             .Map(dest => dest.ProductId, src => src.ProductId.ToString());
 
+        // PurchaseDelivery
+        config.NewConfig<PurchaseDeliveryRequest, PurchaseDelivery>()
+            .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
+            .Map(dest => dest.PurchaseId, src => string.IsNullOrEmpty(src.PurchaseId) ? Guid.Empty : Guid.Parse(src.PurchaseId))
+            .Map(dest => dest.DeliveryDate, src => DateTime.Parse(src.DeliveryDate, CultureInfo.InvariantCulture));
+
+        config.NewConfig<PurchaseDeliveryDetailRequest, PurchaseDeliveryDetail>()
+            .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
+            .Map(dest => dest.PurchaseDeliveryId, src => string.IsNullOrEmpty(src.PurchaseDeliveryId) ? Guid.Empty : Guid.Parse(src.PurchaseDeliveryId))
+            .Map(dest => dest.ProductId, src => string.IsNullOrEmpty(src.ProductId) ? Guid.Empty : Guid.Parse(src.ProductId));
+
         // Sale
         config.NewConfig<SaleRequest, Sale>()
             .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))

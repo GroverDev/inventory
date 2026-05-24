@@ -6,6 +6,7 @@ using Inventory.Domain.Entities.Requests;
 using Inventory.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Services.Api.Utils;
 
 
 
@@ -21,10 +22,10 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     [HttpPost()]
     public async Task<ActionResult<Response<bool>>> CreatePurchase([FromBody] PurchaseRequest purchaseRequest)
     {
-        // if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
 
-        var respuesta = await _purchaseApplication.CreatePurchase(purchaseRequest, 1); // datos.IdUsuario);
+        var respuesta = await _purchaseApplication.CreatePurchase(purchaseRequest, datos.UserId);
         return respuesta;
     }
 
@@ -34,10 +35,10 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     {
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
 
-        // if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
 
-        var respuesta = await _purchaseApplication.UpdatePurchase(purchaseRequest, 1);// datos.IdUsuario);
+        var respuesta = await _purchaseApplication.UpdatePurchase(purchaseRequest, datos.UserId);
         return respuesta;
     }
 
@@ -47,10 +48,10 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     {
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
 
-        // if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
 
-        var respuesta = await _purchaseApplication.DeletePurchase(id, 1); //datos.IdUsuario);
+        var respuesta = await _purchaseApplication.DeletePurchase(id, datos.UserId);
         return respuesta;
     }
 
@@ -58,8 +59,7 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     [HttpGet]
     public async Task<ActionResult<Response<List<PurchaseProductResponse>>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, PurchaseStatusEnum purchaseStatus)
     {
-        // if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
 
         var respuesta = await _purchaseApplication.GetPurchases(purchaseDateInitial, purchaseDateEnd, purchaseStatus);
         return respuesta;
@@ -70,9 +70,8 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     public async Task<ActionResult<Response<PurchaseRequest>>> GetPurchase(string id)
     {
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
-        
-        // if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
 
         var respuesta = await _purchaseApplication.GetPurchase(id);
         return respuesta;
@@ -84,10 +83,10 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     {
         if (!Guid.TryParse(purchaseDeliveryRequest.PurchaseId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
 
-        // if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
 
-        var respuesta = await _purchaseApplication.ReceiveOrders(purchaseDeliveryRequest, 1);//datos.IdUsuario);
+        var respuesta = await _purchaseApplication.ReceiveOrders(purchaseDeliveryRequest, datos.UserId);
         return respuesta;
     }
 }

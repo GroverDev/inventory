@@ -7,6 +7,7 @@ import commonRouter from '@/modules/common/router/index';
 import inventoryRouter from '@/modules/inventory/router/index';
 import userAccountRouter from '@/modules/user-account/router/index';
 import posRouter from '@/modules/inventory/router/pos_router';
+import reportsRouter from '@/modules/reports/router/index';
 
 
 const router = createRouter({
@@ -35,6 +36,10 @@ const router = createRouter({
     {
       path: '/account',
       ...userAccountRouter,
+    },
+    {
+      path: '/reports',
+      ...reportsRouter,
     },
     //  {
     //   path: '/:pathMatch(.*)*', // Catch-all route for 404s or unhandled paths
