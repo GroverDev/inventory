@@ -177,9 +177,9 @@
                     </div>
                   </div>
 
-                  <!-- Sección 3: Módulo -->
+                  <!-- Sección 3: Módulo y Jerarquía -->
                   <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
-                    <i class="fal fa-th-large me-1"></i> Módulo
+                    <i class="fal fa-th-large me-1"></i> Módulo y Jerarquía
                   </h6>
                   <div class="row">
                     <div class="col-12 col-md-6 mb-3">
@@ -191,6 +191,18 @@
                         placeholder="— Seleccione un módulo —"
                         :disabled="isSaved"
                       />
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="form-label d-block" for="FormId">Formulario padre</label>
+                      <v-select
+                        v-model="parentFormSelected"
+                        :options="parentForms"
+                        label="NameForm"
+                        placeholder="— Sin padre (formulario raíz) —"
+                        :disabled="isSaved"
+                        :clearable="true"
+                      />
+                      <small class="text-muted">Déjalo vacío si es un formulario de nivel raíz.</small>
                     </div>
                   </div>
 
@@ -255,13 +267,15 @@ import VSelect from 'vue-select';
 
 const router = useRouter();
 const route = useRoute();
-const { getFormById, createForm, updateForm } = useForm();
+const { getFormById, createForm, updateForm, getForms } = useForm();
 const { getModules } = useModule();
 
 const localForm = ref(new Form());
 const isSaved = ref(false);
 const modules = ref<Module[]>([]);
 const moduleSelected = ref<Module>();
+const parentForms = ref<Form[]>([]);
+const parentFormSelected = ref<Form | null>(null);
 
 const rules = computed(() => ({
   NameForm: { required },
@@ -277,8 +291,9 @@ onMounted(async () => {
   if (formId && formId !== '0') {
     await loadForm(parseInt(formId));
   }
-  await getModulesOfApi();
+  await Promise.all([getModulesOfApi(), getParentFormsOfApi()]);
   moduleSelected.value = modules.value.find(module => module.Id === localForm.value.ModuleId);
+  parentFormSelected.value = parentForms.value.find(f => f.Id === localForm.value.FormId) ?? null;
 });
 
 const loadForm = async (id: number) => {
@@ -291,13 +306,21 @@ const getModulesOfApi = async () => {
   if (ok) modules.value = modulesResp;
 };
 
+const getParentFormsOfApi = async () => {
+  const { ok, Data: formsResp } = await getForms('');
+  if (ok) {
+    const currentId = localForm.value.Id;
+    parentForms.value = formsResp.filter(f => f.Id !== currentId);
+  }
+};
+
 const returnPage = () => {
   router.push({ name: 'forms-admin' });
 };
 
 const saveForm = async () => {
-  console.log(moduleSelected.value);
   localForm.value.ModuleId = moduleSelected.value?.Id ?? 0;
+  localForm.value.FormId = parentFormSelected.value?.Id ?? 0;
 
   const isFormCorrect = await v$.value.$validate();
   if (!isFormCorrect) return;

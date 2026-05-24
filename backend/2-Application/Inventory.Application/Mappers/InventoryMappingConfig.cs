@@ -1,3 +1,4 @@
+using System.Globalization;
 using Inventory.Domain;
 using Inventory.Domain.Entities;
 using Inventory.Domain.Entities.Requests;
@@ -31,6 +32,34 @@ public class InventoryMappingConfig : IRegister
 
         // Provider
         config.NewConfig<Provider, ProviderRequest>().TwoWays();
+
+        // Purchase
+        config.NewConfig<PurchaseRequest, Purchase>()
+            .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
+            .Map(dest => dest.ProviderId, src => string.IsNullOrEmpty(src.ProviderId) ? Guid.Empty : Guid.Parse(src.ProviderId))
+            .Map(dest => dest.PurchaseDate, src => DateTime.Parse(src.PurchaseDate, CultureInfo.InvariantCulture))
+            .Map(dest => dest.EstimatedDeliveryDate, src => string.IsNullOrEmpty(src.EstimatedDeliveryDate)
+                ? DateTime.MinValue
+                : DateTime.Parse(src.EstimatedDeliveryDate, CultureInfo.InvariantCulture));
+
+        config.NewConfig<PurchaseDetailRequest, PurchaseDetail>()
+            .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
+            .Map(dest => dest.PurchaseId, src => string.IsNullOrEmpty(src.PurchaseId) ? Guid.Empty : Guid.Parse(src.PurchaseId))
+            .Map(dest => dest.ProductId, src => string.IsNullOrEmpty(src.ProductId) ? Guid.Empty : Guid.Parse(src.ProductId));
+
+        // Purchase response → request (usado en GetPurchase para devolver al frontend)
+        config.NewConfig<PurchaseProductResponse, PurchaseRequest>()
+            .Map(dest => dest.Id, src => src.Id.ToString())
+            .Map(dest => dest.ProviderId, src => src.ProviderId.ToString())
+            .Map(dest => dest.PurchaseDate, src => src.PurchaseDate.ToString("yyyy-MM-dd"))
+            .Map(dest => dest.EstimatedDeliveryDate, src => src.EstimatedDeliveryDate == DateTime.MinValue
+                ? ""
+                : src.EstimatedDeliveryDate.ToString("yyyy-MM-dd"));
+
+        config.NewConfig<PurchaseProductDetailResponse, PurchaseDetailRequest>()
+            .Map(dest => dest.Id, src => src.Id.ToString())
+            .Map(dest => dest.PurchaseId, src => src.PurchaseId.ToString())
+            .Map(dest => dest.ProductId, src => src.ProductId.ToString());
 
         // Sale
         config.NewConfig<SaleRequest, Sale>()

@@ -170,4 +170,29 @@ const seleccionoOpcion = (opcion: AccessMenu) => {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+aside {
+  overflow: hidden;
+}
+
+nav {
+  /*
+   * .custom-scroll global tiene height:100% que choca con flex-grow:1:
+   * le dice "sé tan alto como el aside completo" mientras flex le asigna
+   * solo el espacio sobrante → el nav se desborda, nunca hay overflow → sin scroll.
+   * height:auto deja que flex controle el tamaño.
+   */
+  height: auto !important;
+  /* sin min-height:0 un hijo flex no puede encogerse por debajo de su contenido */
+  min-height: 0;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 991px) {
+  aside {
+    /* dvh descuenta la barra del navegador (mejor que vh en Chrome/Safari móvil) */
+    height: 100dvh;
+  }
+}
+</style>

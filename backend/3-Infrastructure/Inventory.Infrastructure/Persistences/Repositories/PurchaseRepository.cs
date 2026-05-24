@@ -78,7 +78,17 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                 foreach (var detail in purchase.Detail)
                 {
                     detail.State = true;
-                    await _purchaseDetailRepository.UpdatePurchaseDetail(detail, db, transaction);
+                    if (detail.Id == Guid.Empty)
+                    {
+                        detail.PurchaseId = purchase.Id;
+                        detail.CreatedBy = purchase.ModifiedBy;
+                        detail.Created = purchase.Modified;
+                        await _purchaseDetailRepository.CreatePurchaseDetail(detail, db, transaction);
+                    }
+                    else
+                    {
+                        await _purchaseDetailRepository.UpdatePurchaseDetail(detail, db, transaction);
+                    }
                 }
                 transaction.Commit();
             }
