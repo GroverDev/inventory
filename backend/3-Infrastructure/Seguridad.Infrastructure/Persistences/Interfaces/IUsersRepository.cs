@@ -11,4 +11,6 @@ public interface IUsersRepository
     public Task<UsersResponse> GetUser(Guid uuid);
     public Task<bool> UpdateUser(Users user, int modifiedBy);
     public Task<bool> DeleteUser(Guid uuid, int modifiedBy);
+    public Task<List<Roles>> GetRolesByUserUuid(Guid uuid);
+    public Task AssignRolesToUser(Guid uuid, List<int> roleIds, int modifiedBy);
 }

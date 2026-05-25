@@ -70,6 +70,23 @@ public async Task<ActionResult<Response<bool>>> DeleteUser(Guid uuid)
     return Ok(resp);
 }
 
+[HttpGet("{uuid}/roles")]
+public async Task<ActionResult<Response<List<Roles>>>> GetRolesByUser(Guid uuid)
+{
+    if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+    var resp = await _usersApplication.GetRolesByUser(uuid);
+    return Ok(resp);
+}
+
+[HttpPut("{uuid}/roles")]
+public async Task<ActionResult<Response<bool>>> AssignRolesToUser(Guid uuid, [FromBody] UserRolesRequest request)
+{
+    if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+    var datos = TokenData.GetData(HttpContext);
+    var resp = await _usersApplication.AssignRolesToUser(uuid, request.RoleIds, datos.UserId);
+    return Ok(resp);
+}
+
 [HttpPost("{uuid}/mfa/reset")]
 public async Task<ActionResult<Response<bool>>> AdminResetMfa(Guid uuid)
 {

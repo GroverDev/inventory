@@ -22,17 +22,46 @@ public class SalesDetailRepository : ISalesDetailRepository
                 ";
             var result = await db.ExecuteAsync(sqlQuery, detail, transaction: transaction);
 
-            Product product = new()
-            {
-                Id = detail.ProductId,
-                CurrentStock = detail.Quantity,
-            };
+            int stockBefore = await db.ExecuteScalarAsync<int>(
+                "SELECT current_stock FROM products WHERE id = @Id",
+                new { Id = detail.ProductId }, transaction);
+
             sqlQuery = @"
                         UPDATE products
-                           SET current_stock = (current_stock - @CurrentStock)
-                         WHERE id = @Id ;
+                           SET current_stock = (current_stock - @Quantity)
+                         WHERE id = @ProductId;
                     ";
-            int numberRows = db.Execute(sqlQuery, product, transaction);
+            await db.ExecuteAsync(sqlQuery, new { detail.Quantity, detail.ProductId }, transaction);
+
+            int stockAfter = stockBefore - detail.Quantity;
+
+            var movement = new StockMovement
+            {
+                Id = Guid.NewGuid(),
+                ProductId = detail.ProductId,
+                MovementType = "VENTA",
+                Quantity = -detail.Quantity,
+                StockBefore = stockBefore,
+                StockAfter = stockAfter,
+                ReferenceId = detail.SaleId,
+                ReferenceType = "SALE",
+                State = true,
+                CreatedBy = detail.CreatedBy,
+                ModifiedBy = detail.CreatedBy,
+                Created = DateTime.Now,
+                Modified = DateTime.Now,
+            };
+
+            string movSql = @"
+                INSERT INTO stock_movements
+                       (id, product_id, movement_type, quantity, stock_before, stock_after,
+                        reason, observation, reference_id, reference_type,
+                        state, created_by, created, modified_by, modified)
+                VALUES (@Id, @ProductId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+                        @Reason, @Observation, @ReferenceId, @ReferenceType,
+                        @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
+            ";
+            await db.ExecuteAsync(movSql, movement, transaction);
             ok = true;
 
 

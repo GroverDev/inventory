@@ -14,6 +14,7 @@ public static class InjectionExtensionsInventoryApplication
 
         TypeAdapterConfig.GlobalSettings.Scan(Assembly.GetExecutingAssembly());
         
+        services.AddScoped<ICategoryApplication, CategoryApplication>();
         services.AddScoped<ICustomersApplication, CustomersApplication>();
         services.AddScoped<ILaboratoryApplication, LaboratoryApplication>();
         services.AddScoped<IProviderApplication, ProviderApplication>();
@@ -23,6 +24,7 @@ public static class InjectionExtensionsInventoryApplication
         services.AddScoped<IPurchaseStatusApplication, PurchaseStatusApplication>();
         services.AddScoped<IUnitsOfMeasurementApplication, UnitsOfMeasurementApplication>();
         services.AddScoped<IDashboardApplication, DashboardApplication>();
+        services.AddScoped<IStockMovementApplication, StockMovementApplication>();
         return services;
     }
 }

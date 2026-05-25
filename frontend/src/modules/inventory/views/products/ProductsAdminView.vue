@@ -70,6 +70,7 @@
                       <th>Código</th>
                       <th>Nombre del Producto</th>
                       <th class="d-none d-xl-table-cell">Laboratorio</th>
+                      <th class="d-none d-xl-table-cell">Categoría</th>
                       <th class="d-none d-lg-table-cell text-center">U.M.</th>
                       <th class="text-end">Precio</th>
                       <th class="d-none d-lg-table-cell text-center">Stock</th>
@@ -83,6 +84,9 @@
                       <td class="fw-semibold">{{ product.ProductName }}</td>
                       <td class="d-none d-xl-table-cell">
                         <small class="text-muted">{{ product.LaboratoryName }}</small>
+                      </td>
+                      <td class="d-none d-xl-table-cell">
+                        <small class="text-muted">{{ product.CategoryName }}</small>
                       </td>
                       <td class="d-none d-lg-table-cell text-center">
                         <span class="badge bg-light text-secondary border">{{ product.UnitName }}</span>

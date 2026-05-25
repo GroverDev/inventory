@@ -80,6 +80,17 @@ public class ProductController(IProductApplication _productApplication) : Contro
         return respuesta;
     }
 
+    // GET api/Product/stock?productName=&page=1&pageSize=15
+    [HttpGet("stock")]
+    public async Task<ActionResult<PagedResponse<List<ProductResponse>>>> GetProductsStock(
+        string productName = "", int page = 1, int pageSize = 15)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        if (page < 1) page = 1;
+        if (pageSize is < 1 or > 100) pageSize = 15;
+        return await _productApplication.GetProductsStock(productName, page, pageSize);
+    }
+
     // GET api/Product/5
     [HttpGet("{id}")]
     public async Task<ActionResult<Response<ProductResponse>>> GetProduct(string id)

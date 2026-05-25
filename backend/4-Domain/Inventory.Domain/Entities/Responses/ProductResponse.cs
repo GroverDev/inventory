@@ -18,6 +18,8 @@ public class ProductResponse
     public string UnitName { get; set; }="";
     public Guid LaboratoryId { get; set; }= Guid.Empty;
     public string LaboratoryName { get; set; }="";
+    public Guid CategoryId { get; set; }= Guid.Empty;
+    public string CategoryName { get; set; }="";
  
     public bool IsActive { get; set; }
     

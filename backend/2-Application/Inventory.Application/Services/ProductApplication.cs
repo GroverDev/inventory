@@ -89,6 +89,21 @@ public class ProductApplication(
         return products;
     }
 
+    public async Task<PagedResponse<List<ProductResponse>>> GetProductsStock(string productName, int page, int pageSize)
+    {
+        var resp = new PagedResponse<List<ProductResponse>> { Data = [], Page = page, PageSize = pageSize };
+        try
+        {
+            var (items, total) = await _productRepository.GetProductsStock(productName, page, pageSize);
+            resp.Data = items;
+            resp.TotalCount = total;
+            resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
     public async Task<Response<ProductResponse>> GetProduct(string id)
     {
         Response<ProductResponse> product = new() { Data = new() };

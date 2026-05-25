@@ -161,7 +161,7 @@
                     <i class="fal fa-tags me-1"></i> Clasificación
                   </h6>
                   <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                       <label class="form-label" for="laboratories">
                         Laboratorio / Proveedor <span class="text-danger">*</span>
                       </label>
@@ -180,7 +180,24 @@
                       </select>
                       <small class="invalid-feedback">Debe seleccionar un Laboratorio.</small>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label" for="categories">
+                        Categoría
+                      </label>
+                      <select
+                        class="form-select form-select-sm"
+                        id="categories"
+                        name="categories"
+                        :disabled="isSaved"
+                        v-model.trim="product.CategoryId"
+                      >
+                        <option value="">— Seleccione una categoría —</option>
+                        <option v-for="cat in categories" :value="cat.Id" :key="cat.Id">
+                          {{ cat.CategoryName }}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
                       <label class="form-label" for="units">
                         Unidad de Medida <span class="text-danger">*</span>
                       </label>
@@ -340,20 +357,24 @@ import utils from '@/utils/msg';
 
 import { Product } from '@/modules/inventory/models/product.model';
 import { Laboratory } from '@/modules/inventory/models/laboratory.model';
+import { Category } from '@/modules/inventory/models/category.model';
 import { UnitOfMeasurement } from '@/modules/inventory/models/unitOfMeasurement.model';
 
 import useProduct from '@/modules/inventory/composables/useProduct';
 import useLaboratory from '@/modules/inventory/composables/useLaboratory';
+import useCategory from '@/modules/inventory/composables/useCategory';
 import useUnitOfMeasurement from '@/modules/inventory/composables/useUnitOfMeasurement';
 
 const router = useRouter();
 
 const { getProductById, updateProduct, createProduct } = useProduct();
 const { getLaboratories: fetchLaboratories } = useLaboratory();
+const { getCategories: fetchCategories } = useCategory();
 const { getUnitsOfMeasurement: fetchUnitsOfMeasurement } = useUnitOfMeasurement();
 
 const product = ref(new Product());
 const laboratories = ref<Laboratory[]>([]);
+const categories = ref<Category[]>([]);
 const unitsOfMeasurement = ref<UnitOfMeasurement[]>([]);
 
 // Validador personalizado para mayor a cero
@@ -404,6 +425,7 @@ onMounted(async () => {
     await getProductXId(product.value.Id);
   }
   await getLaboratories();
+  await getCategories();
   await getUnitsOfMeasurement();
 });
 
@@ -415,6 +437,11 @@ const getProductXId = async (productId: string) => {
 const getLaboratories = async () => {
   const { ok, Data: laboratoriesResp } = await fetchLaboratories('');
   if (ok) laboratories.value = laboratoriesResp;
+};
+
+const getCategories = async () => {
+  const { ok, Data: categoriesResp } = await fetchCategories('');
+  if (ok) categories.value = categoriesResp;
 };
 
 const getUnitsOfMeasurement = async () => {

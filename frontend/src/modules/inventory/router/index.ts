@@ -103,6 +103,28 @@ export default {
       },
     },
     {
+      path: 'categories-admin',
+      name: 'categories-admin',
+      component: () => import(/* webpackChunkName: "categories-admin" */ '@/modules/inventory/views/categories/CategoriesAdminView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Registro de Categorías',
+        titleForm: 'Registro de Categorías',
+      },
+    },
+    {
+      path: 'category-edit/:id',
+      name: 'category-edit',
+      component: () => import(/* webpackChunkName: "category-edit" */ '@/modules/inventory/views/categories/CategoryEditView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Registro de Categorías',
+        titleForm: 'Registro de Categorías',
+      },
+    },
+    {
       path: 'laboratories-admin',
       name: 'laboratories-admin',
       component: () => import(/* webpackChunkName: "laboratories-admin" */ '@/modules/inventory/views/laboratories/LaboratoriesAdminView.vue'),
@@ -159,6 +181,27 @@ export default {
       component: () => import(/* webpackChunkName: "sale-detail" */ '@/modules/inventory/views/sales/SaleDetailView.vue'),
       beforeEnter: [isAuthenticatedGuard],
       meta: { requiresAuth: true, title: 'PV - Detalle de Venta', titleForm: 'Detalle de Venta' },
+    },
+    {
+      path: 'inventory-stock',
+      name: 'inventory-stock',
+      component: () => import(/* webpackChunkName: "inventory-stock" */ '@/modules/inventory/views/stock-inventory/InventoryStockView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Control de Stock', titleForm: 'Control de Stock' },
+    },
+    {
+      path: 'stock-history/:id',
+      name: 'stock-history',
+      component: () => import(/* webpackChunkName: "stock-history" */ '@/modules/inventory/views/stock-inventory/StockHistoryView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Historial de Movimientos', titleForm: 'Historial de Movimientos' },
+    },
+    {
+      path: 'stock-adjustment/:id',
+      name: 'stock-adjustment',
+      component: () => import(/* webpackChunkName: "stock-adjustment" */ '@/modules/inventory/views/stock-inventory/StockAdjustmentView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Ajuste de Stock', titleForm: 'Ajuste de Stock' },
     },
     // {
     //   path: 'point-of-sale',

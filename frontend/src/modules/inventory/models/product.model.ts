@@ -12,7 +12,9 @@ export class Product {
   public UomId: string = '';
   public UnitName: string = '';
   public LaboratoryId: string = '';
-  public InitialStock: number = 0;
   public LaboratoryName: string = '';
+  public CategoryId: string = '';
+  public CategoryName: string = '';
+  public InitialStock: number = 0;
   public IsActive: boolean = false;
 }

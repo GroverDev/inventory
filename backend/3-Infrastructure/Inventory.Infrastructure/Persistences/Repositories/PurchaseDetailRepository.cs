@@ -66,12 +66,51 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
                     VALUES(@Id, @PurchaseDeliveryId, @ProductId, @OrderedQuantity, @DeliveryQuantity, @State, @CreatedBy, @Created, @ModifiedBy , @Modified);
                 ";
 
-            var result = await db.ExecuteAsync(sqlQuery, detail, transaction);
+            await db.ExecuteAsync(sqlQuery, detail, transaction);
+
+            int stockBefore = await db.ExecuteScalarAsync<int>(
+                "SELECT current_stock FROM products WHERE id = @Id",
+                new { Id = detail.ProductId }, transaction);
+
+            await db.ExecuteAsync(
+                "UPDATE products SET current_stock = current_stock + @DeliveryQuantity WHERE id = @ProductId;",
+                new { detail.DeliveryQuantity, detail.ProductId }, transaction);
+
+            int stockAfter = stockBefore + detail.DeliveryQuantity;
+
+            var movement = new StockMovement
+            {
+                Id = Guid.NewGuid(),
+                ProductId = detail.ProductId,
+                MovementType = "COMPRA",
+                Quantity = detail.DeliveryQuantity,
+                StockBefore = stockBefore,
+                StockAfter = stockAfter,
+                ReferenceId = detail.PurchaseDeliveryId,
+                ReferenceType = "PURCHASE",
+                State = true,
+                CreatedBy = detail.CreatedBy,
+                ModifiedBy = detail.CreatedBy,
+                Created = DateTime.Now,
+                Modified = DateTime.Now,
+            };
+
+            string movSql = @"
+                INSERT INTO stock_movements
+                       (id, product_id, movement_type, quantity, stock_before, stock_after,
+                        reason, observation, reference_id, reference_type,
+                        state, created_by, created, modified_by, modified)
+                VALUES (@Id, @ProductId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+                        @Reason, @Observation, @ReferenceId, @ReferenceType,
+                        @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
+            ";
+            await db.ExecuteAsync(movSql, movement, transaction);
+
             ok = true;
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
-        
+
         return ok;
     }
 }

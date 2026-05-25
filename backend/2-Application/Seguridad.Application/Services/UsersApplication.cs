@@ -134,4 +134,30 @@ public async Task<Response<bool>> AdminSetMfaRequired(Guid userUuid, bool requir
     catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
     return resp;
 }
+
+public async Task<Response<List<Roles>>> GetRolesByUser(Guid uuid)
+{
+    var resp = new Response<List<Roles>>() { Data = [] };
+    try
+    {
+        resp.Data = await _usersRepository.GetRolesByUserUuid(uuid);
+        resp.ok = true;
+    }
+    catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+    catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
+    return resp;
+}
+
+public async Task<Response<bool>> AssignRolesToUser(Guid uuid, List<int> roleIds, int modifiedBy)
+{
+    var resp = new Response<bool>();
+    try
+    {
+        await _usersRepository.AssignRolesToUser(uuid, roleIds, modifiedBy);
+        resp.Data = resp.ok = true;
+    }
+    catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+    catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
+    return resp;
+}
 }

@@ -16,6 +16,7 @@ public class Product : Audit
         public int MinReorderQuantity { get; set; }
         public bool AvailableInPos { get; set; }
         public Guid LaboratoryId { get; set; }
+        public Guid CategoryId { get; set; }
         public string BarCode { get; set; } = "";
       
 }

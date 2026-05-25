@@ -22,7 +22,11 @@ public class InventoryMappingConfig : IRegister
         // Product
         config.NewConfig<Product, ProductRequest>().TwoWays();
         config.NewConfig<ProductRequest, Product>()
-            .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id));
+            .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
+            .Map(dest => dest.CategoryId, src => string.IsNullOrEmpty(src.CategoryId) ? Guid.Empty : Guid.Parse(src.CategoryId));
+
+        // Category
+        config.NewConfig<Category, CategoryRequest>().TwoWays();
 
         // Laboratory
         config.NewConfig<Laboratory, LaboratoryRequest>().TwoWays();

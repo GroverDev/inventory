@@ -1,0 +1,45 @@
+using Common.Utilities;
+using Common.Utilities.Exceptions;
+using Inventory.Domain;
+using Inventory.Domain.Entities.Responses;
+using Inventory.Infrastructure;
+
+namespace Inventory.Application;
+
+public class StockMovementApplication(IStockMovementRepository _stockMovementRepository) : IStockMovementApplication
+{
+    public async Task<Response<List<StockMovementResponse>>> GetMovementsByProduct(string productId)
+    {
+        var resp = new Response<List<StockMovementResponse>>() { Data = [] };
+        try
+        {
+            Guid id = Guid.Parse(productId);
+            resp.Data = await _stockMovementRepository.GetMovementsByProduct(id);
+            resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
+    public async Task<Response<bool>> CreateAdjustment(StockAdjustmentRequest request, int userId)
+    {
+        var resp = new Response<bool>();
+        try
+        {
+            var movement = new StockMovement
+            {
+                ProductId = Guid.Parse(request.ProductId),
+                Quantity = request.Quantity,
+                Reason = request.Reason,
+                Observation = string.IsNullOrWhiteSpace(request.Observation) ? null : request.Observation,
+            };
+
+            await _stockMovementRepository.CreateAdjustment(movement, userId);
+            resp.Data = resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+}

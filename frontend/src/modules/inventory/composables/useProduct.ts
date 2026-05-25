@@ -1,6 +1,6 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { Product } from '@/modules/inventory/models/product.model';
-import type { ResponseArray, ResponseObject } from '@/modules/common/models/response.model';
+import type { ResponseArray, ResponseObject, ResponsePaged } from '@/modules/common/models/response.model';
 
 const { get, put, post } = useApi();
 
@@ -19,6 +19,11 @@ const useProduct = () => {
     );
   }
 
+  const getProductsStock = async (productName: string, page: number, pageSize: number): Promise<ResponsePaged<Product>> => {
+    const name = encodeURIComponent(productName);
+    return await get<ResponsePaged<Product>>(`Product/stock?productName=${name}&page=${page}&pageSize=${pageSize}`);
+  };
+
   const getProductsPos = async (): Promise<ResponseArray<Product>> => {
     // Fetches an optimized list of active products for POS storage
     // Assuming 'Product/pos-list' is the backend endpoint for optimized results
@@ -36,6 +41,6 @@ const useProduct = () => {
     );
   }
 
-  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection }
+  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock }
 }
 export default useProduct;

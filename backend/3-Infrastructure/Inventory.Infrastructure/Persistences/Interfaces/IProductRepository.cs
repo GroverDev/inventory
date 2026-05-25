@@ -9,6 +9,7 @@ public interface IProductRepository
     public Task<int> UpdateProduct(Product product);
     public Task<int> DeleteProduct(Guid id, int idUserModified);
     public Task<List<ProductResponse>> GetProducts(string productName);
+    public Task<(List<ProductResponse> Items, int TotalCount)> GetProductsStock(string productName, int page, int pageSize);
     public Task<ProductResponse> GetProduct(Guid Id);
     public Task<ProductStockPriceResponse> GetProductStockPrice(Guid Id);
 

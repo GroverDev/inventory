@@ -239,4 +239,72 @@ public async Task<bool> DeleteUser(Guid uuid, int modifiedBy)
     finally { db.Close(); }
     return ok;
 }
+
+public async Task<List<Roles>> GetRolesByUserUuid(Guid uuid)
+{
+    using var db = _context.CreateConnection;
+    try
+    {
+        db.Open();
+        string query = @"SELECT r.id, r.name_rol, r.description, r.state
+                           FROM sec.roles r
+                                INNER JOIN sec.users_roles ur ON ur.rol_id = r.id
+                                INNER JOIN sec.users u        ON u.id = ur.user_id
+                          WHERE u.uuid = @Uuid
+                            AND ur.state AND r.state AND u.is_active";
+        var result = await db.QueryAsync<Roles>(query, new { Uuid = uuid });
+        return [.. result];
+    }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<List<Roles>>(ex); }
+    finally { db.Close(); }
+}
+
+public async Task AssignRolesToUser(Guid uuid, List<int> roleIds, int modifiedBy)
+{
+    using var db = _context.CreateConnection;
+    try
+    {
+        db.Open();
+        using var transaction = db.BeginTransaction();
+        try
+        {
+            int userId = await db.ExecuteScalarAsync<int>(
+                "SELECT id FROM sec.users WHERE uuid = @Uuid AND is_active",
+                new { Uuid = uuid }, transaction);
+
+            if (userId == 0) throw new CustomException("Usuario no encontrado o inactivo.");
+
+            await db.ExecuteAsync(
+                @"UPDATE sec.users_roles
+                     SET state = false, modified_by = @ModifiedBy, modified = NOW()
+                   WHERE user_id = @UserId",
+                new { UserId = userId, ModifiedBy = modifiedBy }, transaction);
+
+            foreach (var roleId in roleIds)
+            {
+                int rows = await db.ExecuteAsync(
+                    @"UPDATE sec.users_roles
+                         SET state = true, modified_by = @ModifiedBy, modified = NOW()
+                       WHERE user_id = @UserId AND rol_id = @RolId",
+                    new { UserId = userId, RolId = roleId, ModifiedBy = modifiedBy }, transaction);
+
+                if (rows == 0)
+                {
+                    await db.ExecuteAsync(
+                        @"INSERT INTO sec.users_roles
+                                (user_id, rol_id, state, created_by, created, modified_by, modified)
+                          VALUES(@UserId, @RolId, true, @ModifiedBy, NOW(), @ModifiedBy, NOW())",
+                        new { UserId = userId, RolId = roleId, ModifiedBy = modifiedBy }, transaction);
+                }
+            }
+
+            transaction.Commit();
+        }
+        catch (CustomException ex) { transaction.Rollback(); throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { transaction.Rollback(); throw new Exception(ex.Message, ex); }
+    }
+    catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+    finally { db.Close(); }
+}
 }

@@ -14,7 +14,8 @@ public class ProductRequest
     public int MinReorderQuantity { get; set; }
     public bool AvailableInPos { get; set; }
     public string LaboratoryId { get; set; }="";
-    public string BarCode { get; set; } = "";    
+    public string CategoryId { get; set; }="";
+    public string BarCode { get; set; } = "";
 }
 
 

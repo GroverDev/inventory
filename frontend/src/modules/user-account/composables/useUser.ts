@@ -1,6 +1,7 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseArray, ResponseObject } from '@/modules/common/models';
 import type { User } from '@/modules/user-account/models/users.model';
+import type { Role } from '@/modules/user-account/models/role.model';
 
 const { post, get, put, del } = useApi();
 
@@ -37,12 +38,17 @@ const useUser = () => {
   }
 
   const deleteUser = async (userId: string): Promise<ResponseObject<boolean>> => {
-      // NOTE: Postman shows DELETE Users/{{uuid}}
-      // Check if delete is supported in useApi, assuming yes as common pattern.
-      // If 'del' is not exported by useApi, we might need to check useApi.
       return await del<ResponseObject<boolean>>(`Users/${userId}`);
   }
 
-  return { getUsersByName, createUser, updateUser, getUserById, deleteUser }
+  const getUserRoles = async (uuid: string): Promise<ResponseArray<Role>> => {
+    return await get<ResponseArray<Role>>(`Users/${uuid}/roles`);
+  }
+
+  const assignRolesToUser = async (uuid: string, roleIds: number[]): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/roles`, { roleIds });
+  }
+
+  return { getUsersByName, createUser, updateUser, getUserById, deleteUser, getUserRoles, assignRolesToUser }
 }
 export default useUser;

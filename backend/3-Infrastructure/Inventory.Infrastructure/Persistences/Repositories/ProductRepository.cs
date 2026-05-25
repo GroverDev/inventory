@@ -35,10 +35,10 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                 }
                 sqlQuery = @"
                         INSERT INTO products
-                              (id, product_name, description,  sale_price, bar_code, product_code, current_stock, min_reorder_quantity, 
-                               available_in_pos, laboratory_id, uom_id, is_active, state, created_by, created, modified_by, modified)
+                              (id, product_name, description, sale_price, bar_code, product_code, current_stock, min_reorder_quantity,
+                               available_in_pos, laboratory_id, category_id, uom_id, is_active, state, created_by, created, modified_by, modified)
                        VALUES(@Id, @ProductName, @Description, @SalePrice, @BarCode, @ProductCode, @CurrentStock, @MinReorderQuantity,
-                               @AvailableInPos, @LaboratoryId, @UomId,  @IsActive, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
+                               @AvailableInPos, @LaboratoryId, @CategoryId, @UomId, @IsActive, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                     ";
 
                 var result = await db.ExecuteAsync(sqlQuery, product);
@@ -69,19 +69,20 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
             {
                 string sqlQuery = @"
                         UPDATE products
-                           SET product_name = @ProductName, 
-                               product_code = @ProductCode, 
-                               description = @Description, 
-                               sale_price = @SalePrice, 
+                           SET product_name = @ProductName,
+                               product_code = @ProductCode,
+                               description = @Description,
+                               sale_price = @SalePrice,
                                min_reorder_quantity = @MinReorderQuantity,
                                available_in_pos = @AvailableInPos,
                                bar_code = @BarCode,
                                laboratory_id = @LaboratoryId,
+                               category_id = @CategoryId,
                                uom_id = @UomId,
                                is_active = @IsActive,
-                               modified_by = @ModifiedBy, 
+                               modified_by = @ModifiedBy,
                                modified = @Modified
-                         WHERE id = @Id ;
+                         WHERE id = @Id;
                     ";
 
                 numberRows = await db.ExecuteAsync(sqlQuery, product);
@@ -143,26 +144,27 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
             productName = "%" + productName + "%";
             db.Open();
             string sqlQuery = @"
-                      SELECT p.id, 
-                              p.product_code, 
-                              p.product_name, 
-                              p.description, 
-                              p.sale_price,  
+                      SELECT p.id,
+                              p.product_code,
+                              p.product_name,
+                              p.description,
+                              p.sale_price,
                               p.is_active,
                               p.current_stock,
                               p.min_reorder_quantity,
                               p.bar_code,
                               p.laboratory_id,
                               l.laboratory_name,
+                              p.category_id,
+                              c.category_name,
                               p.uom_id,
                               uom.unit_name
                          FROM products p
-                              INNER JOIN laboratories l 
-                           ON p.laboratory_id = l.id
-                              INNER JOIN unit_of_measurement uom 
-                           ON uom.id = p.uom_id
+                              INNER JOIN laboratories l ON p.laboratory_id = l.id
+                              LEFT JOIN categories c ON p.category_id = c.id
+                              INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
                         WHERE p.state
-                        AND product_name ILIKE @ProductName;
+                          AND product_name ILIKE @ProductName;
                 ";
             var result = await db.QueryAsync<ProductResponse>(sqlQuery, new { ProductName = productName });
             listProducts = result!.ToList();
@@ -174,6 +176,53 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         return listProducts;
     }
 
+    public async Task<(List<ProductResponse> Items, int TotalCount)> GetProductsStock(string productName, int page, int pageSize)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            int offset = (page - 1) * pageSize;
+            var nameParam = string.IsNullOrWhiteSpace(productName) ? "" : "%" + productName.Trim() + "%";
+
+            string sql = @"
+                SELECT COUNT(*)
+                  FROM products p
+                 WHERE p.state
+                   AND (@NameParam = '' OR p.product_name ILIKE @NameParam);
+
+                SELECT p.id,
+                       p.product_code,
+                       p.product_name,
+                       p.is_active,
+                       p.current_stock,
+                       p.min_reorder_quantity,
+                       p.laboratory_id,
+                       l.laboratory_name,
+                       p.category_id,
+                       c.category_name,
+                       p.uom_id,
+                       uom.unit_name
+                  FROM products p
+                       INNER JOIN laboratories l   ON l.id  = p.laboratory_id
+                       LEFT  JOIN categories c     ON c.id  = p.category_id
+                       INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
+                 WHERE p.state
+                   AND (@NameParam = '' OR p.product_name ILIKE @NameParam)
+                 ORDER BY p.product_name
+                 LIMIT @PageSize OFFSET @Offset;
+            ";
+
+            using var multi = await db.QueryMultipleAsync(sql, new { NameParam = nameParam, PageSize = pageSize, Offset = offset });
+            int total = await multi.ReadSingleAsync<int>();
+            var items = (await multi.ReadAsync<ProductResponse>()).ToList();
+            return (items, total);
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw new Exception(ex.Message, ex); }
+        finally { db.Close(); }
+    }
+
     public async Task<ProductResponse> GetProduct(Guid Id)
     {
         ProductResponse product = new();
@@ -182,11 +231,11 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         {
             db.Open();
             string sqlQuery = @"
-                     SELECT p.id, 
-                              p.product_code, 
-                              p.product_name, 
-                              p.description, 
-                              p.sale_price,  
+                     SELECT p.id,
+                              p.product_code,
+                              p.product_name,
+                              p.description,
+                              p.sale_price,
                               p.is_active,
                               p.current_stock,
                               p.min_reorder_quantity,
@@ -194,13 +243,14 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.laboratory_id,
                               p.available_in_pos,
                               l.laboratory_name,
+                              p.category_id,
+                              c.category_name,
                               p.uom_id,
                               uom.unit_name
                          FROM products p
-                              INNER JOIN laboratories l 
-                           ON p.laboratory_id = l.id
-                              INNER JOIN unit_of_measurement uom 
-                           ON uom.id = p.uom_id
+                              INNER JOIN laboratories l ON p.laboratory_id = l.id
+                              LEFT JOIN categories c ON p.category_id = c.id
+                              INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
                         WHERE p.state
                           AND p.id = @Id;
                 ";
