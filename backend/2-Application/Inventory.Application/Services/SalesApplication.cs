@@ -29,6 +29,13 @@ public class SalesApplication(
                 //     throw new CustomException("El total pagado, no puede ser menor al monto total de la venta.");
                 // }
 
+                if (saleRequest.Payments.Count == 0)
+                    throw new CustomException("Debe registrar al menos un método de pago.");
+
+                var totalPaid = saleRequest.Payments.Sum(p => p.AmountGiven);
+                if (totalPaid < saleRequest.Total)
+                    throw new CustomException("El monto total pagado no puede ser menor al total de la venta.");
+
                 var respCustomer = await _customersRepository.GetCustomer(Guid.Parse(saleRequest.CustomerId));
 
                 saleRequest.SaleDate = saleRequest.SaleDate == "" ? DateTime.Now.ToString() : saleRequest.SaleDate;

@@ -66,7 +66,7 @@ const getIconClass = computed(() => {
   top: 0; left: 0; width: 100vw; height: 100vh;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
-  z-index: 9999; /* Z-index muy alto para asegurar visibilidad */
+  z-index: 19999; /* Siempre por encima de cualquier modal de la app */
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
 }

@@ -10,7 +10,9 @@ public class SaleProductResponse
         public decimal TotalDiscounts { get; set; }
         public decimal Total { get; set; }
         public bool IsActive { get; set; }
-        public List<SaleProductDetailResponse> Detail  { get; set; } = [];
+        public List<SaleProductDetailResponse> Detail { get; set; } = [];
+        public List<SalePaymentResponse> Payments { get; set; } = [];
+        public List<SaleReturnResponse> Returns { get; set; } = [];
 }
 
 

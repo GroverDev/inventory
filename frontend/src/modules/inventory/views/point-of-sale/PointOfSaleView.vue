@@ -240,6 +240,208 @@
         </div><!-- /pos-cart-footer -->
       </div><!-- /pos-cart-panel -->
 
+      <!-- ════ MODAL DE COBRO ════ -->
+      <div v-if="showPaymentModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+
+            <div class="modal-header py-2">
+              <h6 class="modal-title fw-bold">
+                <i class="fal fa-cash-register me-2"></i>Cobrar venta
+              </h6>
+              <button type="button" class="btn-close" @click="closePaymentModal"></button>
+            </div>
+
+            <div class="modal-body">
+
+              <!-- Total a cobrar -->
+              <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded bg-primary bg-opacity-10 border border-primary border-opacity-25">
+                <span class="fw-semibold text-primary">Total a cobrar</span>
+                <span class="fw-bold fs-5 text-primary">Bs. {{ formatNum(total) }}</span>
+              </div>
+
+              <!-- Selector de método + monto -->
+              <div class="mb-2">
+                <small class="text-muted fw-semibold d-block mb-2">Seleccionar método de pago</small>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                  <button
+                    v-for="m in paymentMethods"
+                    :key="m.Id"
+                    type="button"
+                    class="btn btn-sm"
+                    :class="selectedMethodId === m.Id ? 'btn-primary' : 'btn-outline-secondary'"
+                    @click="selectMethod(m)"
+                  >
+                    <i :class="m.IconCss" class="me-1"></i>{{ m.Name }}
+                  </button>
+                </div>
+
+                <div class="input-group input-group-sm" v-if="selectedMethodId">
+                  <span class="input-group-text">Bs.</span>
+                  <input
+                    type="number"
+                    class="form-control"
+                    placeholder="Monto"
+                    v-model.number="currentAmount"
+                    min="0"
+                    step="0.01"
+                    @keyup.enter="addPaymentLine"
+                  />
+                  <button class="btn btn-success" type="button" @click="addPaymentLine" :disabled="currentAmount <= 0">
+                    <i class="fal fa-plus me-1"></i>Agregar
+                  </button>
+                </div>
+              </div>
+
+              <!-- Líneas de pago agregadas -->
+              <div v-if="paymentLines.length > 0" class="mb-3">
+                <small class="text-muted fw-semibold d-block mb-1">Pagos registrados</small>
+                <div
+                  v-for="(line, i) in paymentLines"
+                  :key="i"
+                  class="d-flex align-items-center justify-content-between py-1 px-2 mb-1 rounded border"
+                >
+                  <div>
+                    <i :class="line.IconCss" class="me-1 text-muted"></i>
+                    <span class="small">{{ line.PaymentMethodName }}</span>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="fw-semibold small">Bs. {{ formatNum(line.AmountGiven) }}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" @click="removePaymentLine(i)">
+                      <i class="fal fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resumen de totales -->
+              <div class="border-top pt-2">
+                <div class="d-flex justify-content-between small mb-1">
+                  <span class="text-muted">Total pagado</span>
+                  <span :class="totalPaid >= total ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                    Bs. {{ formatNum(totalPaid) }}
+                  </span>
+                </div>
+                <div class="d-flex justify-content-between small mb-1" v-if="totalPaid < total">
+                  <span class="text-muted">Pendiente</span>
+                  <span class="text-danger fw-semibold">Bs. {{ formatNum(total - totalPaid) }}</span>
+                </div>
+                <div class="d-flex justify-content-between small" v-if="totalChange > 0">
+                  <span class="text-muted">Vuelto</span>
+                  <span class="text-success fw-semibold">Bs. {{ formatNum(totalChange) }}</span>
+                </div>
+              </div>
+
+            </div><!-- /modal-body -->
+
+            <div class="modal-footer py-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="closePaymentModal">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary btn-sm"
+                :disabled="totalPaid < total || savingPayment"
+                @click="finalizeSale"
+              >
+                <span v-if="savingPayment" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="fal fa-check me-1"></i>
+                Confirmar venta
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div><!-- /modal cobro -->
+
+      <!-- ════ MODAL VENTA COMPLETADA ════ -->
+      <Teleport to="body">
+        <Transition name="fade-modal">
+          <div v-if="showCompletedModal" class="completed-overlay">
+            <div class="completed-card shadow-lg">
+              <!-- Icono éxito -->
+              <div class="text-center mb-3">
+                <div class="completed-check-icon">
+                  <i class="fal fa-check-circle"></i>
+                </div>
+                <h4 class="fw-700 mb-0 mt-2">Venta Completada</h4>
+                <small class="text-muted">{{ completedDate }}</small>
+              </div>
+
+              <!-- Cliente -->
+              <div class="text-center mb-3">
+                <span class="badge bg-light text-dark border px-3 py-2">
+                  <i class="fal fa-user me-1"></i>{{ completedCustomer }}
+                </span>
+              </div>
+
+              <!-- Total y vuelto -->
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <div class="card bg-primary text-white text-center py-3">
+                    <div class="small opacity-75">Total cobrado</div>
+                    <div class="fw-bold fs-5">Bs. {{ formatNum2(completedTotal) }}</div>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="card bg-success text-white text-center py-3">
+                    <div class="small opacity-75">Vuelto</div>
+                    <div class="fw-bold fs-5">Bs. {{ formatNum2(completedChange) }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Métodos de pago -->
+              <div class="d-flex flex-wrap gap-1 justify-content-center mb-4">
+                <span v-for="(p, i) in completedPayments" :key="i"
+                  class="badge bg-secondary px-2 py-1">
+                  <i :class="p.IconCss" class="me-1"></i>{{ p.PaymentMethodName }}
+                  Bs. {{ formatNum2(p.AmountGiven) }}
+                </span>
+              </div>
+
+              <!-- Botones -->
+              <div class="d-grid gap-2">
+                <button class="btn btn-primary btn-lg" @click="newOrder">
+                  <i class="fal fa-plus me-2"></i>Nueva Orden
+                </button>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-secondary flex-fill" @click="printReceipt">
+                    <i class="fal fa-print me-1"></i>Imprimir recibo
+                  </button>
+                  <button class="btn btn-outline-warning flex-fill" @click="goToReturn">
+                    <i class="fal fa-undo me-1"></i>Devolver venta
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recibo oculto para impresión -->
+            <div class="receipt-print">
+              <div style="text-align:center; margin-bottom:12px;">
+                <strong style="font-size:1.2em;">RECIBO DE VENTA</strong><br>
+                <span>{{ completedDate }}</span>
+              </div>
+              <div>Cliente: {{ completedCustomer }}</div>
+              <hr>
+              <div v-for="(d, i) in completedDetail" :key="i" style="display:flex; justify-content:space-between;">
+                <span>{{ d.ProductName }} x{{ d.Quantity }}</span>
+                <span>Bs. {{ formatNum2(d.LineTotal) }}</span>
+              </div>
+              <hr>
+              <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                <span>TOTAL</span>
+                <span>Bs. {{ formatNum2(completedTotal) }}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between;">
+                <span>Vuelto</span>
+                <span>Bs. {{ formatNum2(completedChange) }}</span>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- ════ PANEL DERECHO: catálogo ════ -->
       <div
         class="pos-catalog-panel"
@@ -399,11 +601,13 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Sale } from '@/modules/inventory/models/sale.model';
 import { SaleDetail } from '@/modules/inventory/models/saleDetail.model';
+import { SalePayment, type PaymentMethod } from '@/modules/inventory/models/paymentMethod.model';
 import type { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
 import useSales from '@/modules/inventory/composables/useSales';
 import useCustomer from '@/modules/inventory/composables/useCustomer';
 import useProduct from '@/modules/inventory/composables/useProduct';
+import usePaymentMethod from '@/modules/inventory/composables/usePaymentMethod';
 import utils from '@/utils/msg';
 
 const router = useRouter();
@@ -411,6 +615,7 @@ const router = useRouter();
 const { saveSaleApi } = useSales();
 const { getCustomers } = useCustomer();
 const { getProductsByName } = useProduct();
+const { getPaymentMethods } = usePaymentMethod();
 
 // ── Estado ─────────────────────────────────────────────────
 const cart = ref<SaleDetail[]>([]);
@@ -423,6 +628,32 @@ const productSearch = ref('');
 const selectedLab = ref('');
 const activeTab = ref<'products' | 'cart'>('products');
 const productInputRef = ref<HTMLInputElement | null>(null);
+
+// ── Modal de cobro ─────────────────────────────────────────
+const paymentMethods = ref<PaymentMethod[]>([]);
+const showPaymentModal = ref(false);
+
+// ── Modal venta completada ─────────────────────────────────
+const showCompletedModal = ref(false);
+const completedSaleId = ref('');
+const completedCustomer = ref('');
+const completedTotal = ref(0);
+const completedChange = ref(0);
+const completedPayments = ref<SalePayment[]>([]);
+const completedDetail = ref<SaleDetail[]>([]);
+const completedDate = ref('');
+const savingPayment = ref(false);
+const selectedMethodId = ref('');
+const selectedMethod = ref<PaymentMethod | null>(null);
+const currentAmount = ref<number>(0);
+const paymentLines = ref<SalePayment[]>([]);
+
+const totalPaid = computed(() =>
+  +paymentLines.value.reduce((s, l) => s + l.AmountGiven, 0).toFixed(2)
+);
+const totalChange = computed(() =>
+  +(Math.max(0, totalPaid.value - total.value)).toFixed(2)
+);
 
 // ── Computed ───────────────────────────────────────────────
 const labFilters = computed(() => {
@@ -473,8 +704,12 @@ const recalcLine = (i: number) => {
 // ── Carga inicial ──────────────────────────────────────────
 onMounted(async () => {
   loadingProducts.value = true;
-  const { Data } = await getProductsByName('');
-  allProducts.value = (Data ?? []).filter((p: Product) => p.IsActive && p.CurrentStock >= 0);
+  const [{ Data: products }, { Data: methods }] = await Promise.all([
+    getProductsByName(''),
+    getPaymentMethods(),
+  ]);
+  allProducts.value = (products ?? []).filter((p: Product) => p.IsActive && p.CurrentStock >= 0);
+  paymentMethods.value = methods ?? [];
   loadingProducts.value = false;
   productInputRef.value?.focus();
 });
@@ -540,8 +775,49 @@ const removeFromCart = (i: number) => {
   cart.value.splice(i, 1);
 };
 
-// ── Guardar venta ──────────────────────────────────────────
-const confirmSale = async () => {
+// ── Modal de cobro ─────────────────────────────────────────
+const selectMethod = (m: PaymentMethod) => {
+  selectedMethodId.value = m.Id;
+  selectedMethod.value = m;
+  currentAmount.value = +(Math.max(0, total.value - totalPaid.value)).toFixed(2);
+};
+
+const addPaymentLine = () => {
+  if (!selectedMethod.value || currentAmount.value <= 0) return;
+  const m = selectedMethod.value;
+  const returned = m.RequiresChanges
+    ? +(Math.max(0, totalPaid.value + currentAmount.value - total.value)).toFixed(2)
+    : 0;
+  const line = new SalePayment();
+  line.PaymentMethodId = m.Id;
+  line.PaymentMethodName = m.Name;
+  line.IconCss = m.IconCss;
+  line.AmountGiven = +currentAmount.value.toFixed(2);
+  line.AmountReturned = returned;
+  paymentLines.value.push(line);
+  selectedMethodId.value = '';
+  selectedMethod.value = null;
+  currentAmount.value = 0;
+};
+
+const removePaymentLine = (i: number) => {
+  paymentLines.value.splice(i, 1);
+};
+
+const openPaymentModal = () => {
+  paymentLines.value = [];
+  selectedMethodId.value = '';
+  selectedMethod.value = null;
+  currentAmount.value = 0;
+  showPaymentModal.value = true;
+};
+
+const closePaymentModal = () => {
+  showPaymentModal.value = false;
+};
+
+// ── Abrir modal al cobrar ──────────────────────────────────
+const confirmSale = () => {
   if (!selectedCustomer.value) {
     utils.showMessageModal({ Description: 'Selecciona un cliente antes de cobrar.', MessageType: 'warning' });
     return;
@@ -550,39 +826,60 @@ const confirmSale = async () => {
     utils.showMessageModal({ Description: 'El carrito está vacío.', MessageType: 'warning' });
     return;
   }
+  openPaymentModal();
+};
 
-  const confirmed = await utils.showMessageQuestion(
-    `¿Confirmar venta por Bs. ${formatNum(total.value)} a ${selectedCustomer.value.FullName}?`
-  );
-  if (!confirmed) return;
-
-  const sale = new Sale();
-  sale.CustomerId = selectedCustomer.value.Id;
-  sale.SaleDate = new Date().toISOString();
-  sale.IsActive = true;
-  sale.Subtotal = subtotal.value;
-  sale.TotalDiscounts = totalDiscounts.value;
-  sale.Total = total.value;
-  sale.Detail = cart.value.map((l: SaleDetail) => {
-    const d = new SaleDetail();
-    d.ProductId = l.ProductId;
-    d.Quantity = l.Quantity;
-    d.UnitPrice = l.UnitPrice;
-    d.LineSubtotal = l.LineSubtotal;
-    d.LineTotalDiscounts = l.LineTotalDiscounts;
-    d.LineTotal = l.LineTotal;
-    return d;
-  });
-
-  const { ok: saved, Message } = await saveSaleApi(sale);
-  if (saved) {
-    await utils.showMessageModal({ Description: '¡Venta registrada correctamente!', MessageType: 'success' });
-    resetAll();
-  } else {
-    utils.showMessageModal({
-      Description: Message?.Description || 'No se pudo registrar la venta.',
-      MessageType: 'error',
+// ── Guardar venta con pagos ────────────────────────────────
+const finalizeSale = async () => {
+  savingPayment.value = true;
+  try {
+    const sale = new Sale();
+    sale.CustomerId = selectedCustomer.value!.Id;
+    sale.SaleDate = new Date().toISOString();
+    sale.IsActive = true;
+    sale.Subtotal = subtotal.value;
+    sale.TotalDiscounts = totalDiscounts.value;
+    sale.Total = total.value;
+    sale.Detail = cart.value.map((l: SaleDetail) => {
+      const d = new SaleDetail();
+      d.ProductId = l.ProductId;
+      d.Quantity = l.Quantity;
+      d.UnitPrice = l.UnitPrice;
+      d.LineSubtotal = l.LineSubtotal;
+      d.LineTotalDiscounts = l.LineTotalDiscounts;
+      d.LineTotal = l.LineTotal;
+      return d;
     });
+    sale.Payments = paymentLines.value.map((l) => {
+      const p = new SalePayment();
+      p.PaymentMethodId = l.PaymentMethodId;
+      p.PaymentMethodName = l.PaymentMethodName;
+      p.AmountGiven = l.AmountGiven;
+      p.AmountReturned = l.AmountReturned;
+      return p;
+    });
+
+    const { ok: saved, Message, Data: newSaleId } = await saveSaleApi(sale);
+    if (saved) {
+      // Capturar datos antes de resetear
+      completedSaleId.value = newSaleId ?? '';
+      completedCustomer.value = selectedCustomer.value?.FullName ?? '';
+      completedTotal.value = total.value;
+      completedChange.value = totalChange.value;
+      completedPayments.value = [...paymentLines.value];
+      completedDetail.value = [...cart.value];
+      completedDate.value = new Date().toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      closePaymentModal();
+      resetAll();
+      showCompletedModal.value = true;
+    } else {
+      utils.showMessageModal({
+        Description: Message?.Description || 'No se pudo registrar la venta.',
+        MessageType: 'error',
+      });
+    }
+  } finally {
+    savingPayment.value = false;
   }
 };
 
@@ -598,17 +895,44 @@ const resetAll = () => {
   productSearch.value = '';
   selectedLab.value = '';
 };
+
+// ── Acciones post-venta ────────────────────────────────────
+const newOrder = () => {
+  showCompletedModal.value = false;
+  getProductsByName('').then(({ Data }) => {
+    allProducts.value = (Data ?? []).filter((p: Product) => p.IsActive && p.CurrentStock >= 0);
+  });
+  productInputRef.value?.focus();
+};
+
+const printReceipt = () => {
+  window.print();
+};
+
+const goToReturn = () => {
+  showCompletedModal.value = false;
+  router.push({ name: 'sale-detail', params: { id: completedSaleId.value } });
+};
+
+const formatNum2 = (val: number) =>
+  (val ?? 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 </script>
 
 <style scoped>
 /* ── Layout flex de altura fija solo en desktop ── */
+
+/* Siempre ocupa el ancho completo del contenedor padre .app-content (display:flex row) */
+.pos-page {
+  width: 100%;
+  min-width: 0;
+}
+
 @media (min-width: 768px) {
   /* Contenedor raíz: ocupa el alto disponible bajo el header de app */
   .pos-page {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 1rem);
-    /* height: calc(100vh - var(--app-header-height, 5.5rem));  Calculo antes */
     overflow: hidden;
   }
   /* Cabecera POS (volver + título): altura fija, no hace scroll */
@@ -674,6 +998,58 @@ const resetAll = () => {
     overflow-x: hidden;
     min-height: 0;
     padding-bottom: 0.5rem;
+  }
+}
+
+/* ── Modal venta completada ── */
+.completed-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.completed-card {
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px;
+  border: 1px solid var(--bs-border-color);
+}
+
+.completed-check-icon {
+  font-size: 4rem;
+  color: #10b981;
+  line-height: 1;
+}
+
+.fade-modal-enter-active,
+.fade-modal-leave-active { transition: opacity 0.25s ease; }
+.fade-modal-enter-from,
+.fade-modal-leave-to { opacity: 0; }
+
+/* ── Recibo impresión ── */
+.receipt-print { display: none; }
+
+@media print {
+  :global(#app) { display: none !important; }
+  .receipt-print {
+    display: block !important;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 16px;
+    background: #fff;
+    color: #000;
   }
 }
 

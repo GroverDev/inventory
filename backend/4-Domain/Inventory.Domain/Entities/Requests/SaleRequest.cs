@@ -9,8 +9,7 @@ public class SaleRequest
         public decimal TotalDiscounts { get; set; }
         public decimal Total { get; set; }
         public bool IsActive { get; set; }
-        // public decimal TotalPaidCustomer { get; set; }
-        // public decimal TotalReturnedCustomer { get; set; }
 
         public List<SaleDetailRequest> Detail { get; set; } = [];
+        public List<SalePaymentRequest> Payments { get; set; } = [];
 }

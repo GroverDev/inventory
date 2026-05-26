@@ -1,4 +1,6 @@
 import type { SaleDetail } from "./saleDetail.model";
+import type { SalePayment } from "./paymentMethod.model";
+import type { SaleReturn } from "./saleReturn.model";
 
 export class Sale {
   public Id: string = '';
@@ -10,5 +12,7 @@ export class Sale {
   public Total: number = 0;
   public IsActive: boolean = false;
   public Detail: SaleDetail[] = [];
+  public Payments: SalePayment[] = [];
+  public Returns: SaleReturn[] = [];
 }
 

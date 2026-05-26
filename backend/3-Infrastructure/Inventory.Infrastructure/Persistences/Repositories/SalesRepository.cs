@@ -5,7 +5,7 @@ using Inventory.Domain;
 
 namespace Inventory.Infrastructure;
 
-public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailRepository _salesDetailRepository ): ISalesRepository
+public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailRepository _salesDetailRepository, ISalePaymentRepository _salePaymentRepository, ISaleReturnRepository _saleReturnRepository): ISalesRepository
 {
     public async Task<string> CreateSale(Sale sale)
     {
@@ -23,13 +23,15 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                               (id, customer_id,  sale_date,  subtotal, total_discounts, total,  is_active, state, created_by, created, modified_by, modified)
                        VALUES(@Id, @CustomerId, @SaleDate, @Subtotal, @TotalDiscounts, @Total, @IsActive, @State, @CreatedBy,  @Created, @ModifiedBy, @Modified);
                          ";
-                var result = await db.ExecuteAsync(sqlQuery, sale, transaction);
-                sale.Detail.ForEach(x => { x.SaleId = sale.Id;});
+                await db.ExecuteAsync(sqlQuery, sale, transaction);
 
-                foreach (var detail in sale.Detail) 
-                {
-                    var respOk = await _salesDetailRepository.CreateSaleDetail(detail,db,transaction);
-                }
+                sale.Detail.ForEach(x => x.SaleId = sale.Id);
+                foreach (var detail in sale.Detail)
+                    await _salesDetailRepository.CreateSaleDetail(detail, db, transaction);
+
+                sale.Payments.ForEach(p => p.SaleId = sale.Id);
+                await _salePaymentRepository.CreateSalePayments(sale.Payments, db, transaction);
+
                 transaction.Commit();
                 uuid = sale.Id.ToString();
             }
@@ -138,6 +140,10 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
             {
                 var detail = await _salesDetailRepository.GetSalesProductDetail(sale.Id, db);
                 sale.Detail = [.. detail];
+                var payments = await _salePaymentRepository.GetSalePayments(sale.Id, db);
+                sale.Payments = [.. payments];
+                var returns = await _saleReturnRepository.GetReturnsBySale(sale.Id, db);
+                sale.Returns = [.. returns];
             }
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex, ex.messageType); }

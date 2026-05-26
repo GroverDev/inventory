@@ -1,6 +1,6 @@
 # Estado de la Aplicación
 
-> Última actualización: 2026-05-22
+> Última actualización: 2026-05-25
 
 ## Stack
 
@@ -14,8 +14,8 @@
 
 | Capa      | Progreso estimado | Notas                                           |
 |-----------|------------------|-------------------------------------------------|
-| Backend   | ~70%             | CRUDs de inventario/seguridad listos; SIAT y tablas de pagos/descuentos sin implementar |
-| Frontend  | ~55%             | Auth + Seguridad + Productos completados        |
+| Backend   | ~85%             | Categorías y movimientos de stock agregados; tablas de pagos/descuentos aún sin implementar |
+| Frontend  | ~85%             | POS implementado, Compras/Clientes/Proveedores/Reportes/Stock completados |
 
 ---
 
@@ -38,6 +38,7 @@
 | Recurso             | Endpoints                              | Estado      |
 |---------------------|----------------------------------------|-------------|
 | Product             | CRUD + validate (precio/stock para POS)| ✅ Completo |
+| Category            | CRUD                                   | ✅ Completo |
 | Customers           | CRUD                                   | ✅ Completo |
 | Laboratory          | CRUD                                   | ✅ Completo |
 | Provider            | CRUD                                   | ✅ Completo |
@@ -45,12 +46,14 @@
 | Purchases           | CRUD + reciveOrders (recepción)        | ✅ Completo |
 | PurchaseStatus      | GET (enum: Pending, Delivered, etc.)   | ✅ Completo |
 | Sales               | CRUD                                   | ✅ Completo |
+| StockMovement       | GET por producto + POST ajuste         | ✅ Completo |
+| Dashboard           | GET estadísticas                       | ✅ Completo |
 
 ### Infraestructura backend
 
 - Repositorios Dapper implementados para todas las entidades
 - Validaciones FluentValidation en todos los requests
-- Migraciones SQL: `migration_totp.sql`, `migration_mfa_v2.sql`
+- Migraciones SQL: `migration_totp.sql`, `migration_mfa_v2.sql`, `migration_categories.sql`, `migration_stock_movements.sql`, `migration_reports_menu.sql`
 - Swagger/OpenAPI configurado por grupos (SECURITY, POS)
 
 ### Tablas en BD sin código backend correspondiente
@@ -64,7 +67,7 @@ Las siguientes tablas existen en el schema `public` pero **no tienen entidad, re
 | `sale_detail_discounts`   | Descuentos aplicados por línea de venta                 |
 | `sale_payments`           | Pagos de una venta: método + monto entregado + vuelto   |
 | `products_providers`      | Catálogo de productos por proveedor (nombre y precio propios del proveedor) |
-| `sequences_key`           | Secuencias personalizadas por tabla                     |
+| `sequences_key`           | Secuencias personalizadas por tabla (usada internamente por `set_sequences_key`) |
 
 ---
 
@@ -100,22 +103,26 @@ El schema existe en BD con 16 tablas completamente diseñadas (empresas, sucursa
 
 ### Módulo `inventory`
 
-| Feature                         | Estado             | Notas                                                   |
-|---------------------------------|--------------------|---------------------------------------------------------|
-| Listado + CRUD Productos        | ✅ Completo        | Incluye selección de Lab y UOM                         |
-| Dropdown Laboratory             | ✅ Parcial         | Solo búsqueda para dropdown, sin vista admin propia     |
-| Dropdown UnitOfMeasurement      | ✅ Parcial         | Solo búsqueda para dropdown, sin vista admin propia     |
-| Crear venta (Sales)             | ⚠️ Parcial        | `saveSaleApi` implementado, sin lista/edición/eliminación en UI |
-| Admin Clientes (Customers)      | ❌ No iniciado     | Backend listo, cero frontend                           |
-| Admin Proveedores (Providers)   | ❌ No iniciado     | Backend listo, cero frontend                           |
-| Admin Compras (Purchases)       | ❌ No iniciado     | Backend listo (incluye recepción de pedido), cero frontend |
-| Punto de Venta (POS)            | ❌ Vacío           | Rutas declaradas en router, componente `PointOfSaleView.vue` no existe |
+| Feature                              | Estado             | Notas                                                         |
+|--------------------------------------|--------------------|---------------------------------------------------------------|
+| Listado + CRUD Productos             | ✅ Completo        | Incluye selección de Lab, UOM y Categoría                    |
+| Admin Categorías                     | ✅ Completo        | `useCategory.ts` + `CategoriesAdminView` + `CategoryEditView` |
+| Admin Laboratory                     | ✅ Completo        | `useLaboratory.ts` + `LaboratoriesAdminView` + `LaboratoryEditView` |
+| Admin UnitOfMeasurement              | ✅ Completo        | `useUnitOfMeasurement.ts` + `UnitOfMeasurementAdminView` + `UnitOfMeasurementEditView` |
+| Admin Clientes (Customers)           | ✅ Completo        | `useCustomer.ts` + `CustomersAdminView` + `CustomerEditView` |
+| Admin Proveedores (Providers)        | ✅ Completo        | `useProvider.ts` + `ProvidersAdminView` + `ProviderEditView` |
+| Admin Compras (Purchases)            | ✅ Completo        | `usePurchase.ts` + `PurchasesAdminView` + `PurchaseEditView` + `PurchaseReceiveView` |
+| Listado + Detalle Ventas (Sales)     | ✅ Completo        | `SalesAdminView` + `SaleDetailView`; CRUD completo en composable |
+| Inventario / Stock                   | ✅ Completo        | `InventoryStockView`, `StockAdjustmentView`, `StockHistoryView`, `useStockMovement.ts` |
+| Punto de Venta (POS)                 | ⚠️ Parcial        | `PointOfSaleView.vue` implementado (694 líneas, búsqueda cliente/producto, carrito); ruta comentada en router — no accesible aún |
 
 ### Módulo `reports`
 
-| Feature   | Estado         | Notas                                        |
-|-----------|----------------|----------------------------------------------|
-| Reportes  | ❌ No iniciado | Mencionado en CLAUDE.md, sin rutas ni vistas |
+| Feature               | Estado      | Notas                                        |
+|-----------------------|-------------|----------------------------------------------|
+| Reporte de Ventas     | ✅ Completo | `SalesReportView.vue` con filtros por fecha  |
+| Reporte de Stock      | ✅ Completo | `StockReportView.vue`                        |
+| Reporte de Compras    | ✅ Completo | `PurchasesReportView.vue`                    |
 
 ### Infraestructura frontend
 
@@ -133,57 +140,45 @@ El schema existe en BD con 16 tablas completamente diseñadas (empresas, sucursa
 
 ## Gaps críticos para MVP
 
-Los siguientes elementos bloquean el flujo principal de negocio:
+Los siguientes elementos bloquean o limitan el flujo principal de negocio:
 
-1. **Vista Punto de Venta (`PointOfSaleView.vue`)** — las rutas `/pos/` están declaradas pero el componente no existe. Sin POS no hay ventas desde caja.
+1. **Ruta POS comentada** — `PointOfSaleView.vue` está completamente implementado (búsqueda de cliente, carrito, registro de venta) pero la ruta en el router está comentada (`// path: 'point-of-sale'`). Activar la ruta es el único paso pendiente para acceder al POS.
 
-2. **CRUD Clientes** — el módulo de ventas necesita seleccionar cliente; backend listo, falta:
-   - `useCustomer.ts` composable
-   - `CustomersAdminView.vue` + `CustomerEditView.vue`
-   - Rutas en router
+2. **Métodos de pago y descuentos** — las tablas `payment_methods`, `discounts`, `sale_payments` y `sale_detail_discounts` existen en BD pero no tienen ningún código backend ni frontend. El POS actualmente registra ventas sin desglosar métodos de pago ni descuentos por línea.
 
-3. **CRUD Proveedores** — necesario para registrar compras; backend listo, falta lo mismo que clientes.
-
-4. **CRUD Compras** — flujo de ingreso de stock al almacén; backend listo incluyendo endpoint de recepción de pedido, falta:
-   - `usePurchase.ts` composable
-   - `PurchasesAdminView.vue` + `PurchaseEditView.vue` + vista de recepción
-   - Rutas en router
-
-5. **UI completa de Ventas** — solo existe `saveSaleApi`; falta listado, detalle y baja de ventas.
-
-6. **Admin de Laboratorios y Unidades de Medida** — ambos tienen CRUD completo en backend pero solo se usan como dropdowns en el formulario de producto. Sin vistas admin, el catálogo solo se puede gestionar directamente en BD.
-
-7. **Métodos de pago y descuentos** — las tablas `payment_methods`, `discounts`, `sale_payments` y `sale_detail_discounts` existen en BD pero no tienen ningún código backend ni frontend. El POS no podrá registrar pagos con vuelto ni descuentos hasta implementarlos.
-
-8. ~~**Módulo SIAT**~~ — fuera de alcance de este proyecto. Ver sección SIAT más arriba.
+3. ~~**Módulo SIAT**~~ — fuera de alcance de este proyecto. Ver sección SIAT más arriba.
 
 ---
 
 ## Mapa endpoint → frontend
 
-| Endpoint backend                    | Ruta frontend                         | Estado        |
-|-------------------------------------|---------------------------------------|---------------|
-| POST /Login                         | /auth                                 | ✅            |
-| GET /AccessMenu                     | Al hacer login                        | ✅            |
-| POST /Mfa/totp-setup-init           | /auth/totp-setup                      | ✅            |
-| POST /Mfa/totp-verify               | /auth/totp                            | ✅            |
-| POST /Mfa/mfa-recover               | /auth/totp                            | ✅            |
-| CRUD /Users + MFA admin             | /account/users-admin + user-edit      | ✅            |
-| CRUD /Roles + forms assign          | /account/roles-admin + role-edit      | ✅            |
-| CRUD /Forms                         | /account/forms-admin + form-edit      | ✅            |
-| CRUD /Modules                       | /account/modules-admin + module-edit  | ✅            |
-| CRUD /Product                       | /inventory/products-admin + product-edit | ✅         |
-| GET /Product/{id}/validate          | (POS, componente vacío)               | ❌            |
-| GET /Laboratory (dropdown)          | Selector en product-edit              | ✅ Parcial    |
-| CRUD /Laboratory (admin)            | Sin ruta/vista                        | ❌            |
-| GET /UnitOfMeasurement (dropdown)   | Selector en product-edit              | ✅ Parcial    |
-| CRUD /UnitOfMeasurement (admin)     | Sin ruta/vista                        | ❌            |
-| CRUD /Customers                     | Sin ruta/vista                        | ❌            |
-| CRUD /Provider                      | Sin ruta/vista                        | ❌            |
-| CRUD /Purchases + reciveOrders      | Sin ruta/vista                        | ❌            |
-| GET /PurchaseStatus                 | Sin uso                               | ❌            |
-| POST /Sales (crear)                 | useSales.ts (sin vista POS)           | ⚠️ Parcial   |
-| GET/PUT/DELETE /Sales               | Sin vista                             | ❌            |
+| Endpoint backend                    | Ruta frontend                                     | Estado        |
+|-------------------------------------|---------------------------------------------------|---------------|
+| POST /Login                         | /auth                                             | ✅            |
+| GET /AccessMenu                     | Al hacer login                                    | ✅            |
+| POST /Mfa/totp-setup-init           | /auth/totp-setup                                  | ✅            |
+| POST /Mfa/totp-verify               | /auth/totp                                        | ✅            |
+| POST /Mfa/mfa-recover               | /auth/totp                                        | ✅            |
+| CRUD /Users + MFA admin             | /account/users-admin + user-edit                  | ✅            |
+| CRUD /Roles + forms assign          | /account/roles-admin + role-edit                  | ✅            |
+| CRUD /Forms                         | /account/forms-admin + form-edit                  | ✅            |
+| CRUD /Modules                       | /account/modules-admin + module-edit              | ✅            |
+| CRUD /Product                       | /inventory/products-admin + product-edit          | ✅            |
+| GET /Product/{id}/validate          | PointOfSaleView.vue (ruta comentada en router)    | ⚠️ Parcial   |
+| CRUD /Category                      | /inventory/categories-admin + category-edit       | ✅            |
+| CRUD /Laboratory                    | /inventory/laboratories-admin + laboratory-edit   | ✅            |
+| CRUD /UnitOfMeasurement             | /inventory/uom-admin + uom-edit                   | ✅            |
+| CRUD /Customers                     | /inventory/customers-admin + customer-edit        | ✅            |
+| CRUD /Provider                      | /inventory/providers-admin + provider-edit        | ✅            |
+| CRUD /Purchases + reciveOrders      | /inventory/purchases-admin + purchase-edit + purchase-receive | ✅ |
+| GET /PurchaseStatus                 | Selector en purchase-edit                         | ✅            |
+| CRUD /Sales                         | /inventory/sales-admin + sale-detail              | ✅            |
+| GET /StockMovement/{productId}      | /inventory/stock-history/:id                      | ✅            |
+| POST /StockMovement/adjustment      | /inventory/stock-adjustment/:id                   | ✅            |
+| GET /Dashboard                      | /inventory (DashboardView)                        | ✅            |
+| GET /reports/sales                  | /reports/sales                                    | ✅            |
+| GET /reports/stock                  | /reports/stock                                    | ✅            |
+| GET /reports/purchases              | /reports/purchases                                | ✅            |
 
 ---
 

@@ -15,19 +15,38 @@
           <div class="panel-content pt-0">
 
             <!-- Filtros -->
-            <div class="row align-items-end g-2 mb-3">
-              <div class="col-6 col-md-3">
-                <label class="form-label">Fecha Inicio</label>
-                <input type="date" class="form-control form-control-sm" v-model="filtro.dateInitial" />
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label">Fecha Fin</label>
-                <input type="date" class="form-control form-control-sm" v-model="filtro.dateEnd" />
-              </div>
-              <div class="col-12 col-md-3">
-                <button class="btn btn-primary btn-sm w-100" @click="getSalesData">
-                  <span class="fal fa-search me-1"></span>Buscar
+            <div class="mb-3">
+              <!-- Accesos rápidos -->
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="text-muted small me-1">Ver:</span>
+                <button
+                  v-for="q in quickFilters" :key="q.key"
+                  type="button"
+                  class="btn btn-sm"
+                  :class="activeQuick === q.key ? 'btn-primary' : 'btn-outline-secondary'"
+                  @click="applyQuick(q.key)"
+                >
+                  <i :class="q.icon" class="me-1"></i>{{ q.label }}
                 </button>
+              </div>
+
+              <!-- Rango personalizado -->
+              <div class="row align-items-end g-2">
+                <div class="col-6 col-md-3">
+                  <label class="form-label small text-muted mb-1">Desde</label>
+                  <input type="date" class="form-control form-control-sm"
+                         v-model="filtro.dateInitial" @change="activeQuick = null" />
+                </div>
+                <div class="col-6 col-md-3">
+                  <label class="form-label small text-muted mb-1">Hasta</label>
+                  <input type="date" class="form-control form-control-sm"
+                         v-model="filtro.dateEnd" @change="activeQuick = null" />
+                </div>
+                <div class="col-12 col-md-3">
+                  <button class="btn btn-primary btn-sm w-100" @click="getSalesData">
+                    <span class="fal fa-search me-1"></span>Buscar
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -42,7 +61,7 @@
             <!-- Estado vacío -->
             <div v-if="sales.length === 0" class="text-center py-5">
               <i class="fal fa-receipt fa-3x text-muted d-block mb-3"></i>
-              <p class="text-muted mb-0">Seleccione un rango de fechas y haga clic en Buscar</p>
+              <p class="text-muted mb-0">No se encontraron ventas en el período seleccionado.</p>
             </div>
 
             <template v-else>
@@ -144,21 +163,60 @@ const sales = ref<Sale[]>([]);
 const { getSales, deleteSale } = useSales();
 const router = useRouter();
 
-const today = new Date().toISOString().split('T')[0];
-const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+// ── Helpers de fecha (local, no UTC) ──────────────────────
+const toLocalDateStr = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
-const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today });
+const today = toLocalDateStr(new Date());
 
+const getWeekStart = (): string => {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // retroceder al lunes
+  d.setDate(d.getDate() + diff);
+  return toLocalDateStr(d);
+};
+
+const getMonthStart = (): string =>
+  toLocalDateStr(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+
+// ── Accesos rápidos ────────────────────────────────────────
+const quickFilters = [
+  { key: 'today',  label: 'Hoy',          icon: 'fal fa-sun' },
+  { key: 'week',   label: 'Esta semana',   icon: 'fal fa-calendar-week' },
+  { key: 'month',  label: 'Este mes',      icon: 'fal fa-calendar-alt' },
+] as const;
+
+type QuickKey = typeof quickFilters[number]['key'];
+
+const activeQuick = ref<QuickKey | null>('today');
+const filtro = ref({ dateInitial: today, dateEnd: today });
+
+const applyQuick = (key: QuickKey) => {
+  activeQuick.value = key;
+  if (key === 'today')  filtro.value = { dateInitial: today, dateEnd: today };
+  if (key === 'week')   filtro.value = { dateInitial: getWeekStart(), dateEnd: today };
+  if (key === 'month')  filtro.value = { dateInitial: getMonthStart(), dateEnd: today };
+  getSalesData();
+};
+
+// ── Computed ───────────────────────────────────────────────
 const totalPeriod = computed(() => +sales.value.reduce((s, v) => s + v.Total, 0).toFixed(2));
 
+// ── Formatters ─────────────────────────────────────────────
 const formatDate = (val: string | Date): string => {
   if (!val) return '—';
   return new Date(val).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 const formatCurrency = (val: number): string =>
-  val?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' }) ?? 'Bs. 0.00';
+  (val ?? 0).toLocaleString('es-BO', { style: 'currency', currency: 'BOB' });
 
+// ── Datos ──────────────────────────────────────────────────
 const getSalesData = async () => {
   const { Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd);
   sales.value = Data ?? [];
@@ -177,7 +235,7 @@ const removeSale = async (id: string) => {
   }
 };
 
-onMounted(getSalesData);
+onMounted(() => applyQuick('today'));
 </script>
 
 <style scoped></style>

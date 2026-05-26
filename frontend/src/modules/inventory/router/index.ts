@@ -203,16 +203,16 @@ export default {
       beforeEnter: [isAuthenticatedGuard],
       meta: { requiresAuth: true, title: 'PV - Ajuste de Stock', titleForm: 'Ajuste de Stock' },
     },
-    // {
-    //   path: 'point-of-sale',
-    //   name: 'point-sale-admin',
-    //   component: () => import(/* webpackChunkName: "point-of-sale" */ '@/modules/inventory/views/point-of-sale/PointOfSaleView.vue'),
-    //   beforeEnter: [isAuthenticatedGuard],
-    //   meta: {
-    //     requiresAuth: true,
-    //     title: 'PV - Punto de venta',
-    //     titleForm: 'Punto de venta'
-    //   },
-    // },
+    {
+      path: 'point-of-sale',
+      name: 'point-sale-admin',
+      component: () => import(/* webpackChunkName: "point-of-sale" */ '@/modules/inventory/views/point-of-sale/PointOfSaleView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Punto de venta',
+        titleForm: 'Punto de venta'
+      },
+    },
   ],
 };
