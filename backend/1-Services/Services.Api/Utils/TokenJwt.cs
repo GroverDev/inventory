@@ -23,7 +23,7 @@ public class TokenJwt
                     new Claim("Uuid", login.Uuid),
                     new Claim("Email", login.Email.ToString()),
                     new Claim("SessionId", login.SesionId.ToString()),
-                    new Claim("Rol",  "admin")
+                    new Claim("Rol", login.RolName)
                 ]
                 ),
             Expires = DateTime.UtcNow.AddMinutes(Convert.ToInt32(timeToken)),

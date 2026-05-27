@@ -80,7 +80,8 @@ public class InventoryMappingConfig : IRegister
         config.NewConfig<SaleRequest, Sale>()
             .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
             .Map(dest => dest.CustomerId, src => string.IsNullOrEmpty(src.CustomerId) ? Guid.Empty : Guid.Parse(src.CustomerId))
-            .Map(dest => dest.SaleDate, src => Convert.ToDateTime(src.SaleDate));
+            .Map(dest => dest.SaleDate, src => Convert.ToDateTime(src.SaleDate))
+            .Map(dest => dest.CashSessionId, src => string.IsNullOrEmpty(src.CashSessionId) ? (Guid?)null : Guid.Parse(src.CashSessionId));
         
         config.NewConfig<SaleDetailRequest, SaleDetail>()
             .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))

@@ -28,6 +28,7 @@ const useUser = () => {
 
   const updateUser = async (user: User): Promise<ResponseObject<boolean>> => {
     return await put<ResponseObject<boolean>>(`Users/${user.Uuid}`, {
+         userName: user.UserName,
          email: user.Email,
          fullName: user.FullName
     });
@@ -49,6 +50,22 @@ const useUser = () => {
     return await put<ResponseObject<boolean>>(`Users/${uuid}/roles`, { roleIds });
   }
 
-  return { getUsersByName, createUser, updateUser, getUserById, deleteUser, getUserRoles, assignRolesToUser }
+  const changeUserPassword = async (uuid: string, newPassword: string): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/password`, { newPassword });
+  }
+
+  const adminResetMfa = async (uuid: string): Promise<ResponseObject<boolean>> => {
+    return await post<ResponseObject<boolean>>(`Users/${uuid}/mfa/reset`, {});
+  }
+
+  const adminRequireMfa = async (uuid: string): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/mfa/required`, {});
+  }
+
+  const adminUnrequireMfa = async (uuid: string): Promise<ResponseObject<boolean>> => {
+    return await del<ResponseObject<boolean>>(`Users/${uuid}/mfa/required`);
+  }
+
+  return { getUsersByName, createUser, updateUser, getUserById, deleteUser, getUserRoles, assignRolesToUser, changeUserPassword, adminResetMfa, adminRequireMfa, adminUnrequireMfa }
 }
 export default useUser;

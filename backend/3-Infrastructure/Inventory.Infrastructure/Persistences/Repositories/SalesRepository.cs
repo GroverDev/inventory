@@ -20,8 +20,8 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 sale.Id = Guid.NewGuid();
                 string sqlQuery = @"
                        INSERT INTO sales
-                              (id, customer_id,  sale_date,  subtotal, total_discounts, total,  is_active, state, created_by, created, modified_by, modified)
-                       VALUES(@Id, @CustomerId, @SaleDate, @Subtotal, @TotalDiscounts, @Total, @IsActive, @State, @CreatedBy,  @Created, @ModifiedBy, @Modified);
+                              (id, customer_id,  sale_date,  subtotal, total_discounts, total,  is_active, cash_session_id, state, created_by, created, modified_by, modified)
+                       VALUES(@Id, @CustomerId, @SaleDate, @Subtotal, @TotalDiscounts, @Total, @IsActive, @CashSessionId,  @State, @CreatedBy,  @Created, @ModifiedBy, @Modified);
                          ";
                 await db.ExecuteAsync(sqlQuery, sale, transaction);
 
@@ -87,25 +87,29 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
         return numberRows;
     }
 
-     public async Task<List<SaleProductResponse>> GetSales(DateTime SaleDateInitial, DateTime SaleDateEnd)
+     public async Task<List<SaleProductResponse>> GetSales(DateTime SaleDateInitial, DateTime SaleDateEnd, int? userId = null)
     {
         List<SaleProductResponse> listSales = [];
         using var db = _DbContext.CreateConnection;
         try
         {
             db.Open();
-            string sqlQuery = @"
+            string userFilter = userId.HasValue ? "AND s.created_by = @UserId" : "";
+            string sqlQuery = $@"
                        SELECT s.id, s.customer_id, c.full_name AS CustomerName,
-                              s.sale_date, s.subtotal, s.total_discounts, s.total, s.is_active
+                              s.sale_date, s.subtotal, s.total_discounts, s.total, s.is_active,
+                              COALESCE(u.full_name, '') AS SellerName
                          FROM sales s
                         INNER JOIN customers c ON c.id = s.customer_id
+                        LEFT  JOIN sec.users u ON u.id = s.created_by
                         WHERE s.state
                           AND s.sale_date >= @SaleDateInitial
                           AND s.sale_date <= @SaleDateEnd
+                          {userFilter}
                         ORDER BY s.sale_date DESC;
                 ";
 
-            var result = await db.QueryAsync<SaleProductResponse>(sqlQuery, new { SaleDateInitial = SaleDateInitial, SaleDateEnd=SaleDateEnd });
+            var result = await db.QueryAsync<SaleProductResponse>(sqlQuery, new { SaleDateInitial, SaleDateEnd, UserId = userId });
             listSales = result!.ToList();
             foreach (var saleProduct in listSales)
             {

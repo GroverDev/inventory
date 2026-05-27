@@ -42,7 +42,14 @@
                   <input type="date" class="form-control form-control-sm"
                          v-model="filtro.dateEnd" @change="activeQuick = null" />
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-6 col-md-3">
+                  <label class="form-label small text-muted mb-1">Vendedor</label>
+                  <select class="form-select form-select-sm" v-model="filtro.seller">
+                    <option value="">Todos</option>
+                    <option v-for="s in sellerOptions" :key="s" :value="s">{{ s }}</option>
+                  </select>
+                </div>
+                <div class="col-6 col-md-3">
                   <button class="btn btn-primary btn-sm w-100" @click="getSalesData">
                     <span class="fal fa-search me-1"></span>Buscar
                   </button>
@@ -51,15 +58,15 @@
             </div>
 
             <!-- Contador -->
-            <div v-if="sales.length > 0" class="mb-2">
+            <div v-if="filteredSales.length > 0" class="mb-2">
               <small class="text-muted">
                 <span class="fal fa-list me-1"></span>
-                <strong>{{ sales.length }}</strong> venta(s) encontrada(s)
+                <strong>{{ filteredSales.length }}</strong> venta(s) encontrada(s)
               </small>
             </div>
 
             <!-- Estado vacío -->
-            <div v-if="sales.length === 0" class="text-center py-5">
+            <div v-if="filteredSales.length === 0" class="text-center py-5">
               <i class="fal fa-receipt fa-3x text-muted d-block mb-3"></i>
               <p class="text-muted mb-0">No se encontraron ventas en el período seleccionado.</p>
             </div>
@@ -72,6 +79,7 @@
                     <tr>
                       <th>Fecha</th>
                       <th>Cliente</th>
+                      <th>Vendedor</th>
                       <th class="text-end">Subtotal</th>
                       <th class="text-end">Descuentos</th>
                       <th class="text-end">Total</th>
@@ -79,9 +87,10 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(sale, index) in sales" :key="index">
+                    <tr v-for="(sale, index) in filteredSales" :key="index">
                       <td>{{ formatDate(sale.SaleDate) }}</td>
                       <td class="fw-semibold">{{ sale.CustomerName }}</td>
+                      <td><small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small></td>
                       <td class="text-end">{{ formatCurrency(sale.Subtotal) }}</td>
                       <td class="text-end text-danger">{{ formatCurrency(sale.TotalDiscounts) }}</td>
                       <td class="text-end fw-semibold">{{ formatCurrency(sale.Total) }}</td>
@@ -107,7 +116,7 @@
                   </tbody>
                   <tfoot>
                     <tr class="fw-bold table-light">
-                      <td colspan="4" class="text-end">TOTAL PERÍODO</td>
+                      <td colspan="5" class="text-end">TOTAL PERÍODO</td>
                       <td class="text-end">{{ formatCurrency(totalPeriod) }}</td>
                       <td></td>
                     </tr>
@@ -118,15 +127,18 @@
               <!-- Cards móvil -->
               <div class="d-md-none">
                 <div class="row g-3">
-                  <div class="col-12" v-for="(sale, index) in sales" :key="index">
+                  <div class="col-12" v-for="(sale, index) in filteredSales" :key="index">
                     <div class="card">
                       <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                           <h6 class="card-title mb-0">{{ sale.CustomerName }}</h6>
                           <span class="fw-bold">{{ formatCurrency(sale.Total) }}</span>
                         </div>
-                        <small class="text-muted d-block mb-2">
+                        <small class="text-muted d-block">
                           <i class="fal fa-calendar me-1"></i>{{ formatDate(sale.SaleDate) }}
+                        </small>
+                        <small class="text-muted d-block mb-2">
+                          <i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}
                         </small>
                         <div class="d-flex gap-2">
                           <button type="button" class="btn btn-outline-primary btn-sm flex-fill"
@@ -194,18 +206,29 @@ const quickFilters = [
 type QuickKey = typeof quickFilters[number]['key'];
 
 const activeQuick = ref<QuickKey | null>('today');
-const filtro = ref({ dateInitial: today, dateEnd: today });
+const filtro = ref({ dateInitial: today, dateEnd: today, seller: '' });
 
 const applyQuick = (key: QuickKey) => {
   activeQuick.value = key;
-  if (key === 'today')  filtro.value = { dateInitial: today, dateEnd: today };
-  if (key === 'week')   filtro.value = { dateInitial: getWeekStart(), dateEnd: today };
-  if (key === 'month')  filtro.value = { dateInitial: getMonthStart(), dateEnd: today };
+  if (key === 'today')  filtro.value = { ...filtro.value, dateInitial: today, dateEnd: today };
+  if (key === 'week')   filtro.value = { ...filtro.value, dateInitial: getWeekStart(), dateEnd: today };
+  if (key === 'month')  filtro.value = { ...filtro.value, dateInitial: getMonthStart(), dateEnd: today };
   getSalesData();
 };
 
 // ── Computed ───────────────────────────────────────────────
-const totalPeriod = computed(() => +sales.value.reduce((s, v) => s + v.Total, 0).toFixed(2));
+const sellerOptions = computed(() => {
+  const names = sales.value.map(s => s.SellerName).filter(n => !!n);
+  return [...new Set(names)].sort();
+});
+
+const filteredSales = computed(() =>
+  filtro.value.seller
+    ? sales.value.filter(s => s.SellerName === filtro.value.seller)
+    : sales.value
+);
+
+const totalPeriod = computed(() => +filteredSales.value.reduce((s, v) => s + v.Total, 0).toFixed(2));
 
 // ── Formatters ─────────────────────────────────────────────
 const formatDate = (val: string | Date): string => {

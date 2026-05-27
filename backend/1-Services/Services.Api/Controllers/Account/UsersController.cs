@@ -87,6 +87,32 @@ public async Task<ActionResult<Response<bool>>> AssignRolesToUser(Guid uuid, [Fr
     return Ok(resp);
 }
 
+[HttpPut("me/password")]
+public async Task<ActionResult<Response<bool>>> ChangeOwnPassword([FromBody] ChangeOwnPasswordRequest request)
+{
+    if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+    var datos = TokenData.GetData(HttpContext);
+
+    ValidationResult result = new ChangeOwnPasswordRequestValidator().Validate(request);
+    if (!result.IsValid) return ErrorsValidation<bool>.GetResponse(result.Errors);
+
+    var resp = await _usersApplication.ChangeOwnPassword(datos.UserId, request.CurrentPassword, request.NewPassword);
+    return Ok(resp);
+}
+
+[HttpPut("{uuid}/password")]
+public async Task<ActionResult<Response<bool>>> ChangePassword(Guid uuid, [FromBody] ChangePasswordRequest request)
+{
+    if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+    var datos = TokenData.GetData(HttpContext);
+
+    ValidationResult result = new ChangePasswordRequestValidator().Validate(request);
+    if (!result.IsValid) return ErrorsValidation<bool>.GetResponse(result.Errors);
+
+    var resp = await _usersApplication.ChangeUserPassword(uuid, request.NewPassword, datos.UserId);
+    return Ok(resp);
+}
+
 [HttpPost("{uuid}/mfa/reset")]
 public async Task<ActionResult<Response<bool>>> AdminResetMfa(Guid uuid)
 {

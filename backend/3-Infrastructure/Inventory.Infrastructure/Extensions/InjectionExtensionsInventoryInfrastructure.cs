@@ -25,6 +25,8 @@ public static class InjectionExtensionsInventoryInfraestructure
         services.AddScoped<IPaymentMethodRepository, PaymentMethodRepository>();
         services.AddScoped<ISalePaymentRepository, SalePaymentRepository>();
         services.AddScoped<ISaleReturnRepository, SaleReturnRepository>();
+        services.AddScoped<ICashMovementRepository, CashMovementRepository>();
+        services.AddScoped<ICashSessionRepository, CashSessionRepository>();
         return services;
     }
 }

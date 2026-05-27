@@ -7,8 +7,10 @@ export class User {
   public ChangePassword: boolean = false;
   public Token: string = '';
   public Id: number = 0;
-public RequireTotp: boolean = false;
+  public RolId: number = 0;
+  public RolName: string = '';
+  public RequireTotp: boolean = false;
   public TotpSetupRequired: boolean = false;
   public TotpSessionToken: string = '';
-
 }
+

@@ -575,32 +575,124 @@
 
       <div class="dropdown-divider m-0"></div>
 
+      <a href="#" class="dropdown-item" @click.prevent="showChangePwd = true" role="button">
+        <span><i class="fal fa-key me-1"></i>Cambiar contraseña</span>
+      </a>
+
+      <div class="dropdown-divider m-0"></div>
+
       <a class="dropdown-item py-3 fw-500 d-flex justify-content-between" href="javascript:void(0)" @click="logout()">
         <span class="text-danger" data-i18n="drpdwn.page-logout">Cerrar sesion</span>
         <span class="d-block text-truncate text-truncate-sm">{{ authStore.getUser?.UserName }}</span>
       </a>
     </div>
   </header>
+
+  <!-- Modal cambiar contraseña propia -->
+  <div v-if="showChangePwd" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold">
+            <i class="fal fa-key me-2"></i>Cambiar mi contraseña
+          </h6>
+          <button type="button" class="btn-close" @click="closePwdModal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label form-label-sm">Contraseña actual <span class="text-danger">*</span></label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-transparent"><i class="fal fa-lock"></i></span>
+              <input :type="pwdForm.showCurrent ? 'text' : 'password'" class="form-control"
+                v-model.trim="pwdForm.current" placeholder="Tu contraseña actual" autocomplete="current-password" />
+              <button type="button" class="btn btn-outline-secondary" tabindex="-1"
+                @click="pwdForm.showCurrent = !pwdForm.showCurrent">
+                <i :class="pwdForm.showCurrent ? 'fal fa-eye-slash' : 'fal fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label form-label-sm">Nueva contraseña <span class="text-danger">*</span></label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-transparent"><i class="fal fa-lock-open"></i></span>
+              <input :type="pwdForm.showNew ? 'text' : 'password'" class="form-control"
+                v-model.trim="pwdForm.newPwd" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
+              <button type="button" class="btn btn-outline-secondary" tabindex="-1"
+                @click="pwdForm.showNew = !pwdForm.showNew">
+                <i :class="pwdForm.showNew ? 'fal fa-eye-slash' : 'fal fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="form-label form-label-sm">Confirmar nueva contraseña <span class="text-danger">*</span></label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-transparent"><i class="fal fa-lock-open"></i></span>
+              <input :type="pwdForm.showNew ? 'text' : 'password'" class="form-control"
+                :class="{ 'is-invalid': pwdForm.confirm && pwdForm.newPwd !== pwdForm.confirm }"
+                v-model.trim="pwdForm.confirm" placeholder="Repite la nueva contraseña" autocomplete="new-password" />
+              <div class="invalid-feedback">Las contraseñas no coinciden.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button class="btn btn-outline-secondary btn-sm" @click="closePwdModal">Cancelar</button>
+          <button class="btn btn-primary btn-sm" @click="submitChangePwd">
+            <i class="fal fa-save me-1"></i>Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useAuthStore } from "@/modules/auth/stores/auth.store";
-
 import { useRouter } from "vue-router";
-
-
-const authStore = useAuthStore();
-const router = useRouter();
-
 import { useThemeStore } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useApp } from '@/composables/useApp';
+import { useApi } from '@/modules/common/composables/api/useApi';
+import type { ResponseObject } from '@/modules/common/models';
+import utils from '@/utils/msg';
 
+const authStore = useAuthStore();
+const router = useRouter();
 const themeStore = useThemeStore();
 const layoutStore = useLayoutStore();
 const { toggleFullscreen, printPage } = useApp();
+const { put } = useApi();
 
+const showChangePwd = ref(false);
+const pwdForm = ref({ current: '', newPwd: '', confirm: '', showCurrent: false, showNew: false });
 
+const closePwdModal = () => {
+  showChangePwd.value = false;
+  pwdForm.value = { current: '', newPwd: '', confirm: '', showCurrent: false, showNew: false };
+};
+
+const submitChangePwd = async () => {
+  if (!pwdForm.value.current) {
+    await utils.showMessageModal({ Description: 'Ingresa tu contraseña actual.', MessageType: 'warning' });
+    return;
+  }
+  if (pwdForm.value.newPwd.length < 6) {
+    await utils.showMessageModal({ Description: 'La nueva contraseña debe tener al menos 6 caracteres.', MessageType: 'warning' });
+    return;
+  }
+  if (pwdForm.value.newPwd !== pwdForm.value.confirm) {
+    await utils.showMessageModal({ Description: 'Las contraseñas no coinciden.', MessageType: 'warning' });
+    return;
+  }
+  const resp = await put<ResponseObject<boolean>>('Users/me/password', {
+    currentPassword: pwdForm.value.current,
+    newPassword: pwdForm.value.newPwd,
+  });
+  if (resp.ok) {
+    closePwdModal();
+    await utils.showMessageModal({ Description: 'Contraseña actualizada correctamente.', MessageType: 'success' });
+  }
+};
 
 const logout = async () => {
   router.push({ name: 'login' });

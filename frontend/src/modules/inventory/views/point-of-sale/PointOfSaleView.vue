@@ -1,15 +1,179 @@
 <template>
   <div class="pos-page px-2 px-md-3 pt-2">
 
-    <!-- ── Cabecera: volver + título ── -->
-    <div class="pos-top-bar d-flex align-items-center mb-2">
-      <button class="btn btn-sm btn-outline-secondary me-2" type="button" @click="router.back()">
+    <!-- ── Cabecera: volver + título + estado de caja ── -->
+    <div class="pos-top-bar d-flex align-items-center mb-2 gap-2">
+      <button class="btn btn-sm btn-outline-secondary" type="button" @click="router.back()">
         <i class="fal fa-arrow-left me-1"></i>Volver
       </button>
       <h6 class="mb-0 fw-semibold">Punto de Venta</h6>
+      <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+        <!-- Caja abierta -->
+        <template v-if="cashSession">
+          <span class="badge bg-success-subtle text-success border border-success-subtle small d-none d-md-inline-flex align-items-center gap-1">
+            <i class="fal fa-cash-register"></i>
+            Caja: Bs. {{ formatNum(cashSession.OpeningAmount) }}
+          </span>
+          <button class="btn btn-sm btn-outline-secondary" @click="showMovementModal = true" title="Registrar gasto u otro movimiento">
+            <i class="fal fa-receipt me-1"></i><span class="d-none d-md-inline">Gasto</span>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" @click="showCloseCashModal = true" title="Cerrar caja">
+            <i class="fal fa-lock me-1"></i><span class="d-none d-md-inline">Cerrar caja</span>
+          </button>
+        </template>
+        <!-- Sin caja -->
+        <template v-else>
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle small">
+            <i class="fal fa-exclamation-triangle me-1"></i>Sin caja abierta
+          </span>
+          <button class="btn btn-sm btn-success" @click="showOpenCashModal = true">
+            <i class="fal fa-cash-register me-1"></i>Abrir caja
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Abrir Caja ══ -->
+    <div v-if="showOpenCashModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h6 class="modal-title fw-bold"><i class="fal fa-cash-register me-2"></i>Abrir Caja</h6>
+            <button type="button" class="btn-close" @click="showOpenCashModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label small text-muted">Fondo inicial (Bs.)</label>
+            <input type="number" class="form-control" v-model.number="openingAmount" min="0" step="0.01" placeholder="0.00" />
+            <small class="text-muted">Ingresa el monto de efectivo con que inicias el turno.</small>
+          </div>
+          <div class="modal-footer py-2">
+            <button class="btn btn-outline-secondary btn-sm" @click="showOpenCashModal = false">Cancelar</button>
+            <button class="btn btn-success btn-sm" :disabled="savingCash" @click="doOpenCash">
+              <span v-if="savingCash" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="fal fa-unlock me-1"></i>Abrir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Cerrar Caja ══ -->
+    <div v-if="showCloseCashModal && cashSession" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h6 class="modal-title fw-bold"><i class="fal fa-lock me-2"></i>Cerrar Caja</h6>
+            <button type="button" class="btn-close" @click="showCloseCashModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <!-- Resumen del turno -->
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Fondo inicial</small>
+                  <strong>Bs. {{ formatNum(cashSession.OpeningAmount) }}</strong>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Ventas</small>
+                  <strong class="text-success">Bs. {{ formatNum(cashSession.TotalSales) }}</strong>
+                </div>
+              </div>
+              <div class="col-6" v-if="cashSession.TotalExpenses > 0">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Gastos</small>
+                  <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalExpenses) }}</strong>
+                </div>
+              </div>
+              <div class="col-6" v-if="cashSession.TotalWithdrawals > 0">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Retiros</small>
+                  <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalWithdrawals) }}</strong>
+                </div>
+              </div>
+            </div>
+            <div class="alert alert-info py-2 small mb-3">
+              <strong>Esperado en caja:</strong> Bs. {{ formatNum(expectedCash) }}
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Monto físico contado (Bs.)</label>
+              <input type="number" class="form-control" v-model.number="declaredAmount" min="0" step="0.01" placeholder="0.00" />
+            </div>
+            <div v-if="declaredAmount !== null" class="d-flex justify-content-between small">
+              <span class="text-muted">Diferencia</span>
+              <span :class="(declaredAmount - expectedCash) >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                Bs. {{ formatNum(declaredAmount - expectedCash) }}
+              </span>
+            </div>
+            <div class="mb-2 mt-2">
+              <label class="form-label small text-muted">Observaciones (opcional)</label>
+              <textarea class="form-control form-control-sm" rows="2" v-model="closeNotes" placeholder="Ej: faltante por billete roto..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <button class="btn btn-outline-secondary btn-sm" @click="showCloseCashModal = false">Cancelar</button>
+            <button class="btn btn-danger btn-sm" :disabled="savingCash" @click="doCloseCash">
+              <span v-if="savingCash" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="fal fa-lock me-1"></i>Cerrar y arquear
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Registrar Movimiento (Gasto / Retiro / Ingreso) ══ -->
+    <div v-if="showMovementModal && cashSession" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h6 class="modal-title fw-bold"><i class="fal fa-receipt me-2"></i>Registrar Movimiento</h6>
+            <button type="button" class="btn-close" @click="showMovementModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label small text-muted">Tipo</label>
+              <div class="d-flex gap-2">
+                <button v-for="t in movementTypes" :key="t.value" type="button"
+                  class="btn btn-sm flex-fill"
+                  :class="movementType === t.value ? t.activeClass : 'btn-outline-secondary'"
+                  @click="movementType = t.value">
+                  <i :class="t.icon" class="me-1"></i>{{ t.label }}
+                </button>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Monto (Bs.)</label>
+              <input type="number" class="form-control form-control-sm" v-model.number="movementAmount" min="0.01" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Descripción <span class="text-danger">*</span></label>
+              <input type="text" class="form-control form-control-sm" v-model="movementDescription" placeholder="Ej: Almuerzo cajero" maxlength="255" />
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <button class="btn btn-outline-secondary btn-sm" @click="showMovementModal = false">Cancelar</button>
+            <button class="btn btn-primary btn-sm" :disabled="savingMovement" @click="doAddMovement">
+              <span v-if="savingMovement" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="fal fa-save me-1"></i>Guardar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ BLOQUEO: sin caja abierta ══ -->
+    <div v-if="!cashSession" class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+      <i class="fal fa-cash-register fa-4x text-muted mb-3"></i>
+      <h5 class="fw-semibold mb-1">Caja cerrada</h5>
+      <p class="text-muted mb-3">Debes abrir la caja antes de realizar ventas.</p>
+      <button class="btn btn-success px-4" @click="showOpenCashModal = true">
+        <i class="fal fa-unlock me-2"></i>Abrir caja
+      </button>
     </div>
 
     <!-- ══ MÓVIL: cliente + tabs ══ -->
+    <template v-else>
     <div class="d-md-none mb-2" style="position:relative">
       <!-- Selector de cliente -->
       <div class="card mb-2">
@@ -471,19 +635,19 @@
             </div>
           </div>
 
-          <!-- Pills de laboratorio -->
-          <div class="mb-2 d-flex flex-wrap gap-1" v-if="labFilters.length > 0">
+          <!-- Pills de categoría -->
+          <div class="mb-2 d-flex flex-wrap gap-1" v-if="categoryFilters.length > 0">
             <button
               type="button" class="btn btn-sm"
-              :class="selectedLab === '' ? 'btn-primary' : 'btn-outline-secondary'"
-              @click="selectedLab = ''"
+              :class="selectedCategory === '' ? 'btn-primary' : 'btn-outline-secondary'"
+              @click="selectedCategory = ''"
             >Todos</button>
             <button
-              v-for="lab in labFilters" :key="lab"
+              v-for="cat in categoryFilters" :key="cat"
               type="button" class="btn btn-sm"
-              :class="selectedLab === lab ? 'btn-primary' : 'btn-outline-secondary'"
-              @click="selectedLab = lab === selectedLab ? '' : lab"
-            >{{ lab }}</button>
+              :class="selectedCategory === cat ? 'btn-primary' : 'btn-outline-secondary'"
+              @click="selectedCategory = cat === selectedCategory ? '' : cat"
+            >{{ cat }}</button>
           </div>
         </div>
 
@@ -593,6 +757,7 @@
         </div><!-- /pos-catalog-grid -->
       </div><!-- /pos-catalog-panel -->
     </div><!-- /pos-split -->
+    </template><!-- /v-else caja abierta -->
   </div>
 </template>
 
@@ -604,10 +769,14 @@ import { SaleDetail } from '@/modules/inventory/models/saleDetail.model';
 import { SalePayment, type PaymentMethod } from '@/modules/inventory/models/paymentMethod.model';
 import type { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
+import type { CashSession } from '@/modules/inventory/models/cashSession.model';
+import { CashMovementRequest } from '@/modules/inventory/models/cashMovement.model';
 import useSales from '@/modules/inventory/composables/useSales';
 import useCustomer from '@/modules/inventory/composables/useCustomer';
 import useProduct from '@/modules/inventory/composables/useProduct';
 import usePaymentMethod from '@/modules/inventory/composables/usePaymentMethod';
+import useCashSession from '@/modules/inventory/composables/useCashSession';
+import useCashMovement from '@/modules/inventory/composables/useCashMovement';
 import utils from '@/utils/msg';
 
 const router = useRouter();
@@ -616,6 +785,39 @@ const { saveSaleApi } = useSales();
 const { getCustomers } = useCustomer();
 const { getProductsByName } = useProduct();
 const { getPaymentMethods } = usePaymentMethod();
+const { getActiveSession, openSession, closeSession } = useCashSession();
+const { addMovement } = useCashMovement();
+
+// ── Estado: caja ───────────────────────────────────────────
+const cashSession = ref<CashSession | null>(null);
+const showOpenCashModal = ref(false);
+const showCloseCashModal = ref(false);
+const showMovementModal = ref(false);
+const openingAmount = ref<number>(0);
+const declaredAmount = ref<number>(0);
+const closeNotes = ref('');
+const savingCash = ref(false);
+const movementType = ref<'expense' | 'withdrawal' | 'income'>('expense');
+const movementAmount = ref<number>(0);
+const movementDescription = ref('');
+const savingMovement = ref(false);
+
+const movementTypes = [
+  { value: 'expense' as const,    label: 'Gasto',   icon: 'fal fa-receipt',             activeClass: 'btn-danger' },
+  { value: 'withdrawal' as const, label: 'Retiro',  icon: 'fal fa-arrow-circle-up',     activeClass: 'btn-warning' },
+  { value: 'income' as const,     label: 'Ingreso', icon: 'fal fa-arrow-circle-down',   activeClass: 'btn-success' },
+];
+
+const expectedCash = computed(() => {
+  if (!cashSession.value) return 0;
+  return +(
+    cashSession.value.OpeningAmount +
+    cashSession.value.TotalSales -
+    cashSession.value.TotalExpenses -
+    cashSession.value.TotalWithdrawals +
+    cashSession.value.TotalIncome
+  ).toFixed(2);
+});
 
 // ── Estado ─────────────────────────────────────────────────
 const cart = ref<SaleDetail[]>([]);
@@ -625,7 +827,7 @@ const selectedCustomer = ref<Customer | null>(null);
 const customerSearch = ref('');
 const customerResults = ref<Customer[]>([]);
 const productSearch = ref('');
-const selectedLab = ref('');
+const selectedCategory = ref('');
 const activeTab = ref<'products' | 'cart'>('products');
 const productInputRef = ref<HTMLInputElement | null>(null);
 
@@ -656,11 +858,11 @@ const totalChange = computed(() =>
 );
 
 // ── Computed ───────────────────────────────────────────────
-const labFilters = computed(() => {
-  const labs = allProducts.value
-    .map((p: Product) => p.LaboratoryName)
-    .filter((l: string) => l && l.trim() !== '');
-  return [...new Set(labs)].sort() as string[];
+const categoryFilters = computed(() => {
+  const cats = allProducts.value
+    .map((p: Product) => p.CategoryName)
+    .filter((c: string) => c && c.trim() !== '');
+  return [...new Set(cats)].sort() as string[];
 });
 
 const filteredProducts = computed(() => {
@@ -669,8 +871,8 @@ const filteredProducts = computed(() => {
     const q = productSearch.value.toLowerCase();
     list = list.filter((p: Product) => p.ProductName.toLowerCase().includes(q));
   }
-  if (selectedLab.value) {
-    list = list.filter((p: Product) => p.LaboratoryName === selectedLab.value);
+  if (selectedCategory.value) {
+    list = list.filter((p: Product) => p.CategoryName === selectedCategory.value);
   }
   return list;
 });
@@ -704,13 +906,16 @@ const recalcLine = (i: number) => {
 // ── Carga inicial ──────────────────────────────────────────
 onMounted(async () => {
   loadingProducts.value = true;
-  const [{ Data: products }, { Data: methods }] = await Promise.all([
+  const [{ Data: products }, { Data: methods }, sessionResp] = await Promise.all([
     getProductsByName(''),
     getPaymentMethods(),
+    getActiveSession(),
   ]);
   allProducts.value = (products ?? []).filter((p: Product) => p.IsActive && p.CurrentStock >= 0);
   paymentMethods.value = methods ?? [];
+  cashSession.value = sessionResp.Data ?? null;
   loadingProducts.value = false;
+  if (!cashSession.value) showOpenCashModal.value = true;
   productInputRef.value?.focus();
 });
 
@@ -816,8 +1021,85 @@ const closePaymentModal = () => {
   showPaymentModal.value = false;
 };
 
+// ── Gestión de caja ────────────────────────────────────────
+const doOpenCash = async () => {
+  savingCash.value = true;
+  try {
+    const resp = await openSession({ OpeningAmount: openingAmount.value });
+    if (resp.ok) {
+      const sessionResp = await getActiveSession();
+      cashSession.value = sessionResp.Data ?? null;
+      showOpenCashModal.value = false;
+      openingAmount.value = 0;
+    } else {
+      utils.showMessageModal({ Description: resp.Message?.Description || 'No se pudo abrir la caja.', MessageType: 'warning' });
+    }
+  } finally {
+    savingCash.value = false;
+  }
+};
+
+const doCloseCash = async () => {
+  if (!cashSession.value) return;
+  savingCash.value = true;
+  try {
+    const resp = await closeSession(cashSession.value.Id, { DeclaredAmount: declaredAmount.value, Notes: closeNotes.value });
+    if (resp.ok) {
+      cashSession.value = null;
+      showCloseCashModal.value = false;
+      declaredAmount.value = 0;
+      closeNotes.value = '';
+      utils.showMessageModal({ Description: 'Caja cerrada correctamente.', MessageType: 'info' });
+    } else {
+      utils.showMessageModal({ Description: resp.Message?.Description || 'No se pudo cerrar la caja.', MessageType: 'warning' });
+    }
+  } finally {
+    savingCash.value = false;
+  }
+};
+
+const doAddMovement = async () => {
+  if (!cashSession.value) return;
+  if (!movementDescription.value.trim()) {
+    utils.showMessageModal({ Description: 'La descripción es obligatoria.', MessageType: 'warning' });
+    return;
+  }
+  if (movementAmount.value <= 0) {
+    utils.showMessageModal({ Description: 'El monto debe ser mayor a cero.', MessageType: 'warning' });
+    return;
+  }
+  savingMovement.value = true;
+  try {
+    const request: CashMovementRequest = {
+      CashSessionId: cashSession.value.Id,
+      MovementType: movementType.value,
+      Amount: movementAmount.value,
+      Description: movementDescription.value.trim(),
+    };
+    const resp = await addMovement(cashSession.value.Id, request);
+    if (resp.ok) {
+      // Recargar sesión para actualizar totales
+      const sessionResp = await getActiveSession();
+      cashSession.value = sessionResp.Data ?? null;
+      showMovementModal.value = false;
+      movementAmount.value = 0;
+      movementDescription.value = '';
+      movementType.value = 'expense';
+    } else {
+      utils.showMessageModal({ Description: resp.Message?.Description || 'No se pudo registrar el movimiento.', MessageType: 'warning' });
+    }
+  } finally {
+    savingMovement.value = false;
+  }
+};
+
 // ── Abrir modal al cobrar ──────────────────────────────────
 const confirmSale = () => {
+  if (!cashSession.value) {
+    utils.showMessageModal({ Description: 'Debes abrir la caja antes de realizar ventas.', MessageType: 'warning' });
+    showOpenCashModal.value = true;
+    return;
+  }
   if (!selectedCustomer.value) {
     utils.showMessageModal({ Description: 'Selecciona un cliente antes de cobrar.', MessageType: 'warning' });
     return;
@@ -837,6 +1119,7 @@ const finalizeSale = async () => {
     sale.CustomerId = selectedCustomer.value!.Id;
     sale.SaleDate = new Date().toISOString();
     sale.IsActive = true;
+    sale.CashSessionId = cashSession.value?.Id ?? '';
     sale.Subtotal = subtotal.value;
     sale.TotalDiscounts = totalDiscounts.value;
     sale.Total = total.value;
@@ -861,6 +1144,9 @@ const finalizeSale = async () => {
 
     const { ok: saved, Message, Data: newSaleId } = await saveSaleApi(sale);
     if (saved) {
+      // Recargar sesión para que TotalSales refleje la venta recién registrada
+      const sessionResp = await getActiveSession();
+      cashSession.value = sessionResp.Data ?? null;
       // Capturar datos antes de resetear
       completedSaleId.value = newSaleId ?? '';
       completedCustomer.value = selectedCustomer.value?.FullName ?? '';
@@ -893,7 +1179,7 @@ const resetAll = () => {
   resetCart();
   clearCustomer();
   productSearch.value = '';
-  selectedLab.value = '';
+  selectedCategory.value = '';
 };
 
 // ── Acciones post-venta ────────────────────────────────────

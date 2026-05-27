@@ -214,5 +214,16 @@ export default {
         titleForm: 'Punto de venta'
       },
     },
+    {
+      path: 'cash-sessions',
+      name: 'cash-sessions',
+      component: () => import(/* webpackChunkName: "cash-sessions" */ '@/modules/inventory/views/cash-sessions/CashSessionsAdminView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Turnos de Caja',
+        titleForm: 'Turnos de Caja'
+      },
+    },
   ],
 };

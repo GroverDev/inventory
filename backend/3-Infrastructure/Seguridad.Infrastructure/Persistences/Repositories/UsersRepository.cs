@@ -153,35 +153,25 @@ public async Task<bool> UpdateUser(Users user, int modifiedBy)
         using var transaction = db.BeginTransaction();
         try
         {
-            // Check if email/username exists for OTHER users (exclude current user by UUID)
             string checkQuery = @"SELECT EXISTS (
-                                       SELECT 1 FROM sec.users 
-                                       WHERE (LOWER(email) = LOWER(@Email)) 
-                                         AND uuid != @Uuid
-                                         AND is_active
-                                     )";
-            // Note: Removed checking userName because often userName IS the email, or we just want to update profile fields.
-            // If checking both: (LOWER(user_name) = LOWER(@UserName) OR LOWER(email) = LOWER(@Email))
-            // Assuming logic based on CreateUser:
-            checkQuery = @"SELECT EXISTS (
-                                       SELECT 1 FROM sec.users 
-                                       WHERE (LOWER(email) = LOWER(@Email)) 
+                                       SELECT 1 FROM sec.users
+                                       WHERE (LOWER(user_name) = LOWER(@UserName) OR LOWER(email) = LOWER(@Email))
                                          AND uuid != @Uuid
                                          AND is_active
                                     )";
 
-            var existeUsuario = db.ExecuteScalar<bool>(checkQuery, new { user.Email, user.Uuid }, transaction);
-            if (existeUsuario) throw new CustomException("Ya existe un usuario con ese correo electrónico");
+            var existeUsuario = db.ExecuteScalar<bool>(checkQuery, new { user.UserName, user.Email, user.Uuid }, transaction);
+            if (existeUsuario) throw new CustomException("Ya existe un usuario con ese nombre de usuario o correo electrónico");
 
             string sqlQuery = @"UPDATE sec.users
-                                   SET email = @Email,
+                                   SET user_name = @UserName,
+                                       email = @Email,
                                        full_name = @FullName,
                                        modified_by = @ModifiedBy,
                                        modified = now()
                                    WHERE uuid = @Uuid";
 
-            // We pass 'modifiedBy' as 'ModifiedBy' prop or arg. The 'user' object might not have it set, so we pass it in anon object or set it.
-            var rows = await db.ExecuteAsync(sqlQuery, new { user.Email, user.FullName, ModifiedBy = modifiedBy, user.Uuid }, transaction);
+            var rows = await db.ExecuteAsync(sqlQuery, new { user.UserName, user.Email, user.FullName, ModifiedBy = modifiedBy, user.Uuid }, transaction);
 
             if (rows == 0) throw new CustomException("No se encontró el usuario para actualizar");
 
@@ -238,6 +228,70 @@ public async Task<bool> DeleteUser(Guid uuid, int modifiedBy)
     catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
     finally { db.Close(); }
     return ok;
+}
+
+public async Task<bool> ChangeUserPassword(Guid uuid, string hashedPassword, int modifiedBy)
+{
+    using var db = _context.CreateConnection;
+    try
+    {
+        db.Open();
+        using var transaction = db.BeginTransaction();
+        try
+        {
+            string sqlQuery = @"UPDATE sec.users
+                                   SET password = @HashedPassword,
+                                       change_password = false,
+                                       modified_by = @ModifiedBy,
+                                       modified = now()
+                                 WHERE uuid = @Uuid AND is_active";
+
+            var rows = await db.ExecuteAsync(sqlQuery, new { HashedPassword = hashedPassword, ModifiedBy = modifiedBy, Uuid = uuid }, transaction);
+            if (rows == 0) throw new CustomException("No se encontró el usuario para actualizar la contraseña.");
+            transaction.Commit();
+            return true;
+        }
+        catch (CustomException ex) { transaction.Rollback(); throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { transaction.Rollback(); throw new Exception(ex.Message, ex); }
+    }
+    catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+    finally { db.Close(); }
+}
+
+public async Task<bool> ChangeOwnPassword(int userId, string currentPassword, string newHashedPassword)
+{
+    using var db = _context.CreateConnection;
+    try
+    {
+        db.Open();
+        using var transaction = db.BeginTransaction();
+        try
+        {
+            var storedHash = await db.ExecuteScalarAsync<string>(
+                "SELECT password FROM sec.users WHERE id = @UserId AND is_active",
+                new { UserId = userId }, transaction);
+
+            if (string.IsNullOrEmpty(storedHash))
+                throw new CustomException("Usuario no encontrado.");
+
+            if (!Common.Utilities.Cryptography.Hash.VerifyPassword(storedHash, currentPassword))
+                throw new CustomException("La contraseña actual es incorrecta.");
+
+            var rows = await db.ExecuteAsync(
+                @"UPDATE sec.users SET password = @NewPassword, change_password = false, modified = now()
+                   WHERE id = @UserId",
+                new { NewPassword = newHashedPassword, UserId = userId }, transaction);
+
+            transaction.Commit();
+            return rows > 0;
+        }
+        catch (CustomException ex) { transaction.Rollback(); throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { transaction.Rollback(); throw new Exception(ex.Message, ex); }
+    }
+    catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+    finally { db.Close(); }
 }
 
 public async Task<List<Roles>> GetRolesByUserUuid(Guid uuid)

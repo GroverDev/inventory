@@ -13,4 +13,6 @@ public class LoginResponse
         public bool RequireTotp { get; set; }
         public bool TotpSetupRequired { get; set; }
         public string TotpSessionToken { get; set; }="";
+        public int RolId { get; set; }
+        public string RolName { get; set; } = "";
 }

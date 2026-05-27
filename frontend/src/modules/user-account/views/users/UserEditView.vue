@@ -98,6 +98,27 @@
                       <small class="invalid-feedback">Debe ingresar el nombre completo.</small>
                     </div>
                     <div class="col-12 col-sm-6 mb-3">
+                      <label class="form-label d-block" for="UserName">
+                        Nombre de Usuario <span class="text-danger">*</span>
+                      </label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-transparent">
+                          <i class="fal fa-at"></i>
+                        </span>
+                        <input
+                          type="text"
+                          id="UserName"
+                          name="UserName"
+                          class="form-control"
+                          placeholder="nombre.usuario"
+                          :disabled="isSaved"
+                          autocomplete="off"
+                          v-model.trim="user.UserName"
+                        />
+                      </div>
+                      <small class="text-muted"><i class="fal fa-info-circle me-1"></i>Debe ser único. Si se deja vacío, se usará el correo.</small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
                       <label class="form-label d-block" for="Email">
                         Correo Electrónico <span class="text-danger">*</span>
                       </label>

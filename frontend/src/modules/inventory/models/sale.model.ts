@@ -6,11 +6,13 @@ export class Sale {
   public Id: string = '';
   public CustomerId: string = '';
   public CustomerName: string = '';
+  public SellerName: string = '';
   public SaleDate: string = '';
   public Subtotal: number = 0;
   public TotalDiscounts: number = 0;
   public Total: number = 0;
   public IsActive: boolean = false;
+  public CashSessionId: string = '';
   public Detail: SaleDetail[] = [];
   public Payments: SalePayment[] = [];
   public Returns: SaleReturn[] = [];

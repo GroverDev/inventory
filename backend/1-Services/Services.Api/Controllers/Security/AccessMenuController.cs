@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Seguridad.Application;
 using Seguridad.Domain;
+using Services.Api.Utils;
 
 namespace Services.Api.Controllers.Security;
 
@@ -15,7 +16,9 @@ public class AccessMenuController(IAccessMenuApplication _accessMenuApplication)
     [HttpGet]
     public async Task<ActionResult<Response<List<AccessMenu>>>> Get()
     {
-        var resp = await _accessMenuApplication.GetAccesMenuXUserId(1);
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+        var resp = await _accessMenuApplication.GetAccesMenuXUserId(datos.UserId);
         AddObjectInMenu(resp.Data??[]);
         resp.Data = resp.Data!.Where(x => x.IdFormularioPadre == 0).ToList();
         return Ok(resp);

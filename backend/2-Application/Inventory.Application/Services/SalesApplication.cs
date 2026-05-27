@@ -108,7 +108,7 @@ public class SalesApplication(
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return respuesta;
     }
-    public async Task<Response<List<SaleProductResponse>>> GetSales(string saleDateInitial, string saleDateEnd)
+    public async Task<Response<List<SaleProductResponse>>> GetSales(string saleDateInitial, string saleDateEnd, int userId, string rol)
     {
         Response<List<SaleProductResponse>> sales = new() { Data = [] };
         try
@@ -138,7 +138,8 @@ public class SalesApplication(
                 throw new CustomException("Fecha desde, no puede ser mayor a la Fecha hasta.", MessageTypes.Warning);
             #endregion
 
-            var respList = await _salesRepository.GetSales(Convert.ToDateTime(saleDateInitial), Convert.ToDateTime(saleDateEnd));
+            int? filterUserId = rol == "Cajero" ? userId : null;
+            var respList = await _salesRepository.GetSales(Convert.ToDateTime(saleDateInitial), Convert.ToDateTime(saleDateEnd), filterUserId);
 
             foreach (var saleItem in respList)
             {

@@ -27,6 +27,8 @@ public static class InjectionExtensionsInventoryApplication
         services.AddScoped<IStockMovementApplication, StockMovementApplication>();
         services.AddScoped<IPaymentMethodApplication, PaymentMethodApplication>();
         services.AddScoped<ISaleReturnApplication, SaleReturnApplication>();
+        services.AddScoped<ICashSessionApplication, CashSessionApplication>();
+        services.AddScoped<ICashMovementApplication, CashMovementApplication>();
         return services;
     }
 }

@@ -26,9 +26,13 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
                        u.uuid,
                        u.password,
                        COALESCE(m.is_enabled,  false) AS mfa_enabled,
-                       COALESCE(m.is_required, false) AS mfa_required
+                       COALESCE(m.is_required, false) AS mfa_required,
+                       COALESCE(r.id,       0)        AS rol_id,
+                       COALESCE(r.name_rol, '')       AS rol_name
                 FROM sec.users u
-                LEFT JOIN sec.user_mfa m ON m.user_id = u.id AND m.mfa_type = 'totp'
+                LEFT JOIN sec.user_mfa    m  ON m.user_id = u.id AND m.mfa_type = 'totp'
+                LEFT JOIN sec.users_roles ur ON ur.user_id = u.id AND ur.state
+                LEFT JOIN sec.roles       r  ON r.id = ur.rol_id  AND r.state
                 WHERE u.email = @email AND u.is_active";
 
             var reader = await db.ExecuteReaderAsync(query, new { email = login.Email });
@@ -55,6 +59,8 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             usuario.FullName = fila["full_name"].ToString() ?? "";
             int userId = fila["user_id"].ToString() != "" ? Convert.ToInt32(fila["user_id"].ToString()) : 0;
             usuario.UserId = userId;
+            usuario.RolId = fila["rol_id"].ToString() != "" ? Convert.ToInt32(fila["rol_id"].ToString()) : 0;
+            usuario.RolName = fila["rol_name"].ToString() ?? "";
 
             bool mfaEnabled = Convert.ToBoolean(fila["mfa_enabled"].ToString());
             bool mfaRequired = Convert.ToBoolean(fila["mfa_required"].ToString());
@@ -103,9 +109,13 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             db.Open();
             var dt = new DataTable();
             const string query = @"
-                SELECT u.id as user_id, u.user_name, u.change_password, u.email, u.full_name, u.uuid
+                SELECT u.id as user_id, u.user_name, u.change_password, u.email, u.full_name, u.uuid,
+                       COALESCE(r.id,       0)  AS rol_id,
+                       COALESCE(r.name_rol, '') AS rol_name
                 FROM sec.users u
-                JOIN sec.user_mfa m ON m.user_id = u.id AND m.mfa_type = 'totp'
+                JOIN sec.user_mfa    m  ON m.user_id = u.id AND m.mfa_type = 'totp'
+                LEFT JOIN sec.users_roles ur ON ur.user_id = u.id AND ur.state
+                LEFT JOIN sec.roles       r  ON r.id = ur.rol_id  AND r.state
                 WHERE u.id = @user_id AND u.is_active AND m.is_enabled = true";
 
             var reader = await db.ExecuteReaderAsync(query, new { user_id = userId });
@@ -121,6 +131,8 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             usuario.Uuid = fila["uuid"].ToString() ?? Guid.Empty.ToString();
             usuario.ChangePassword = Convert.ToBoolean(fila["change_password"].ToString());
             usuario.FullName = fila["full_name"].ToString() ?? "";
+            usuario.RolId = fila["rol_id"].ToString() != "" ? Convert.ToInt32(fila["rol_id"].ToString()) : 0;
+            usuario.RolName = fila["rol_name"].ToString() ?? "";
 
             var loginRequest = new LoginRequest
             {

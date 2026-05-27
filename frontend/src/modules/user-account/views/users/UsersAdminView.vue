@@ -71,6 +71,7 @@
                       <th>Correo Electrónico</th>
                       <th class="d-none d-lg-table-cell text-center">Último Acceso</th>
                       <th class="text-center">Estado</th>
+                      <th class="text-center">TOTP</th>
                       <th class="text-center">Acciones</th>
                     </tr>
                   </thead>
@@ -86,6 +87,17 @@
                           {{ user.IsActive ? 'Activo' : 'Inactivo' }}
                         </span>
                       </td>
+                      <td class="text-center">
+                        <span v-if="user.MfaEnabled" class="badge bg-success" title="TOTP configurado y activo">
+                          <i class="fal fa-shield-check me-1"></i>Activo
+                        </span>
+                        <span v-else-if="user.MfaRequired" class="badge bg-warning text-dark" title="TOTP requerido, pendiente de configurar">
+                          <i class="fal fa-exclamation-triangle me-1"></i>Requerido
+                        </span>
+                        <span v-else class="badge bg-secondary" title="Sin TOTP">
+                          <i class="fal fa-shield me-1"></i>Sin TOTP
+                        </span>
+                      </td>
                       <td class="text-center text-nowrap">
                         <button
                           type="button"
@@ -94,6 +106,41 @@
                           @click="editUser(user)"
                         >
                           <span class="fal fa-edit"></span>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm me-1"
+                          title="Cambiar contraseña"
+                          @click="openPasswordModal(user)"
+                        >
+                          <span class="fal fa-key"></span>
+                        </button>
+                        <button
+                          v-if="!user.MfaEnabled && !user.MfaRequired"
+                          type="button"
+                          class="btn btn-outline-warning btn-sm me-1"
+                          title="Requerir TOTP al usuario"
+                          @click="requireMfa(user)"
+                        >
+                          <span class="fal fa-shield-alt"></span>
+                        </button>
+                        <button
+                          v-if="user.MfaRequired && !user.MfaEnabled"
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm me-1"
+                          title="Quitar obligatoriedad de TOTP"
+                          @click="unrequireMfa(user)"
+                        >
+                          <span class="fal fa-shield"></span>
+                        </button>
+                        <button
+                          v-if="user.MfaEnabled"
+                          type="button"
+                          class="btn btn-outline-danger btn-sm me-1"
+                          title="Resetear TOTP (deshabilita y limpia la configuración)"
+                          @click="resetMfa(user)"
+                        >
+                          <span class="fal fa-undo"></span>
                         </button>
                         <button
                           type="button"
@@ -117,25 +164,52 @@
                       <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                           <h6 class="card-title mb-0">{{ user.FullName }}</h6>
-                          <span class="badge ms-2" :class="user.IsActive ? 'bg-success' : 'bg-secondary'">
-                            {{ user.IsActive ? 'Activo' : 'Inactivo' }}
-                          </span>
+                          <div class="d-flex gap-1 ms-2">
+                            <span class="badge" :class="user.IsActive ? 'bg-success' : 'bg-secondary'">
+                              {{ user.IsActive ? 'Activo' : 'Inactivo' }}
+                            </span>
+                            <span v-if="user.MfaEnabled" class="badge bg-success" title="TOTP activo">
+                              <i class="fal fa-shield-check"></i>
+                            </span>
+                            <span v-else-if="user.MfaRequired" class="badge bg-warning text-dark" title="TOTP requerido">
+                              <i class="fal fa-exclamation-triangle"></i>
+                            </span>
+                          </div>
                         </div>
                         <small class="text-muted mb-1">{{ user.Email }}</small>
                         <small v-if="user.LastAccess" class="text-muted mb-3">
                           <i class="fal fa-clock me-1"></i>{{ formatDate(user.LastAccess) }}
                         </small>
-                        <div class="mt-auto">
+                        <div class="mt-auto d-flex flex-column gap-1">
                           <div class="btn-group w-100" role="group">
                             <button type="button" class="btn btn-outline-primary btn-sm"
                               @click="editUser(user)">
                               <span class="fal fa-edit me-1"></span>Editar
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                              @click="openPasswordModal(user)">
+                              <span class="fal fa-key me-1"></span>Contraseña
                             </button>
                             <button type="button" class="btn btn-outline-danger btn-sm"
                               @click="removeUser(user.Uuid)">
                               <span class="fal fa-trash-alt me-1"></span>Eliminar
                             </button>
                           </div>
+                          <button v-if="!user.MfaEnabled && !user.MfaRequired"
+                            type="button" class="btn btn-outline-warning btn-sm w-100"
+                            @click="requireMfa(user)">
+                            <span class="fal fa-shield-alt me-1"></span>Requerir TOTP
+                          </button>
+                          <button v-if="user.MfaRequired && !user.MfaEnabled"
+                            type="button" class="btn btn-outline-secondary btn-sm w-100"
+                            @click="unrequireMfa(user)">
+                            <span class="fal fa-shield me-1"></span>Quitar obligatoriedad
+                          </button>
+                          <button v-if="user.MfaEnabled"
+                            type="button" class="btn btn-outline-danger btn-sm w-100"
+                            @click="resetMfa(user)">
+                            <span class="fal fa-undo me-1"></span>Resetear TOTP
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -150,6 +224,60 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal cambio de contraseña -->
+  <div v-if="passwordModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold">
+            <i class="fal fa-key me-2"></i>Cambiar contraseña — {{ passwordModal.userName }}
+          </h6>
+          <button type="button" class="btn-close" @click="closePasswordModal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label form-label-sm">Nueva contraseña <span class="text-danger">*</span></label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-transparent"><i class="fal fa-lock"></i></span>
+              <input
+                :type="passwordModal.showPwd ? 'text' : 'password'"
+                class="form-control"
+                v-model.trim="passwordModal.newPassword"
+                placeholder="Mínimo 6 caracteres"
+                autocomplete="new-password"
+              />
+              <button type="button" class="btn btn-outline-secondary" tabindex="-1"
+                @click="passwordModal.showPwd = !passwordModal.showPwd">
+                <i :class="passwordModal.showPwd ? 'fal fa-eye-slash' : 'fal fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label form-label-sm">Confirmar contraseña <span class="text-danger">*</span></label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-transparent"><i class="fal fa-lock"></i></span>
+              <input
+                :type="passwordModal.showPwd ? 'text' : 'password'"
+                class="form-control"
+                :class="{ 'is-invalid': passwordModal.confirm && passwordModal.newPassword !== passwordModal.confirm }"
+                v-model.trim="passwordModal.confirm"
+                placeholder="Repite la contraseña"
+                autocomplete="new-password"
+              />
+              <div class="invalid-feedback">Las contraseñas no coinciden.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button class="btn btn-outline-secondary btn-sm" @click="closePasswordModal">Cancelar</button>
+          <button class="btn btn-primary btn-sm" @click="savePassword">
+            <i class="fal fa-save me-1"></i>Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -160,8 +288,43 @@ import type { User } from '@/modules/user-account/models/users.model';
 import utils from '@/utils/msg';
 
 const users = ref<User[]>([]);
-const { getUsersByName, deleteUser } = useUser();
+const { getUsersByName, deleteUser, changeUserPassword, adminResetMfa, adminRequireMfa, adminUnrequireMfa } = useUser();
 const router = useRouter();
+
+const passwordModal = ref({
+  show: false,
+  uuid: '',
+  userName: '',
+  newPassword: '',
+  confirm: '',
+  showPwd: false,
+});
+
+const openPasswordModal = (user: User) => {
+  passwordModal.value = { show: true, uuid: user.Uuid, userName: user.FullName, newPassword: '', confirm: '', showPwd: false };
+};
+
+const closePasswordModal = () => {
+  passwordModal.value.show = false;
+};
+
+const savePassword = async () => {
+  if (!passwordModal.value.newPassword || passwordModal.value.newPassword.length < 6) {
+    await utils.showMessageModal({ Description: 'La contraseña debe tener al menos 6 caracteres.', MessageType: 'warning' });
+    return;
+  }
+  if (passwordModal.value.newPassword !== passwordModal.value.confirm) {
+    await utils.showMessageModal({ Description: 'Las contraseñas no coinciden.', MessageType: 'warning' });
+    return;
+  }
+  const ok = await utils.showMessageQuestion(`¿Cambiar la contraseña de ${passwordModal.value.userName}?`);
+  if (!ok) return;
+  const resp = await changeUserPassword(passwordModal.value.uuid, passwordModal.value.newPassword);
+  if (resp.ok) {
+    closePasswordModal();
+    await utils.showMessageModal({ Description: 'Contraseña actualizada correctamente.', MessageType: 'success' });
+  }
+};
 
 const filtro = ref({
   FullName: '',
@@ -200,6 +363,37 @@ const removeUser = async (id: string) => {
       await utils.showMessageModal({ Description: 'El usuario se eliminó correctamente.', MessageType: 'success' });
       await getUsers();
     }
+  }
+};
+
+const requireMfa = async (user: User) => {
+  const ok = await utils.showMessageQuestion(`¿Requerir TOTP a ${user.FullName}? El usuario deberá configurarlo en su próximo inicio de sesión.`);
+  if (!ok) return;
+  const resp = await adminRequireMfa(user.Uuid);
+  if (resp.ok) {
+    user.MfaRequired = true;
+    await utils.showMessageModal({ Description: 'Se ha marcado el TOTP como requerido para el usuario.', MessageType: 'success' });
+  }
+};
+
+const unrequireMfa = async (user: User) => {
+  const ok = await utils.showMessageQuestion(`¿Quitar la obligatoriedad de TOTP para ${user.FullName}?`);
+  if (!ok) return;
+  const resp = await adminUnrequireMfa(user.Uuid);
+  if (resp.ok) {
+    user.MfaRequired = false;
+    await utils.showMessageModal({ Description: 'Se quitó la obligatoriedad de TOTP.', MessageType: 'success' });
+  }
+};
+
+const resetMfa = async (user: User) => {
+  const ok = await utils.showMessageQuestion(`¿Resetear el TOTP de ${user.FullName}? Esto deshabilita y elimina su configuración actual.`);
+  if (!ok) return;
+  const resp = await adminResetMfa(user.Uuid);
+  if (resp.ok) {
+    user.MfaEnabled = false;
+    user.MfaRequired = false;
+    await utils.showMessageModal({ Description: 'El TOTP del usuario fue reseteado correctamente.', MessageType: 'success' });
   }
 };
 </script>

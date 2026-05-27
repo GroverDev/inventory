@@ -5,6 +5,7 @@ public class SaleProductResponse
         public Guid Id { get; set; }
         public Guid CustomerId { get; set; }
         public string CustomerName { get; set; } = "";
+        public string SellerName { get; set; } = "";
         public DateTime SaleDate { get; set; }
         public decimal Subtotal { get; set; }
         public decimal TotalDiscounts { get; set; }

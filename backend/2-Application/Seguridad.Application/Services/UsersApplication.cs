@@ -72,7 +72,8 @@ public async Task<Response<bool>> UpdateUser(Guid uuid, UserUpdateRequest reques
         // Ideally we just pass the fields or a partial entity. The repository handles it by only updating the fields we care about.
         //var user = _mapper.Map<Users>(request);
         var user = new Users();
-        user.Uuid = uuid; // Important
+        user.Uuid = uuid;
+        user.UserName = string.IsNullOrWhiteSpace(request.UserName) ? request.Email : request.UserName;
         user.FullName = request.FullName;
         user.Email = request.Email;
         
@@ -90,6 +91,34 @@ public async Task<Response<bool>> DeleteUser(Guid uuid, int modifiedBy)
     try
     {
         resp.Data = await _usersRepository.DeleteUser(uuid, modifiedBy);
+        resp.ok = true;
+    }
+    catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+    catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
+    return resp;
+}
+
+public async Task<Response<bool>> ChangeUserPassword(Guid uuid, string newPassword, int modifiedBy)
+{
+    var resp = new Response<bool>();
+    try
+    {
+        string hashed = Common.Utilities.Cryptography.Hash.HashPassword(newPassword);
+        resp.Data = await _usersRepository.ChangeUserPassword(uuid, hashed, modifiedBy);
+        resp.ok = true;
+    }
+    catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+    catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
+    return resp;
+}
+
+public async Task<Response<bool>> ChangeOwnPassword(int userId, string currentPassword, string newPassword)
+{
+    var resp = new Response<bool>();
+    try
+    {
+        string newHashed = Common.Utilities.Cryptography.Hash.HashPassword(newPassword);
+        resp.Data = await _usersRepository.ChangeOwnPassword(userId, currentPassword, newHashed);
         resp.ok = true;
     }
     catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }

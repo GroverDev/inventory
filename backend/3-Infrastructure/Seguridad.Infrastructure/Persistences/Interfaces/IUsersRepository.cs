@@ -13,4 +13,6 @@ public interface IUsersRepository
     public Task<bool> DeleteUser(Guid uuid, int modifiedBy);
     public Task<List<Roles>> GetRolesByUserUuid(Guid uuid);
     public Task AssignRolesToUser(Guid uuid, List<int> roleIds, int modifiedBy);
+    public Task<bool> ChangeUserPassword(Guid uuid, string hashedPassword, int modifiedBy);
+    public Task<bool> ChangeOwnPassword(int userId, string currentPassword, string newHashedPassword);
 }

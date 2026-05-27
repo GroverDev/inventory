@@ -61,11 +61,10 @@ public class SalesController(ISalesApplication _salesApplication) : ControllerBa
     [HttpGet]
     public async Task<ActionResult<Response<List<SaleProductResponse>>>> GetSales(string saleDateInitial, string saleDateEnd)
     {
-        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-        // var datos = TokenData.GetData(HttpContext);
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
 
-        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd);
-
+        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Rol);
     }
 
     // GET api/Sales/GUID
