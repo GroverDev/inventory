@@ -323,12 +323,31 @@
             >
               <div class="d-flex justify-content-between align-items-start mb-1">
                 <span class="fw-semibold lh-sm" style="font-size:0.85rem">{{ line.ProductName }}</span>
-                <button
-                  type="button" class="btn btn-link btn-sm text-danger p-0 ms-1"
-                  @click="removeFromCart(i)"
-                >
-                  <i class="fal fa-times-circle"></i>
-                </button>
+                <div class="d-flex align-items-center gap-1 ms-1">
+                  <button
+                    type="button"
+                    class="btn btn-sm py-0 px-1 lh-1"
+                    :class="line.DiscountLabel ? 'btn-success' : 'btn-outline-secondary'"
+                    @click="openDiscountModal(i)"
+                    title="Aplicar descuento"
+                  ><i class="fal fa-percent" style="font-size:0.68rem"></i></button>
+                  <button
+                    type="button" class="btn btn-link btn-sm text-danger p-0"
+                    @click="removeFromCart(i)"
+                  ><i class="fal fa-times-circle"></i></button>
+                </div>
+              </div>
+              <!-- Descuento aplicado en línea -->
+              <div v-if="line.DiscountLabel" class="d-flex justify-content-between align-items-center mb-1">
+                <div class="d-flex align-items-center gap-1">
+                  <small class="text-success" style="font-size:0.7rem">
+                    <i class="fal fa-tag me-1"></i>{{ line.DiscountLabel }}
+                  </small>
+                  <button type="button" class="btn btn-link p-0 text-danger lh-1" @click="removeLineDiscount(i)" title="Quitar descuento">
+                    <i class="fal fa-times" style="font-size:0.65rem"></i>
+                  </button>
+                </div>
+                <small class="text-success fw-semibold" style="font-size:0.7rem">− Bs. {{ formatNum(line.LineTotalDiscounts) }}</small>
               </div>
               <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center gap-1">
@@ -369,9 +388,31 @@
               <small class="text-muted">Subtotal</small>
               <small>Bs. {{ formatNum(subtotal) }}</small>
             </div>
-            <div class="d-flex justify-content-between mb-1" v-if="totalDiscounts > 0">
-              <small class="text-muted">Descuentos</small>
-              <small class="text-danger">− Bs. {{ formatNum(totalDiscounts) }}</small>
+            <div class="d-flex justify-content-between mb-1" v-if="totalLineDiscounts > 0">
+              <small class="text-muted">Desc. por línea</small>
+              <small class="text-success fw-semibold">− Bs. {{ formatNum(totalLineDiscounts) }}</small>
+            </div>
+            <!-- Descuento global aplicado -->
+            <div v-if="headerDiscountAmount > 0" class="d-flex justify-content-between align-items-center mb-1">
+              <div class="d-flex align-items-center gap-1">
+                <small class="text-muted">{{ headerDiscountLabel }}</small>
+                <button type="button" class="btn btn-link p-0 text-danger lh-1" @click="removeHeaderDiscount" title="Quitar descuento global">
+                  <i class="fal fa-times" style="font-size:0.65rem"></i>
+                </button>
+              </div>
+              <small class="text-success fw-semibold">− Bs. {{ formatNum(headerDiscountAmount) }}</small>
+            </div>
+            <!-- Botón agregar descuento global -->
+            <div class="mb-1">
+              <button
+                type="button"
+                class="btn btn-sm w-100 py-0"
+                :class="headerDiscountAmount > 0 ? 'btn-outline-success' : 'btn-outline-secondary'"
+                @click="openDiscountModal(-1)"
+              >
+                <i class="fal fa-tag me-1"></i>
+                {{ headerDiscountAmount > 0 ? 'Cambiar descuento global' : 'Agregar descuento global' }}
+              </button>
             </div>
             <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-1">
               <span class="fw-bold">TOTAL</span>
@@ -403,6 +444,182 @@
 
         </div><!-- /pos-cart-footer -->
       </div><!-- /pos-cart-panel -->
+
+      <!-- ════ MODAL: Aplicar Descuento ════ -->
+      <div v-if="showDiscountModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content">
+
+            <div class="modal-header py-2">
+              <h6 class="modal-title fw-bold">
+                <i class="fal fa-tag me-2"></i>
+                {{ discountTargetIndex >= 0 ? 'Descuento por línea' : 'Descuento global' }}
+              </h6>
+              <button type="button" class="btn-close" @click="showDiscountModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+
+              <!-- Base amount info -->
+              <div class="d-flex justify-content-between small text-muted mb-3">
+                <span>Base</span>
+                <span class="fw-semibold">Bs. {{ formatNum(discountBaseAmount) }}</span>
+              </div>
+
+              <!-- Tabs: Predefinido / Manual -->
+              <div class="d-flex gap-0 mb-3 border-bottom">
+                <button
+                  class="btn btn-sm px-3 pb-2 me-1"
+                  style="border-radius:0; border-bottom: 2px solid transparent"
+                  :style="discountMode === 'catalog' ? 'border-bottom-color: var(--bs-primary)' : ''"
+                  :class="discountMode === 'catalog' ? 'text-primary fw-semibold' : 'text-muted'"
+                  @click="discountMode = 'catalog'"
+                >
+                  <i class="fal fa-list me-1"></i>Predefinido
+                </button>
+                <button
+                  class="btn btn-sm px-3 pb-2"
+                  style="border-radius:0; border-bottom: 2px solid transparent"
+                  :style="discountMode === 'manual' ? 'border-bottom-color: var(--bs-primary)' : ''"
+                  :class="discountMode === 'manual' ? 'text-primary fw-semibold' : 'text-muted'"
+                  @click="discountMode = 'manual'"
+                >
+                  <i class="fal fa-keyboard me-1"></i>Manual
+                </button>
+              </div>
+
+              <!-- Modo catálogo -->
+              <div v-if="discountMode === 'catalog'">
+                <div v-if="discountCatalog.length === 0" class="text-center text-muted py-3">
+                  <i class="fal fa-tags fa-2x d-block mb-2 opacity-50"></i>
+                  <small>Sin descuentos configurados.</small>
+                </div>
+                <div v-else class="list-group list-group-flush" style="max-height:240px; overflow-y:auto">
+                  <button
+                    v-for="d in discountCatalog" :key="d.Id"
+                    type="button"
+                    class="list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center"
+                    :class="selectedDiscountId === d.Id ? 'active' : ''"
+                    @click="selectedDiscountId = d.Id"
+                  >
+                    <div>
+                      <div class="fw-semibold small">{{ d.Name }}</div>
+                      <small class="opacity-75" v-if="d.Description">{{ d.Description }}</small>
+                    </div>
+                    <span class="badge ms-2 flex-shrink-0"
+                      :class="selectedDiscountId === d.Id ? 'bg-white text-primary' : 'bg-primary-subtle text-primary'">
+                      {{ d.Type === 'Percentage' ? d.Value + '%' : 'Bs. ' + formatNum(d.Value) }}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Modo manual -->
+              <div v-if="discountMode === 'manual'">
+                <div class="mb-3">
+                  <label class="form-label small text-muted mb-1">Tipo de descuento</label>
+                  <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm flex-fill"
+                      :class="manualDiscountType === 'Percentage' ? 'btn-primary' : 'btn-outline-secondary'"
+                      @click="manualDiscountType = 'Percentage'">
+                      <i class="fal fa-percent me-1"></i>Porcentaje
+                    </button>
+                    <button type="button" class="btn btn-sm flex-fill"
+                      :class="manualDiscountType === 'FixedAmount' ? 'btn-primary' : 'btn-outline-secondary'"
+                      @click="manualDiscountType = 'FixedAmount'">
+                      <i class="fal fa-dollar-sign me-1"></i>Monto fijo
+                    </button>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small text-muted mb-1">
+                    {{ manualDiscountType === 'Percentage' ? 'Porcentaje (%)' : 'Monto (Bs.)' }}
+                  </label>
+                  <input
+                    type="number" class="form-control form-control-sm"
+                    v-model.number="manualDiscountValue"
+                    :max="manualDiscountType === 'Percentage' ? 100 : undefined"
+                    min="0.01" step="0.01" placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <!-- Preview del descuento -->
+              <div v-if="discountPreview > 0" class="alert alert-success py-2 mb-0 mt-2 small">
+                <i class="fal fa-check-circle me-1"></i>
+                <strong>Ahorro:</strong> Bs. {{ formatNum(discountPreview) }}
+              </div>
+
+            </div>
+
+            <div class="modal-footer py-2">
+              <button class="btn btn-outline-secondary btn-sm" @click="showDiscountModal = false">Cancelar</button>
+              <button class="btn btn-success btn-sm" :disabled="!canApplyDiscount" @click="applyDiscount">
+                <i class="fal fa-check me-1"></i>Aplicar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div><!-- /modal descuento -->
+
+      <!-- ════ MODAL: Autorización Supervisor (Fase 3) ════ -->
+      <div v-if="showSupervisorModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.65)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content">
+
+            <div class="modal-header py-2 bg-warning-subtle">
+              <h6 class="modal-title fw-bold text-warning-emphasis">
+                <i class="fal fa-shield-alt me-2"></i>Autorización requerida
+              </h6>
+              <button type="button" class="btn-close" @click="showSupervisorModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                El descuento manual supera el límite permitido para cajeros
+                (<strong>{{ maxCashierDiscountPct }}%</strong> por porcentaje /
+                <strong>Bs. {{ maxCashierDiscountAmount }}</strong> por monto fijo).
+                Ingresa las credenciales de un supervisor para autorizar.
+              </p>
+
+              <div class="mb-2">
+                <label class="form-label small text-muted">Email del supervisor</label>
+                <input
+                  type="email" class="form-control form-control-sm"
+                  v-model="supervisorEmail"
+                  placeholder="supervisor@empresa.com"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small text-muted">Contraseña</label>
+                <input
+                  type="password" class="form-control form-control-sm"
+                  v-model="supervisorPassword"
+                  placeholder="••••••••"
+                  @keyup.enter="verifySupervisor"
+                />
+              </div>
+
+              <div v-if="supervisorError" class="alert alert-danger py-2 small mb-0 mt-2">
+                <i class="fal fa-exclamation-triangle me-1"></i>{{ supervisorError }}
+              </div>
+            </div>
+
+            <div class="modal-footer py-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="showSupervisorModal = false">
+                Cancelar
+              </button>
+              <button type="button" class="btn btn-warning btn-sm" :disabled="supervisorLoading" @click="verifySupervisor">
+                <span v-if="supervisorLoading" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="fal fa-unlock me-1"></i>Autorizar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div><!-- /modal supervisor -->
 
       <!-- ════ MODAL DE COBRO ════ -->
       <div v-if="showPaymentModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
@@ -588,12 +805,26 @@
               </div>
               <div>Cliente: {{ completedCustomer }}</div>
               <hr>
-              <div v-for="(d, i) in completedDetail" :key="i" style="display:flex; justify-content:space-between;">
-                <span>{{ d.ProductName }} x{{ d.Quantity }}</span>
-                <span>Bs. {{ formatNum2(d.LineTotal) }}</span>
+              <div v-for="(d, i) in completedDetail" :key="i">
+                <div style="display:flex; justify-content:space-between;">
+                  <span>{{ d.ProductName }} x{{ d.Quantity }}</span>
+                  <span>Bs. {{ formatNum2(d.LineSubtotal) }}</span>
+                </div>
+                <div v-if="d.LineTotalDiscounts > 0" style="display:flex; justify-content:space-between; font-size:0.85em; color:#555">
+                  <span style="padding-left:8px">{{ d.DiscountLabel || 'Descuento' }}</span>
+                  <span>− Bs. {{ formatNum2(d.LineTotalDiscounts) }}</span>
+                </div>
               </div>
               <hr>
-              <div style="display:flex; justify-content:space-between; font-weight:bold;">
+              <div v-if="completedTotalLineDiscounts > 0" style="display:flex; justify-content:space-between;">
+                <span>Desc. por línea</span>
+                <span>− Bs. {{ formatNum2(completedTotalLineDiscounts) }}</span>
+              </div>
+              <div v-if="completedHeaderDiscountAmount > 0" style="display:flex; justify-content:space-between;">
+                <span>Desc. global</span>
+                <span>− Bs. {{ formatNum2(completedHeaderDiscountAmount) }}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:4px">
                 <span>TOTAL</span>
                 <span>Bs. {{ formatNum2(completedTotal) }}</span>
               </div>
@@ -771,15 +1002,25 @@ import type { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
 import type { CashSession } from '@/modules/inventory/models/cashSession.model';
 import { CashMovementRequest } from '@/modules/inventory/models/cashMovement.model';
+import type { Discount } from '@/modules/inventory/models/discount.model';
+import { useAuthStore } from '@/modules/auth/stores/auth.store';
+import { getApi } from '@/modules/common/composables/api/getApi';
 import useSales from '@/modules/inventory/composables/useSales';
+import usePosSettings from '@/modules/inventory/composables/usePosSettings';
 import useCustomer from '@/modules/inventory/composables/useCustomer';
 import useProduct from '@/modules/inventory/composables/useProduct';
 import usePaymentMethod from '@/modules/inventory/composables/usePaymentMethod';
 import useCashSession from '@/modules/inventory/composables/useCashSession';
 import useCashMovement from '@/modules/inventory/composables/useCashMovement';
+import useDiscount from '@/modules/inventory/composables/useDiscount';
 import utils from '@/utils/msg';
 
 const router = useRouter();
+const authStore = useAuthStore();
+
+// Límites cargados desde el backend (appsettings.json → GET /Settings/pos)
+const maxCashierDiscountPct    = ref<number>(15);
+const maxCashierDiscountAmount = ref<number>(50);
 
 const { saveSaleApi } = useSales();
 const { getCustomers } = useCustomer();
@@ -787,6 +1028,8 @@ const { getProductsByName } = useProduct();
 const { getPaymentMethods } = usePaymentMethod();
 const { getActiveSession, openSession, closeSession } = useCashSession();
 const { addMovement } = useCashMovement();
+const { getDiscounts } = useDiscount();
+const { getPosSettings } = usePosSettings();
 
 // ── Estado: caja ───────────────────────────────────────────
 const cashSession = ref<CashSession | null>(null);
@@ -835,6 +1078,36 @@ const productInputRef = ref<HTMLInputElement | null>(null);
 const paymentMethods = ref<PaymentMethod[]>([]);
 const showPaymentModal = ref(false);
 
+// ── Descuentos ─────────────────────────────────────────────
+const isCashier = computed(() => authStore.getUser?.RolName === 'Cajero');
+
+const discountCatalog = ref<Discount[]>([]);
+const showDiscountModal = ref(false);
+const discountTargetIndex = ref(-1);          // -1 = cabecera, >= 0 = índice de línea en cart
+const discountMode = ref<'catalog' | 'manual'>('catalog');
+const manualDiscountType = ref<'Percentage' | 'FixedAmount'>('Percentage');
+const manualDiscountValue = ref<number>(0);
+const selectedDiscountId = ref('');
+const headerDiscountId = ref('');
+const headerDiscountLabel = ref('');
+const headerDiscountAmount = ref<number>(0);
+const headerDiscountType = ref('');
+const headerDiscountValue = ref<number>(0);
+
+// Fase 3 — Autorización supervisor
+const showSupervisorModal = ref(false);
+const supervisorEmail = ref('');
+const supervisorPassword = ref('');
+const supervisorError = ref('');
+const supervisorLoading = ref(false);
+type PendingDiscount = {
+  targetIndex: number;
+  discountId: string; discountLabel: string; discountType: string;
+  discountValue: number; discountAmount: number;
+};
+const pendingDiscount = ref<PendingDiscount | null>(null);
+const supervisorAuthToken = ref('');
+
 // ── Modal venta completada ─────────────────────────────────
 const showCompletedModal = ref(false);
 const completedSaleId = ref('');
@@ -844,6 +1117,8 @@ const completedChange = ref(0);
 const completedPayments = ref<SalePayment[]>([]);
 const completedDetail = ref<SaleDetail[]>([]);
 const completedDate = ref('');
+const completedTotalLineDiscounts = ref(0);
+const completedHeaderDiscountAmount = ref(0);
 const savingPayment = ref(false);
 const selectedMethodId = ref('');
 const selectedMethod = ref<PaymentMethod | null>(null);
@@ -883,10 +1158,40 @@ const totalItems = computed(() =>
 const subtotal = computed(() =>
   +cart.value.reduce((s: number, l: SaleDetail) => s + l.LineSubtotal, 0).toFixed(2)
 );
-const totalDiscounts = computed(() =>
+const totalLineDiscounts = computed(() =>
   +cart.value.reduce((s: number, l: SaleDetail) => s + l.LineTotalDiscounts, 0).toFixed(2)
 );
-const total = computed(() => +(subtotal.value - totalDiscounts.value).toFixed(2));
+const totalDiscounts = computed(() =>
+  +(totalLineDiscounts.value + headerDiscountAmount.value).toFixed(2)
+);
+const total = computed(() =>
+  +(subtotal.value - totalLineDiscounts.value - headerDiscountAmount.value).toFixed(2)
+);
+
+const discountBaseAmount = computed(() =>
+  discountTargetIndex.value >= 0
+    ? (cart.value[discountTargetIndex.value]?.LineSubtotal ?? 0)
+    : +(subtotal.value - totalLineDiscounts.value).toFixed(2)
+);
+
+const discountPreview = computed(() => {
+  const base = discountBaseAmount.value;
+  if (discountMode.value === 'catalog') {
+    const d = discountCatalog.value.find(x => x.Id === selectedDiscountId.value);
+    if (!d) return 0;
+    return d.Type === 'Percentage'
+      ? +(Math.min(base * d.Value / 100, base)).toFixed(2)
+      : +(Math.min(d.Value, base)).toFixed(2);
+  }
+  if (manualDiscountValue.value <= 0) return 0;
+  return manualDiscountType.value === 'Percentage'
+    ? +(Math.min(base * manualDiscountValue.value / 100, base)).toFixed(2)
+    : +(Math.min(manualDiscountValue.value, base)).toFixed(2);
+});
+
+const canApplyDiscount = computed(() =>
+  discountMode.value === 'catalog' ? !!selectedDiscountId.value : manualDiscountValue.value > 0
+);
 
 // ── Helpers ────────────────────────────────────────────────
 const formatNum = (val: number) =>
@@ -900,20 +1205,34 @@ const cartQty = (productId: string): number => {
 const recalcLine = (i: number) => {
   const l = cart.value[i];
   l.LineSubtotal = +(l.Quantity * l.UnitPrice).toFixed(2);
+  if (l.DiscountType === 'Percentage' && l.DiscountValue > 0) {
+    l.LineTotalDiscounts = +(Math.min(l.LineSubtotal * l.DiscountValue / 100, l.LineSubtotal)).toFixed(2);
+  } else if (l.DiscountType === 'FixedAmount' && l.DiscountValue > 0) {
+    l.LineTotalDiscounts = +(Math.min(l.DiscountValue, l.LineSubtotal)).toFixed(2);
+  } else {
+    l.LineTotalDiscounts = 0;
+  }
   l.LineTotal = +(l.LineSubtotal - l.LineTotalDiscounts).toFixed(2);
 };
 
 // ── Carga inicial ──────────────────────────────────────────
 onMounted(async () => {
   loadingProducts.value = true;
-  const [{ Data: products }, { Data: methods }, sessionResp] = await Promise.all([
+  const [{ Data: products }, { Data: methods }, sessionResp, discountsResp, settingsResp] = await Promise.all([
     getProductsByName(''),
     getPaymentMethods(),
     getActiveSession(),
+    getDiscounts(),
+    getPosSettings(),
   ]);
   allProducts.value = (products ?? []).filter((p: Product) => p.IsActive && p.CurrentStock >= 0);
   paymentMethods.value = methods ?? [];
   cashSession.value = sessionResp.Data ?? null;
+  discountCatalog.value = (discountsResp.Data ?? []).filter((d: Discount) => d.IsActive);
+  if (settingsResp.Data) {
+    maxCashierDiscountPct.value    = settingsResp.Data.MaxCashierDiscountPct;
+    maxCashierDiscountAmount.value = settingsResp.Data.MaxCashierDiscountAmount;
+  }
   loadingProducts.value = false;
   if (!cashSession.value) showOpenCashModal.value = true;
   productInputRef.value?.focus();
@@ -1093,6 +1412,163 @@ const doAddMovement = async () => {
   }
 };
 
+// ── Descuentos ─────────────────────────────────────────────
+const openDiscountModal = (targetIndex: number) => {
+  discountTargetIndex.value = targetIndex;
+  if (targetIndex >= 0) {
+    const line = cart.value[targetIndex];
+    if (line.DiscountId) {
+      discountMode.value = 'catalog';
+      selectedDiscountId.value = line.DiscountId;
+    } else if (line.DiscountType) {
+      discountMode.value = 'manual';
+      manualDiscountType.value = line.DiscountType as 'Percentage' | 'FixedAmount';
+      manualDiscountValue.value = line.DiscountValue;
+      selectedDiscountId.value = '';
+    } else {
+      discountMode.value = 'catalog';
+      selectedDiscountId.value = '';
+      manualDiscountValue.value = 0;
+    }
+  } else {
+    discountMode.value = 'catalog';
+    selectedDiscountId.value = headerDiscountId.value;
+    manualDiscountValue.value = 0;
+  }
+  showDiscountModal.value = true;
+};
+
+const buildDiscountPayload = (): PendingDiscount | null => {
+  const base = discountBaseAmount.value;
+  let discountId = '', discountLabel = '', discountType = '', discountValue = 0, discountAmount = 0;
+
+  if (discountMode.value === 'catalog') {
+    const d = discountCatalog.value.find(x => x.Id === selectedDiscountId.value);
+    if (!d) return null;
+    discountId = d.Id;
+    discountType = d.Type;
+    discountValue = d.Value;
+    discountAmount = d.Type === 'Percentage'
+      ? +(Math.min(base * d.Value / 100, base)).toFixed(2)
+      : +(Math.min(d.Value, base)).toFixed(2);
+    discountLabel = `${d.Name} (${d.Type === 'Percentage' ? d.Value + '%' : 'Bs. ' + formatNum(d.Value)})`;
+  } else {
+    discountType = manualDiscountType.value;
+    discountValue = manualDiscountValue.value;
+    discountAmount = manualDiscountType.value === 'Percentage'
+      ? +(Math.min(base * discountValue / 100, base)).toFixed(2)
+      : +(Math.min(discountValue, base)).toFixed(2);
+    discountLabel = manualDiscountType.value === 'Percentage'
+      ? `Manual ${discountValue}%`
+      : `Manual Bs. ${formatNum(discountValue)}`;
+  }
+  return { targetIndex: discountTargetIndex.value, discountId, discountLabel, discountType, discountValue, discountAmount };
+};
+
+const commitDiscount = (payload: PendingDiscount) => {
+  if (payload.targetIndex >= 0) {
+    const line = cart.value[payload.targetIndex];
+    line.DiscountId = payload.discountId;
+    line.DiscountLabel = payload.discountLabel;
+    line.DiscountType = payload.discountType;
+    line.DiscountValue = payload.discountValue;
+    line.LineTotalDiscounts = payload.discountAmount;
+    recalcLine(payload.targetIndex);
+  } else {
+    headerDiscountId.value = payload.discountId;
+    headerDiscountLabel.value = payload.discountLabel;
+    headerDiscountAmount.value = payload.discountAmount;
+    headerDiscountType.value = payload.discountType;
+    headerDiscountValue.value = payload.discountValue;
+  }
+};
+
+const requiresSupervisorAuth = (payload: PendingDiscount): boolean => {
+  if (!isCashier.value) return false;
+  if (discountMode.value === 'catalog') return false;
+  if (payload.discountType === 'Percentage')
+    return payload.discountValue > maxCashierDiscountPct.value;
+  if (payload.discountType === 'FixedAmount')
+    return payload.discountValue > maxCashierDiscountAmount.value;
+  return false;
+};
+
+const applyDiscount = () => {
+  const payload = buildDiscountPayload();
+  if (!payload) return;
+
+  if (requiresSupervisorAuth(payload)) {
+    pendingDiscount.value = payload;
+    supervisorEmail.value = '';
+    supervisorPassword.value = '';
+    supervisorError.value = '';
+    showDiscountModal.value = false;
+    showSupervisorModal.value = true;
+    return;
+  }
+
+  commitDiscount(payload);
+  showDiscountModal.value = false;
+};
+
+const verifySupervisor = async () => {
+  if (!supervisorEmail.value || !supervisorPassword.value) {
+    supervisorError.value = 'Ingresa email y contraseña del supervisor.';
+    return;
+  }
+  supervisorLoading.value = true;
+  supervisorError.value = '';
+  try {
+    const api = getApi();
+    const resp = await api.post('Login', {
+      UserName: '',
+      Email: supervisorEmail.value,
+      Password: supervisorPassword.value,
+      Device: '',
+      WithEmail: true,
+      LoginFrom: 5,
+      LoginWith: 1,
+    });
+    const data = resp.data;
+    if (!data?.ok || !data?.Data?.Token) {
+      supervisorError.value = 'Credenciales incorrectas.';
+      return;
+    }
+    if (data.Data.RolName === 'Cajero') {
+      supervisorError.value = 'El usuario ingresado no tiene permisos de supervisor.';
+      return;
+    }
+    // Guardar token del supervisor para enviarlo al backend al grabar la venta
+    supervisorAuthToken.value = data.Data.Token;
+    // Autorizado — aplicar descuento pendiente
+    if (pendingDiscount.value) commitDiscount(pendingDiscount.value);
+    pendingDiscount.value = null;
+    showSupervisorModal.value = false;
+  } catch {
+    supervisorError.value = 'Error al verificar las credenciales. Intenta nuevamente.';
+  } finally {
+    supervisorLoading.value = false;
+  }
+};
+
+const removeLineDiscount = (i: number) => {
+  const line = cart.value[i];
+  line.DiscountId = '';
+  line.DiscountLabel = '';
+  line.DiscountType = '';
+  line.DiscountValue = 0;
+  line.LineTotalDiscounts = 0;
+  recalcLine(i);
+};
+
+const removeHeaderDiscount = () => {
+  headerDiscountId.value = '';
+  headerDiscountLabel.value = '';
+  headerDiscountAmount.value = 0;
+  headerDiscountType.value = '';
+  headerDiscountValue.value = 0;
+};
+
 // ── Abrir modal al cobrar ──────────────────────────────────
 const confirmSale = () => {
   if (!cashSession.value) {
@@ -1123,6 +1599,11 @@ const finalizeSale = async () => {
     sale.Subtotal = subtotal.value;
     sale.TotalDiscounts = totalDiscounts.value;
     sale.Total = total.value;
+    sale.HeaderDiscountId = headerDiscountId.value;
+    sale.HeaderDiscountAmount = headerDiscountAmount.value;
+    sale.HeaderDiscountType = headerDiscountType.value;
+    sale.HeaderDiscountValue = headerDiscountValue.value;
+    sale.SupervisorAuthToken = supervisorAuthToken.value;
     sale.Detail = cart.value.map((l: SaleDetail) => {
       const d = new SaleDetail();
       d.ProductId = l.ProductId;
@@ -1131,6 +1612,9 @@ const finalizeSale = async () => {
       d.LineSubtotal = l.LineSubtotal;
       d.LineTotalDiscounts = l.LineTotalDiscounts;
       d.LineTotal = l.LineTotal;
+      d.DiscountId = l.DiscountId;
+      d.DiscountType = l.DiscountType;
+      d.DiscountValue = l.DiscountValue;
       return d;
     });
     sale.Payments = paymentLines.value.map((l) => {
@@ -1154,6 +1638,8 @@ const finalizeSale = async () => {
       completedChange.value = totalChange.value;
       completedPayments.value = [...paymentLines.value];
       completedDetail.value = [...cart.value];
+      completedTotalLineDiscounts.value = totalLineDiscounts.value;
+      completedHeaderDiscountAmount.value = headerDiscountAmount.value;
       completedDate.value = new Date().toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       closePaymentModal();
       resetAll();
@@ -1180,6 +1666,8 @@ const resetAll = () => {
   clearCustomer();
   productSearch.value = '';
   selectedCategory.value = '';
+  removeHeaderDiscount();
+  supervisorAuthToken.value = '';
 };
 
 // ── Acciones post-venta ────────────────────────────────────

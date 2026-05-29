@@ -61,24 +61,39 @@
             <!-- ② Resumen de importes -->
             <div class="panel-content py-2">
               <div class="row g-2">
-                <div class="col-6" :class="hasReturns ? 'col-md-2' : 'col-md-4'">
+                <!-- Subtotal -->
+                <div class="col-6 col-md-2">
                   <div class="summary-card">
                     <div class="summary-label">Subtotal</div>
                     <div class="summary-value">{{ formatCurrency(sale.Subtotal) }}</div>
                   </div>
                 </div>
-                <div v-if="sale.TotalDiscounts > 0" class="col-6" :class="hasReturns ? 'col-md-2' : 'col-md-4'">
+
+                <!-- Descuento por línea -->
+                <div v-if="totalLineDiscounts > 0" class="col-6 col-md-2">
                   <div class="summary-card">
-                    <div class="summary-label">Descuentos</div>
-                    <div class="summary-value text-danger">− {{ formatCurrency(sale.TotalDiscounts) }}</div>
+                    <div class="summary-label">Desc. por línea</div>
+                    <div class="summary-value text-success">− {{ formatCurrency(totalLineDiscounts) }}</div>
                   </div>
                 </div>
-                <div class="col-6" :class="hasReturns ? 'col-md-2' : 'col-md-4'">
+
+                <!-- Descuento global -->
+                <div v-if="sale.HeaderDiscountAmount > 0" class="col-6 col-md-2">
+                  <div class="summary-card">
+                    <div class="summary-label">Desc. global</div>
+                    <div class="summary-value text-success">− {{ formatCurrency(sale.HeaderDiscountAmount) }}</div>
+                  </div>
+                </div>
+
+                <!-- Total venta -->
+                <div class="col-6 col-md-2">
                   <div class="summary-card summary-card--primary">
                     <div class="summary-label">Total venta</div>
                     <div class="summary-value">{{ formatCurrency(sale.Total) }}</div>
                   </div>
                 </div>
+
+                <!-- Devuelto + Neto (si hay devoluciones) -->
                 <template v-if="hasReturns">
                   <div class="col-6 col-md-2">
                     <div class="summary-card summary-card--warning">
@@ -118,18 +133,22 @@
               <!-- Desktop -->
               <div class="d-none d-md-block">
                 <table class="table table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead>
                     <tr>
                       <th>Producto</th>
                       <th class="text-end">P. Unit.</th>
                       <th class="text-center">Vendido</th>
                       <th class="text-center" v-if="hasReturns">Devuelto</th>
                       <th class="text-center" v-if="hasReturns">Neto</th>
+                      <th class="text-end" v-if="hasLineDiscounts">Subtotal</th>
+                      <th class="text-end" v-if="hasLineDiscounts">Descuento</th>
                       <th class="text-end">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(line, i) in enrichedLines" :key="i" :class="lineRowClass(line)">
+                    <tr v-for="(line, i) in enrichedLines" :key="i"
+                      :class="lineRowClass(line)"
+                      :data-bs-theme="(line.Net === 0 || line.Returned > 0) ? 'light' : undefined">
                       <td>
                         <span :class="line.Net === 0 ? 'text-decoration-line-through text-muted' : 'fw-semibold'">
                           {{ line.ProductName }}
@@ -149,8 +168,17 @@
                       <td class="text-center" v-if="hasReturns">
                         <span :class="line.Net === 0 ? 'text-muted' : 'fw-semibold'">{{ line.Net }}</span>
                       </td>
+                      <td class="text-end text-muted small" v-if="hasLineDiscounts">
+                        {{ formatCurrency(line.LineSubtotal) }}
+                      </td>
+                      <td class="text-end" v-if="hasLineDiscounts">
+                        <span v-if="line.LineTotalDiscounts > 0" class="text-success fw-semibold">
+                          − {{ formatCurrency(line.LineTotalDiscounts) }}
+                        </span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
                       <td class="text-end">
-                        <span :class="line.Net === 0 ? 'text-decoration-line-through text-muted' : ''">
+                        <span :class="line.Net === 0 ? 'text-decoration-line-through text-muted' : 'fw-semibold'">
                           {{ formatCurrency(line.LineTotal) }}
                         </span>
                         <span v-if="line.Returned > 0 && line.Net > 0" class="d-block text-muted" style="font-size:.75rem">
@@ -160,8 +188,21 @@
                     </tr>
                   </tbody>
                   <tfoot>
-                    <tr class="fw-bold table-light">
-                      <td :colspan="hasReturns ? 5 : 3" class="text-end">Total</td>
+                    <!-- Subtotal tras descuentos por línea (solo si hay desc. global) -->
+                    <tr v-if="sale.HeaderDiscountAmount > 0">
+                      <td :colspan="tableColspan" class="text-end text-muted small">Subtotal (tras desc. por línea)</td>
+                      <td class="text-end text-muted small">{{ formatCurrency(sale.Total + sale.HeaderDiscountAmount) }}</td>
+                    </tr>
+                    <!-- Descuento global -->
+                    <tr v-if="sale.HeaderDiscountAmount > 0">
+                      <td :colspan="tableColspan" class="text-end text-success small">
+                        <i class="fal fa-tag me-1"></i>Desc. global
+                      </td>
+                      <td class="text-end text-success fw-semibold small">− {{ formatCurrency(sale.HeaderDiscountAmount) }}</td>
+                    </tr>
+                    <!-- Total final -->
+                    <tr class="fw-bold border-top">
+                      <td :colspan="tableColspan" class="text-end">TOTAL</td>
                       <td class="text-end">{{ formatCurrency(hasReturns ? netTotal : sale.Total) }}</td>
                     </tr>
                   </tfoot>
@@ -186,6 +227,14 @@
                             · {{ line.Returned }} devuelto{{ line.Returned > 1 ? 's' : '' }}
                           </span>
                         </small>
+                        <div v-if="line.LineTotalDiscounts > 0" class="d-flex justify-content-between mt-1">
+                          <small class="text-muted">Subtotal</small>
+                          <small class="text-muted">{{ formatCurrency(line.LineSubtotal) }}</small>
+                        </div>
+                        <div v-if="line.LineTotalDiscounts > 0" class="d-flex justify-content-between">
+                          <small class="text-success"><i class="fal fa-tag me-1"></i>Descuento</small>
+                          <small class="text-success fw-semibold">− {{ formatCurrency(line.LineTotalDiscounts) }}</small>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -258,7 +307,7 @@
 
             <div class="table-responsive">
               <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
+                <thead>
                   <tr>
                     <th>Producto</th>
                     <th class="text-center">Vendido</th>
@@ -296,7 +345,7 @@
                   </tr>
                 </tbody>
                 <tfoot>
-                  <tr class="fw-bold table-light">
+                  <tr class="fw-bold border-top">
                     <td colspan="5" class="text-end">Total a devolver</td>
                     <td class="text-end text-danger">{{ formatCurrency(returnTotal) }}</td>
                   </tr>
@@ -358,6 +407,14 @@ const formatCurrency = (val: number): string =>
 
 // ── Computed ───────────────────────────────────────────────
 const hasReturns = computed(() => (sale.value.Returns?.length ?? 0) > 0);
+const hasLineDiscounts = computed(() => sale.value.Detail.some(d => d.LineTotalDiscounts > 0));
+const totalLineDiscounts = computed(() =>
+  sale.value.Detail.reduce((s, d) => s + d.LineTotalDiscounts, 0)
+);
+// Colspan del label en tfoot = todas las columnas menos la última (valor)
+const tableColspan = computed(() =>
+  3 + (hasReturns.value ? 2 : 0) + (hasLineDiscounts.value ? 2 : 0)
+);
 
 const totalReturned = computed(() =>
   sale.value.Returns?.reduce((s, r) => s + r.TotalReturned, 0) ?? 0
@@ -396,7 +453,7 @@ const enrichedLines = computed(() =>
 
 const lineRowClass = (line: { Returned: number; Net: number }) => {
   if (line.Net === 0) return 'table-secondary';
-  if (line.Returned > 0) return 'table-warning bg-opacity-50';
+  if (line.Returned > 0) return 'table-warning';
   return '';
 };
 

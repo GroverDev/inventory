@@ -10,6 +10,12 @@ export class SaleDetail {
   public ProductName: string = '';
   public LaboratoryName: string = '';
   public isSelected: boolean = false;
+  // Discount tracking (DiscountId is sent to the API)
+  public DiscountId: string = '';
+  // UI-only fields (used for recalculation when qty changes)
+  public DiscountLabel: string = '';
+  public DiscountType: string = '';   // 'Percentage' | 'FixedAmount'
+  public DiscountValue: number = 0;
 }
 
 

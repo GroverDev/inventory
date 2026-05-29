@@ -9,6 +9,7 @@ public class SaleProductResponse
         public DateTime SaleDate { get; set; }
         public decimal Subtotal { get; set; }
         public decimal TotalDiscounts { get; set; }
+        public decimal HeaderDiscountAmount { get; set; }
         public decimal Total { get; set; }
         public bool IsActive { get; set; }
         public List<SaleProductDetailResponse> Detail { get; set; } = [];

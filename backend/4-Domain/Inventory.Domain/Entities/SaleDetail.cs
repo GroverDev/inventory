@@ -13,6 +13,6 @@ public class SaleDetail : Audit
     public decimal LineSubtotal { get; set; }
     public decimal LineTotalDiscounts { get; set; }
     public decimal LineTotal { get; set; }
-   
+    public Guid? DiscountId { get; set; }
 }
 

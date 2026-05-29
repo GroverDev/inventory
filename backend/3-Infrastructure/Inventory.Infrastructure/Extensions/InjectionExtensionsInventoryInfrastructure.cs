@@ -27,6 +27,7 @@ public static class InjectionExtensionsInventoryInfraestructure
         services.AddScoped<ISaleReturnRepository, SaleReturnRepository>();
         services.AddScoped<ICashMovementRepository, CashMovementRepository>();
         services.AddScoped<ICashSessionRepository, CashSessionRepository>();
+        services.AddScoped<IDiscountRepository, DiscountRepository>();
         return services;
     }
 }

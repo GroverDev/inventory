@@ -16,11 +16,29 @@ public class SalesDetailRepository : ISalesDetailRepository
             detail.Id = Guid.NewGuid();
             string sqlQuery = @"
                     INSERT INTO sales_detail
-                               (id,   sale_id, product_id, quantity, unit_price, line_subtotal, line_total_discounts, line_total, state, created_by, created, modified_by, modified)
+                               (id,   sale_id, product_id, quantity, unit_price, line_subtotal, line_total_discounts, line_total, discount_id, state, created_by, created, modified_by, modified)
                     VALUES
-                            (@Id, @SaleId, @ProductId,  @Quantity, @UnitPrice, @LineSubtotal,@LineTotalDiscounts, @LineTotal,  @State, @CreatedBy,  @Created, @ModifiedBy, @Modified);
+                            (@Id, @SaleId, @ProductId, @Quantity, @UnitPrice, @LineSubtotal, @LineTotalDiscounts, @LineTotal, @DiscountId, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                 ";
             var result = await db.ExecuteAsync(sqlQuery, detail, transaction: transaction);
+
+            if (detail.DiscountId.HasValue && detail.DiscountId != Guid.Empty)
+            {
+                string discountTrackSql = @"
+                    INSERT INTO sale_detail_discounts
+                                (id, sale_detail_id, discount_id, applied_amount, state, created_by, created, modified_by, modified)
+                    VALUES      (@Id, @SaleDetailId, @DiscountId, @AppliedAmount, true, @CreatedBy, @Created, @CreatedBy, @Created);
+                ";
+                await db.ExecuteAsync(discountTrackSql, new
+                {
+                    Id           = Guid.NewGuid(),
+                    SaleDetailId = detail.Id,
+                    detail.DiscountId,
+                    AppliedAmount = detail.LineTotalDiscounts,
+                    detail.CreatedBy,
+                    Created = DateTime.Now
+                }, transaction);
+            }
 
             int stockBefore = await db.ExecuteScalarAsync<int>(
                 "SELECT current_stock FROM products WHERE id = @Id",

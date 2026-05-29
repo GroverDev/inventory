@@ -12,6 +12,8 @@ public class Sale: Audit
         public decimal Total { get; set; }
         public bool IsActive { get; set; }
         public Guid? CashSessionId { get; set; }
+        public Guid? HeaderDiscountId { get; set; }
+        public decimal HeaderDiscountAmount { get; set; }
         public List<SaleDetail> Detail { get; set; } = [];
         public List<SalePayment> Payments { get; set; } = [];
     }

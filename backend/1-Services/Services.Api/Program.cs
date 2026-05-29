@@ -34,6 +34,7 @@ var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSetting
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<Seguridad.Domain.MfaSettings>(builder.Configuration.GetSection("MfaSettings"));
+builder.Services.Configure<Inventory.Application.PosSettings>(builder.Configuration.GetSection("PosSettings"));
 builder.Services.AddControllers();
 builder.Services.AddControllers().AddJsonOptions(options =>
             {

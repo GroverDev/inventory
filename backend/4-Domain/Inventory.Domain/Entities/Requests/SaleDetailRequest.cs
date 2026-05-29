@@ -10,6 +10,9 @@ public class SaleDetailRequest
     public decimal LineSubtotal { get; set; }
     public decimal LineTotalDiscounts { get; set; }
     public decimal LineTotal { get; set; }
+    public string DiscountId   { get; set; } = "";
+    public string DiscountType { get; set; } = "";   // "Percentage" | "FixedAmount" — solo descuentos manuales
+    public decimal DiscountValue { get; set; }
 }
 
 

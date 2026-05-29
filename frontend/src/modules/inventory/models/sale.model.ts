@@ -13,6 +13,11 @@ export class Sale {
   public Total: number = 0;
   public IsActive: boolean = false;
   public CashSessionId: string = '';
+  public HeaderDiscountId: string = '';
+  public HeaderDiscountAmount: number = 0;
+  public HeaderDiscountType: string = '';
+  public HeaderDiscountValue: number = 0;
+  public SupervisorAuthToken: string = '';
   public Detail: SaleDetail[] = [];
   public Payments: SalePayment[] = [];
   public Returns: SaleReturn[] = [];

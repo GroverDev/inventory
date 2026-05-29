@@ -20,8 +20,12 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 sale.Id = Guid.NewGuid();
                 string sqlQuery = @"
                        INSERT INTO sales
-                              (id, customer_id,  sale_date,  subtotal, total_discounts, total,  is_active, cash_session_id, state, created_by, created, modified_by, modified)
-                       VALUES(@Id, @CustomerId, @SaleDate, @Subtotal, @TotalDiscounts, @Total, @IsActive, @CashSessionId,  @State, @CreatedBy,  @Created, @ModifiedBy, @Modified);
+                              (id, customer_id, sale_date, subtotal, total_discounts, total, is_active, cash_session_id,
+                               header_discount_id, header_discount_amount,
+                               state, created_by, created, modified_by, modified)
+                       VALUES(@Id, @CustomerId, @SaleDate, @Subtotal, @TotalDiscounts, @Total, @IsActive, @CashSessionId,
+                              @HeaderDiscountId, @HeaderDiscountAmount,
+                              @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                          ";
                 await db.ExecuteAsync(sqlQuery, sale, transaction);
 
@@ -97,7 +101,9 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
             string userFilter = userId.HasValue ? "AND s.created_by = @UserId" : "";
             string sqlQuery = $@"
                        SELECT s.id, s.customer_id, c.full_name AS CustomerName,
-                              s.sale_date, s.subtotal, s.total_discounts, s.total, s.is_active,
+                              s.sale_date, s.subtotal, s.total_discounts,
+                              COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
+                              s.total, s.is_active,
                               COALESCE(u.full_name, '') AS SellerName
                          FROM sales s
                         INNER JOIN customers c ON c.id = s.customer_id
@@ -133,7 +139,9 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
             db.Open();
             string sqlQuery = @"
                     SELECT s.id, s.customer_id, c.full_name AS CustomerName,
-                           s.sale_date, s.subtotal, s.total_discounts, s.total, s.is_active
+                           s.sale_date, s.subtotal, s.total_discounts,
+                           COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
+                           s.total, s.is_active
                       FROM sales s
                      INNER JOIN customers c ON c.id = s.customer_id
                      WHERE s.state

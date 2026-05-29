@@ -215,6 +215,17 @@ export default {
       },
     },
     {
+      path: 'discounts-admin',
+      name: 'discounts-admin',
+      component: () => import(/* webpackChunkName: "discounts-admin" */ '@/modules/inventory/views/discounts/DiscountsAdminView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Gestión de Descuentos',
+        titleForm: 'Gestión de Descuentos',
+      },
+    },
+    {
       path: 'cash-sessions',
       name: 'cash-sessions',
       component: () => import(/* webpackChunkName: "cash-sessions" */ '@/modules/inventory/views/cash-sessions/CashSessionsAdminView.vue'),

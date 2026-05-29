@@ -16,7 +16,6 @@
 
             <!-- Filtros -->
             <div class="mb-3">
-              <!-- Accesos rápidos -->
               <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                 <span class="text-muted small me-1">Ver:</span>
                 <button
@@ -30,7 +29,6 @@
                 </button>
               </div>
 
-              <!-- Rango personalizado -->
               <div class="row align-items-end g-2">
                 <div class="col-6 col-md-3">
                   <label class="form-label small text-muted mb-1">Desde</label>
@@ -49,10 +47,49 @@
                     <option v-for="s in sellerOptions" :key="s" :value="s">{{ s }}</option>
                   </select>
                 </div>
-                <div class="col-6 col-md-3">
-                  <button class="btn btn-primary btn-sm w-100" @click="getSalesData">
+                <div class="col-6 col-md-3 d-flex gap-2">
+                  <button class="btn btn-primary btn-sm flex-fill" @click="getSalesData">
                     <span class="fal fa-search me-1"></span>Buscar
                   </button>
+                  <button
+                    v-if="filteredSales.length > 0"
+                    class="btn btn-outline-success btn-sm"
+                    @click="exportExcel"
+                    title="Exportar a Excel"
+                  >
+                    <span class="fal fa-file-excel"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- KPIs del período -->
+            <div v-if="filteredSales.length > 0" class="row g-2 mb-3">
+              <div class="col-6 col-md-3">
+                <div class="kpi-card">
+                  <div class="kpi-label"><i class="fal fa-receipt me-1"></i>Ventas</div>
+                  <div class="kpi-value">{{ filteredSales.length }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="kpi-card">
+                  <div class="kpi-label"><i class="fal fa-calculator me-1"></i>Subtotal</div>
+                  <div class="kpi-value">{{ formatCurrency(totalSubtotalPeriod) }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="kpi-card kpi-card--discount">
+                  <div class="kpi-label"><i class="fal fa-tag me-1"></i>Descuentos</div>
+                  <div class="kpi-value text-danger">− {{ formatCurrency(totalDiscountsPeriod) }}</div>
+                  <div class="kpi-sub" v-if="totalSubtotalPeriod > 0">
+                    {{ discountRatePct }}% del subtotal
+                  </div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="kpi-card kpi-card--total">
+                  <div class="kpi-label"><i class="fal fa-check-circle me-1"></i>Total cobrado</div>
+                  <div class="kpi-value">{{ formatCurrency(totalPeriod) }}</div>
                 </div>
               </div>
             </div>
@@ -92,7 +129,12 @@
                       <td class="fw-semibold">{{ sale.CustomerName }}</td>
                       <td><small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small></td>
                       <td class="text-end">{{ formatCurrency(sale.Subtotal) }}</td>
-                      <td class="text-end text-danger">{{ formatCurrency(sale.TotalDiscounts) }}</td>
+                      <td class="text-end">
+                        <span v-if="sale.TotalDiscounts > 0" class="text-danger fw-semibold">
+                          − {{ formatCurrency(sale.TotalDiscounts) }}
+                        </span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
                       <td class="text-end fw-semibold">{{ formatCurrency(sale.Total) }}</td>
                       <td class="text-center text-nowrap">
                         <button
@@ -116,8 +158,13 @@
                   </tbody>
                   <tfoot>
                     <tr class="fw-bold table-light">
-                      <td colspan="5" class="text-end">TOTAL PERÍODO</td>
-                      <td class="text-end">{{ formatCurrency(totalPeriod) }}</td>
+                      <td colspan="3" class="text-end text-muted small">TOTALES DEL PERÍODO</td>
+                      <td class="text-end">{{ formatCurrency(totalSubtotalPeriod) }}</td>
+                      <td class="text-end text-danger">
+                        <span v-if="totalDiscountsPeriod > 0">− {{ formatCurrency(totalDiscountsPeriod) }}</span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
+                      <td class="text-end text-primary">{{ formatCurrency(totalPeriod) }}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -132,7 +179,7 @@
                       <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                           <h6 class="card-title mb-0">{{ sale.CustomerName }}</h6>
-                          <span class="fw-bold">{{ formatCurrency(sale.Total) }}</span>
+                          <span class="fw-bold text-primary">{{ formatCurrency(sale.Total) }}</span>
                         </div>
                         <small class="text-muted d-block">
                           <i class="fal fa-calendar me-1"></i>{{ formatDate(sale.SaleDate) }}
@@ -140,6 +187,21 @@
                         <small class="text-muted d-block mb-2">
                           <i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}
                         </small>
+                        <!-- Desglose de importes cuando hay descuentos -->
+                        <div v-if="sale.TotalDiscounts > 0" class="d-flex gap-3 mb-2 px-1 py-1 rounded bg-light">
+                          <div class="text-center flex-fill">
+                            <div class="kpi-label">Subtotal</div>
+                            <div class="small fw-semibold">{{ formatCurrency(sale.Subtotal) }}</div>
+                          </div>
+                          <div class="text-center flex-fill">
+                            <div class="kpi-label">Desc.</div>
+                            <div class="small fw-semibold text-danger">− {{ formatCurrency(sale.TotalDiscounts) }}</div>
+                          </div>
+                          <div class="text-center flex-fill">
+                            <div class="kpi-label">Total</div>
+                            <div class="small fw-semibold text-primary">{{ formatCurrency(sale.Total) }}</div>
+                          </div>
+                        </div>
                         <div class="d-flex gap-2">
                           <button type="button" class="btn btn-outline-primary btn-sm flex-fill"
                             @click="viewDetail(sale.Id)">
@@ -169,6 +231,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import useSales from '@/modules/inventory/composables/useSales';
 import type { Sale } from '@/modules/inventory/models/sale.model';
+import { exportToExcel } from '@/utils/excelHelper';
 import utils from '@/utils/msg';
 
 const sales = ref<Sale[]>([]);
@@ -188,7 +251,7 @@ const today = toLocalDateStr(new Date());
 const getWeekStart = (): string => {
   const d = new Date();
   const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // retroceder al lunes
+  const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return toLocalDateStr(d);
 };
@@ -198,9 +261,9 @@ const getMonthStart = (): string =>
 
 // ── Accesos rápidos ────────────────────────────────────────
 const quickFilters = [
-  { key: 'today',  label: 'Hoy',          icon: 'fal fa-sun' },
-  { key: 'week',   label: 'Esta semana',   icon: 'fal fa-calendar-week' },
-  { key: 'month',  label: 'Este mes',      icon: 'fal fa-calendar-alt' },
+  { key: 'today',  label: 'Hoy',        icon: 'fal fa-sun' },
+  { key: 'week',   label: 'Esta semana', icon: 'fal fa-calendar-week' },
+  { key: 'month',  label: 'Este mes',    icon: 'fal fa-calendar-alt' },
 ] as const;
 
 type QuickKey = typeof quickFilters[number]['key'];
@@ -210,9 +273,9 @@ const filtro = ref({ dateInitial: today, dateEnd: today, seller: '' });
 
 const applyQuick = (key: QuickKey) => {
   activeQuick.value = key;
-  if (key === 'today')  filtro.value = { ...filtro.value, dateInitial: today, dateEnd: today };
-  if (key === 'week')   filtro.value = { ...filtro.value, dateInitial: getWeekStart(), dateEnd: today };
-  if (key === 'month')  filtro.value = { ...filtro.value, dateInitial: getMonthStart(), dateEnd: today };
+  if (key === 'today') filtro.value = { ...filtro.value, dateInitial: today, dateEnd: today };
+  if (key === 'week')  filtro.value = { ...filtro.value, dateInitial: getWeekStart(), dateEnd: today };
+  if (key === 'month') filtro.value = { ...filtro.value, dateInitial: getMonthStart(), dateEnd: today };
   getSalesData();
 };
 
@@ -228,7 +291,20 @@ const filteredSales = computed(() =>
     : sales.value
 );
 
-const totalPeriod = computed(() => +filteredSales.value.reduce((s, v) => s + v.Total, 0).toFixed(2));
+const totalSubtotalPeriod = computed(() =>
+  +filteredSales.value.reduce((s, v) => s + v.Subtotal, 0).toFixed(2)
+);
+const totalDiscountsPeriod = computed(() =>
+  +filteredSales.value.reduce((s, v) => s + v.TotalDiscounts, 0).toFixed(2)
+);
+const totalPeriod = computed(() =>
+  +filteredSales.value.reduce((s, v) => s + v.Total, 0).toFixed(2)
+);
+const discountRatePct = computed(() =>
+  totalSubtotalPeriod.value > 0
+    ? ((totalDiscountsPeriod.value / totalSubtotalPeriod.value) * 100).toFixed(1)
+    : '0.0'
+);
 
 // ── Formatters ─────────────────────────────────────────────
 const formatDate = (val: string | Date): string => {
@@ -258,7 +334,64 @@ const removeSale = async (id: string) => {
   }
 };
 
+// ── Export Excel ───────────────────────────────────────────
+const exportExcel = () => {
+  const rows = filteredSales.value.map(s => ({
+    Fecha:       formatDate(s.SaleDate),
+    Cliente:     s.CustomerName,
+    Vendedor:    s.SellerName || '',
+    Subtotal:    s.Subtotal,
+    Descuentos:  s.TotalDiscounts,
+    Total:       s.Total,
+  }));
+
+  // Fila de totales al final
+  rows.push({
+    Fecha:      'TOTALES',
+    Cliente:    '',
+    Vendedor:   '',
+    Subtotal:   totalSubtotalPeriod.value,
+    Descuentos: totalDiscountsPeriod.value,
+    Total:      totalPeriod.value,
+  });
+
+  const fileName = `ventas_${filtro.value.dateInitial}_${filtro.value.dateEnd}.xlsx`;
+  exportToExcel(rows, fileName);
+};
+
 onMounted(() => applyQuick('today'));
 </script>
 
-<style scoped></style>
+<style scoped>
+.kpi-card {
+  background: var(--bs-tertiary-bg, #f8f9fa);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  text-align: center;
+}
+.kpi-card--discount {
+  border-color: rgba(var(--bs-danger-rgb), 0.3);
+  background: rgba(var(--bs-danger-rgb), 0.04);
+}
+.kpi-card--total {
+  border-color: rgba(var(--bs-primary-rgb), 0.35);
+  background: rgba(var(--bs-primary-rgb), 0.06);
+}
+.kpi-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bs-secondary-color, #6c757d);
+  margin-bottom: 0.15rem;
+}
+.kpi-value {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.kpi-sub {
+  font-size: 0.65rem;
+  color: var(--bs-secondary-color, #6c757d);
+  margin-top: 0.1rem;
+}
+</style>

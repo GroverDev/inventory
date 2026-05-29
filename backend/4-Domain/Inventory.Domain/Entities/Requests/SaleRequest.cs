@@ -10,6 +10,11 @@ public class SaleRequest
         public decimal Total { get; set; }
         public bool IsActive { get; set; }
         public string CashSessionId { get; set; } = "";
+        public string HeaderDiscountId     { get; set; } = "";
+        public decimal HeaderDiscountAmount { get; set; }
+        public string HeaderDiscountType   { get; set; } = "";
+        public decimal HeaderDiscountValue { get; set; }
+        public string SupervisorAuthToken  { get; set; } = "";
 
         public List<SaleDetailRequest> Detail { get; set; } = [];
         public List<SalePaymentRequest> Payments { get; set; } = [];
