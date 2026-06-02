@@ -9,4 +9,5 @@ public interface ICashSessionRepository
     Task<CashSessionResponse?> GetActiveSessionByUser(int userId);
     Task<CashSessionResponse?> GetSessionById(Guid sessionId);
     Task<List<CashSessionResponse>> GetSessions(DateTime dateFrom, DateTime dateTo, int? userId);
+    Task<List<SaleProductResponse>> GetSessionSales(Guid sessionId);
 }

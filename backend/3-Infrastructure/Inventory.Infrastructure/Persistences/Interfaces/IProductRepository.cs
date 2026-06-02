@@ -12,5 +12,5 @@ public interface IProductRepository
     public Task<(List<ProductResponse> Items, int TotalCount)> GetProductsStock(string productName, int page, int pageSize);
     public Task<ProductResponse> GetProduct(Guid Id);
     public Task<ProductStockPriceResponse> GetProductStockPrice(Guid Id);
-
+    public Task<int> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy);
 }

@@ -10,4 +10,5 @@ public interface ICashSessionApplication
     Task<Response<CashSessionResponse>> GetActiveSession(int userId);
     Task<Response<CashSessionResponse>> GetSessionById(string sessionId);
     Task<Response<List<CashSessionResponse>>> GetSessions(string dateFrom, string dateTo, int userId, string rol);
+    Task<Response<List<SaleProductResponse>>> GetSessionSales(string sessionId);
 }

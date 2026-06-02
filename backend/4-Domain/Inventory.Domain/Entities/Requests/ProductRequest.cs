@@ -35,3 +35,35 @@ public class ProductRequestValidator : AbstractValidator<ProductRequest>
 
     }
 }
+
+public class ProductBulkUpdateRequest
+{
+    public string Id { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public decimal SalePrice { get; set; }
+    public int MinReorderQuantity { get; set; }
+    public bool AvailableInPos { get; set; }
+    public bool IsActive { get; set; }
+    public string BarCode { get; set; } = "";
+}
+
+public class ProductBulkUpdateRequestValidator : AbstractValidator<ProductBulkUpdateRequest>
+{
+    public ProductBulkUpdateRequestValidator()
+    {
+        RuleFor(p => p.Id)
+            .NotEmpty().WithMessage("El Id del producto es requerido.")
+            .Must(id => Guid.TryParse(id, out _)).WithMessage("El Id del producto no es un UUID válido.");
+
+        RuleFor(p => p.ProductName)
+            .NotEmpty().WithMessage("El nombre del producto es requerido.")
+            .MinimumLength(5).WithMessage("El nombre no puede tener menos de {MinLength} caracteres.")
+            .MaximumLength(50).WithMessage("El nombre no puede tener más de {MaximumLength} caracteres.");
+
+        RuleFor(p => p.SalePrice)
+            .GreaterThanOrEqualTo(0).WithMessage("El precio de venta no puede ser negativo.");
+
+        RuleFor(p => p.MinReorderQuantity)
+            .GreaterThanOrEqualTo(0).WithMessage("La cantidad mínima no puede ser negativa.");
+    }
+}

@@ -133,4 +133,20 @@ public class CashSessionApplication(
         catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Error al listar las sesiones.", ex); }
         return resp;
     }
+
+    public async Task<Response<List<SaleProductResponse>>> GetSessionSales(string sessionId)
+    {
+        Response<List<SaleProductResponse>> resp = new() { Data = [] };
+        try
+        {
+            if (!Guid.TryParse(sessionId, out Guid id))
+                throw new CustomException("ID de sesión inválido.");
+
+            resp.Data = await _cashSessionRepository.GetSessionSales(id);
+            resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Error al obtener las ventas de la sesión.", ex); }
+        return resp;
+    }
 }

@@ -1,6 +1,6 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseObject, ResponseArray } from '@/modules/common/models/response.model';
-import type { CashSession, OpenCashSessionRequest, CloseCashSessionRequest } from '../models/cashSession.model';
+import type { CashSession, OpenCashSessionRequest, CloseCashSessionRequest, SessionSale } from '../models/cashSession.model';
 
 const { get, post, put } = useApi();
 
@@ -21,7 +21,10 @@ const useCashSession = () => {
   const closeSession = (id: string, request: CloseCashSessionRequest) =>
     put<ResponseObject<CashSession>>(`CashSession/${id}/close`, request);
 
-  return { getActiveSession, getSessionById, getSessions, openSession, closeSession };
+  const getSessionSales = (id: string) =>
+    get<ResponseArray<SessionSale>>(`CashSession/${id}/sales`);
+
+  return { getActiveSession, getSessionById, getSessions, openSession, closeSession, getSessionSales };
 };
 
 export default useCashSession;

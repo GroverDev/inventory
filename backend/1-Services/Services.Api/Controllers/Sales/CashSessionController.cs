@@ -62,6 +62,16 @@ public class CashSessionController(
         return await _cashSessionApplication.CloseSession(id, request, datos.UserId);
     }
 
+    // GET api/CashSession/{id}/sales
+    [HttpGet("{id}/sales")]
+    public async Task<ActionResult<Response<List<SaleProductResponse>>>> GetSessionSales(string id)
+    {
+        if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no válido" } });
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
+        return await _cashSessionApplication.GetSessionSales(id);
+    }
+
     // POST api/CashSession/{id}/movements
     [HttpPost("{id}/movements")]
     public async Task<ActionResult<Response<string>>> AddMovement(string id, [FromBody] CashMovementRequest request)

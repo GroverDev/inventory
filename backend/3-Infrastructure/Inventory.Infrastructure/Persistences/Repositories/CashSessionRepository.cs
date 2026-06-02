@@ -102,6 +102,57 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
         finally { db.Close(); }
     }
 
+    public async Task<List<SaleProductResponse>> GetSessionSales(Guid sessionId)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+
+            const string salesSql = @"
+                SELECT s.id, s.customer_id, c.full_name AS CustomerName,
+                       s.sale_date, s.subtotal, s.total_discounts,
+                       COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
+                       s.total, s.is_active,
+                       COALESCE(u.full_name, '') AS SellerName
+                  FROM sales s
+                 INNER JOIN customers c ON c.id = s.customer_id
+                 LEFT  JOIN sec.users u ON u.id = s.created_by
+                 WHERE s.state
+                   AND s.cash_session_id = @SessionId
+                 ORDER BY s.sale_date ASC;";
+
+            var sales = (await db.QueryAsync<SaleProductResponse>(salesSql, new { SessionId = sessionId })).ToList();
+
+            const string detailSql = @"
+                SELECT sd.id, sd.sale_id, sd.product_id,
+                       p.product_name, sd.quantity, sd.unit_price,
+                       sd.line_subtotal, sd.line_total_discounts, sd.line_total
+                  FROM sales_detail sd
+                 INNER JOIN products p ON p.id = sd.product_id
+                 WHERE sd.sale_id = @SaleId;";
+
+            const string paymentSql = @"
+                SELECT sp.id, sp.payment_method_id,
+                       pm.name AS PaymentMethodName, pm.icon_css AS IconCss,
+                       sp.amount_given AS AmountGiven, sp.""amount returned"" AS AmountReturned
+                  FROM sale_payments sp
+                  JOIN payment_methods pm ON pm.id = sp.payment_method_id
+                 WHERE sp.sale_id = @SaleId;";
+
+            foreach (var sale in sales)
+            {
+                sale.Detail = (await db.QueryAsync<SaleProductDetailResponse>(detailSql, new { SaleId = sale.Id })).ToList();
+                sale.Payments = (await db.QueryAsync<SalePaymentResponse>(paymentSql, new { SaleId = sale.Id })).ToList();
+            }
+
+            return sales;
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw new Exception(ex.Message, ex); }
+        finally { db.Close(); }
+    }
+
     public async Task<List<CashSessionResponse>> GetSessions(DateTime dateFrom, DateTime dateTo, int? userId)
     {
         using var db = _DbContext.CreateConnection;

@@ -14,4 +14,5 @@ public interface IProductApplication
     public Task<Response<ProductResponse>> GetProduct(string id);
 
     public Task<Response<ProductStockPriceResponse>> GetProductStockPrice(string id);
+    public Task<Response<int>> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy);
 }

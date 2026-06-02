@@ -35,6 +35,30 @@ public class ProductController(IProductApplication _productApplication) : Contro
         return respuesta;
     }
 
+    // PUT api/Product/bulk
+    [HttpPut("bulk")]
+    public async Task<ActionResult<Response<int>>> BulkUpdateProducts([FromBody] List<ProductBulkUpdateRequest> items)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+
+        if (items == null || items.Count == 0)
+            return BadRequest(new Response<int>() { Message = new Msg() { MessageType = "error", Description = "La lista de productos no puede estar vacía." } });
+
+        if (items.Count > 500)
+            return BadRequest(new Response<int>() { Message = new Msg() { MessageType = "error", Description = "No se pueden actualizar más de 500 productos a la vez." } });
+
+        var validator = new ProductBulkUpdateRequestValidator();
+        foreach (var item in items)
+        {
+            ValidationResult result = validator.Validate(item);
+            if (!result.IsValid) return ErrorsValidation<int>.GetResponse(result.Errors);
+        }
+
+        var respuesta = await _productApplication.BulkUpdateProducts(items, datos.UserId);
+        return respuesta;
+    }
+
     // PUT api/Product/5
     [HttpPut("{id}")]
     public async Task<ActionResult<Response<bool>>> UpdateProduct(string id, [FromBody] ProductRequest productRequest)

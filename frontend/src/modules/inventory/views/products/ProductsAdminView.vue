@@ -14,16 +14,23 @@
         <div class="panel-container show">
           <div class="panel-content pt-0">
 
-            <!-- Botón Nuevo -->
-            <div class="mt-0 mb-4">
+            <!-- Botones de acción -->
+            <div class="mt-0 mb-4 d-flex flex-wrap gap-2">
               <button type="button" class="btn btn-sm btn-primary" @click="newProduct">
                 <span class="fal fa-plus-square me-1"></span>Nuevo Producto
               </button>
+              <button type="button" class="btn btn-sm btn-success" @click="exportProducts">
+                <span class="fal fa-file-excel me-1"></span>Exportar Excel
+              </button>
+              <label class="btn btn-sm btn-outline-success mb-0" style="cursor:pointer;">
+                <span class="fal fa-file-import me-1"></span>Importar Excel
+                <input type="file" accept=".xlsx,.xls" class="d-none" ref="fileInputRef" @change="onFileImport" />
+              </label>
             </div>
 
             <!-- Barra de búsqueda -->
             <div class="row align-items-end g-2 mb-3">
-              <div class="col-12 col-md-7 col-lg-6">
+              <div class="col-12 col-md-8 col-lg-7">
                 <label class="form-label">Nombre del producto</label>
                 <div class="input-group input-group body-bg shadow-inset-2 rounded">
                   <span class="input-group-text bg-transparent border-end-0 py-1 px-3">
@@ -38,6 +45,9 @@
                     @keyup.enter="getProducts"
                   />
                   <button class="btn btn-primary" type="button" @click="getProducts">Buscar</button>
+                  <button class="btn btn-outline-secondary" type="button" @click="listAllProducts" title="Listar todos los productos">
+                    <span class="fal fa-list"></span> Todos
+                  </button>
                 </div>
               </div>
             </div>
@@ -176,18 +186,17 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import useProduct from '@/modules/inventory/composables/useProduct';
-import type { Product } from '@/modules/inventory/models/product.model';
+import type { Product, ProductBulkUpdate } from '@/modules/inventory/models/product.model';
 import utils from '@/utils/msg';
+import { exportToExcel, exportTemplateToExcel, readExcel } from '@/utils/excelHelper';
 import { useRouter } from "vue-router";
 
-const { getProductsByName } = useProduct();
+const { getProductsByName, getAllProducts, bulkUpdateProducts } = useProduct();
 const router = useRouter();
 
-const filtro = ref({
-  nombreProducto: '',
-  estado: '1',
-});
+const filtro = ref({ nombreProducto: '', estado: '1' });
 const products = ref<Product[]>([]);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const stockBadgeClass = (product: Product): string => {
   if (product.CurrentStock === 0) return 'bg-danger';
@@ -205,6 +214,77 @@ const getProducts = async () => {
     }
   } else {
     utils.showMessageModal({ Description: 'Debe ingresar como mínimo tres caracteres para realizar la búsqueda.', MessageType: 'info' });
+  }
+};
+
+const BULK_HEADERS = ['Id', 'ProductCode', 'ProductName', 'SalePrice', 'MinReorderQuantity', 'AvailableInPos', 'IsActive', 'BarCode', 'CurrentStock', 'LaboratoryName'];
+
+const exportProducts = () => {
+  if (!products.value.length) {
+    exportTemplateToExcel(BULK_HEADERS, 'productos_template.xlsx');
+    return;
+  }
+
+  const rows = products.value.map(p => ({
+    Id: p.Id,
+    ProductCode: p.ProductCode,
+    ProductName: p.ProductName,
+    SalePrice: p.SalePrice,
+    MinReorderQuantity: p.MinReorderQuantity,
+    AvailableInPos: p.AvailableInPos,
+    IsActive: p.IsActive,
+    BarCode: p.BarCode,
+    CurrentStock: p.CurrentStock,
+    LaboratoryName: p.LaboratoryName,
+  }));
+
+  exportToExcel(rows, 'productos.xlsx');
+};
+
+const listAllProducts = async () => {
+  filtro.value.nombreProducto = '';
+  const { ok, Data } = await getAllProducts();
+  if (ok) products.value = Data;
+};
+
+const onFileImport = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!fileInputRef.value) return;
+  fileInputRef.value.value = '';
+
+  if (!file) return;
+
+  let rows: ProductBulkUpdate[] = [];
+  try {
+    rows = await readExcel<ProductBulkUpdate>(file);
+  } catch {
+    utils.showMessageModal({ Description: 'No se pudo leer el archivo Excel.', MessageType: 'error' });
+    return;
+  }
+
+  if (!rows.length) {
+    utils.showMessageModal({ Description: 'El archivo no contiene datos.', MessageType: 'info' });
+    return;
+  }
+
+  const invalid = rows.filter(r => !r.Id || !/^[0-9a-fA-F-]{36}$/.test(String(r.Id)));
+  if (invalid.length) {
+    utils.showMessageModal({ Description: `${invalid.length} fila(s) no tienen un UUID válido en la columna Id.`, MessageType: 'error' });
+    return;
+  }
+
+  const confirmed = await utils.showMessageQuestion(
+    `¿Confirma actualizar ${rows.length} producto(s) en masa? Esta acción sobreescribirá: nombre, precio, cantidad mínima, disponibilidad en POS, estado y código de barras.`
+  );
+  if (!confirmed) return;
+
+  const { ok, Data, Message } = await bulkUpdateProducts(rows);
+  if (ok) {
+    utils.showMessageModal({ Description: `Se actualizaron ${Data} producto(s) correctamente.`, MessageType: 'success' });
+    if (filtro.value.nombreProducto.length >= 3) await getProducts();
+  } else {
+    utils.showMessageModal(Message);
   }
 };
 

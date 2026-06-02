@@ -18,3 +18,14 @@ export class Product {
   public InitialStock: number = 0;
   public IsActive: boolean = false;
 }
+
+export interface ProductBulkUpdate {
+  Id: string;
+  ProductCode: string;
+  ProductName: string;
+  SalePrice: number;
+  MinReorderQuantity: number;
+  AvailableInPos: boolean;
+  IsActive: boolean;
+  BarCode: string;
+}

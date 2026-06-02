@@ -278,9 +278,9 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         {
             db.Open();
             string sqlQuery = @"
-                     SELECT p.id, 
-                              p.sale_price,  
-                              p.current_stock                              
+                     SELECT p.id,
+                              p.sale_price,
+                              p.current_stock
                          FROM products p
                         WHERE p.state
                           AND p.id = @Id;
@@ -299,6 +299,61 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         catch (Exception ex) { throw new Exception(ex.Message, ex); }
         finally { db.Close(); }
         return product;
+    }
+
+    public async Task<int> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy)
+    {
+        using var db = _DbContext.CreateConnection;
+        int totalRows = 0;
+        try
+        {
+            db.Open();
+            using var transaction = db.BeginTransaction();
+            try
+            {
+                DateTime now = DateTime.Now;
+                string sqlQuery = @"
+                    UPDATE products
+                       SET product_name       = @ProductName,
+                           sale_price         = @SalePrice,
+                           min_reorder_quantity = @MinReorderQuantity,
+                           available_in_pos   = @AvailableInPos,
+                           is_active          = @IsActive,
+                           bar_code           = @BarCode,
+                           modified_by        = @ModifiedBy,
+                           modified           = @Modified
+                     WHERE id    = @Id
+                       AND state = true;
+                ";
+
+                foreach (var item in items)
+                {
+                    totalRows += await db.ExecuteAsync(sqlQuery, new
+                    {
+                        item.ProductName,
+                        item.SalePrice,
+                        item.MinReorderQuantity,
+                        item.AvailableInPos,
+                        item.IsActive,
+                        item.BarCode,
+                        ModifiedBy = modifiedBy,
+                        Modified = now,
+                        Id = Guid.Parse(item.Id)
+                    }, transaction);
+                }
+
+                transaction.Commit();
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                throw new Exception(ex.Message, ex);
+            }
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw new Exception(ex.Message, ex); }
+        finally { db.Close(); }
+        return totalRows;
     }
 
 }

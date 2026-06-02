@@ -131,4 +131,22 @@ public class ProductApplication(
         catch (Exception ex) { product.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return product;
     }
+
+    public async Task<Response<int>> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy)
+    {
+        Response<int> respuesta = new();
+        try
+        {
+            foreach (var item in items)
+            {
+                item.ProductName = item.ProductName.Trim().ToUpper();
+            }
+
+            respuesta.Data = await _productRepository.BulkUpdateProducts(items, modifiedBy);
+            respuesta.ok = true;
+        }
+        catch (CustomException ex) { respuesta.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
+        return respuesta;
+    }
 }

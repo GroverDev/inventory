@@ -7,6 +7,13 @@ export const exportToExcel = <T>(data: T[], fileName: string = 'export.xlsx') =>
   XLSX.writeFile(workbook, fileName);
 };
 
+export const exportTemplateToExcel = (headers: string[], fileName: string = 'template.xlsx') => {
+  const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+  XLSX.writeFile(workbook, fileName);
+};
+
 export const readExcel = <T>(file: File): Promise<T[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

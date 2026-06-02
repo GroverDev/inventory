@@ -1,5 +1,5 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
-import type { Product } from '@/modules/inventory/models/product.model';
+import type { Product, ProductBulkUpdate } from '@/modules/inventory/models/product.model';
 import type { ResponseArray, ResponseObject, ResponsePaged } from '@/modules/common/models/response.model';
 
 const { get, put, post } = useApi();
@@ -41,6 +41,14 @@ const useProduct = () => {
     );
   }
 
-  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock }
+  const getAllProducts = async (): Promise<ResponseArray<Product>> => {
+    return await get<ResponseArray<Product>>('Product?productName=');
+  }
+
+  const bulkUpdateProducts = async (items: ProductBulkUpdate[]): Promise<ResponseObject<number>> => {
+    return await put<ResponseObject<number>>('Product/bulk', items);
+  }
+
+  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts }
 }
 export default useProduct;

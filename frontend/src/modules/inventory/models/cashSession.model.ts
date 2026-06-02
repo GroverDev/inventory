@@ -27,3 +27,32 @@ export class CloseCashSessionRequest {
   public DeclaredAmount: number = 0;
   public Notes: string = '';
 }
+
+export interface SessionSaleDetail {
+  ProductName: string;
+  Quantity: number;
+  UnitPrice: number;
+  LineSubtotal: number;
+  LineTotalDiscounts: number;
+  LineTotal: number;
+}
+
+export interface SessionSalePayment {
+  PaymentMethodName: string;
+  AmountGiven: number;
+  AmountReturned: number;
+}
+
+export interface SessionSale {
+  Id: string;
+  CustomerName: string;
+  SellerName: string;
+  SaleDate: string;
+  Subtotal: number;
+  TotalDiscounts: number;
+  HeaderDiscountAmount: number;
+  Total: number;
+  IsActive: boolean;
+  Detail: SessionSaleDetail[];
+  Payments: SessionSalePayment[];
+}
