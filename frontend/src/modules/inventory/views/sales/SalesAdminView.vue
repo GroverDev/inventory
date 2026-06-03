@@ -112,7 +112,7 @@
               <!-- Tabla desktop -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Fecha</th>
                       <th>Cliente</th>
@@ -157,7 +157,7 @@
                     </tr>
                   </tbody>
                   <tfoot>
-                    <tr class="fw-bold table-light">
+                    <tr class="fw-bold">
                       <td colspan="3" class="text-end text-muted small">TOTALES DEL PERÍODO</td>
                       <td class="text-end">{{ formatCurrency(totalSubtotalPeriod) }}</td>
                       <td class="text-end text-danger">
@@ -175,20 +175,16 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12" v-for="(sale, index) in filteredSales" :key="index">
-                    <div class="card">
-                      <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <h6 class="card-title mb-0">{{ sale.CustomerName }}</h6>
-                          <span class="fw-bold text-primary">{{ formatCurrency(sale.Total) }}</span>
+                    <div class="card shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ sale.CustomerName }}</p>
+                          <span class="fs-6 fw-bold text-primary">{{ formatCurrency(sale.Total) }}</span>
                         </div>
-                        <small class="text-muted d-block">
-                          <i class="fal fa-calendar me-1"></i>{{ formatDate(sale.SaleDate) }}
-                        </small>
-                        <small class="text-muted d-block mb-2">
-                          <i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}
-                        </small>
+                        <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(sale.SaleDate) }}</small>
+                        <small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small>
                         <!-- Desglose de importes cuando hay descuentos -->
-                        <div v-if="sale.TotalDiscounts > 0" class="d-flex gap-3 mb-2 px-1 py-1 rounded bg-light">
+                        <div v-if="sale.TotalDiscounts > 0" class="d-flex gap-3 px-2 py-1 rounded bg-body-secondary">
                           <div class="text-center flex-fill">
                             <div class="kpi-label">Subtotal</div>
                             <div class="small fw-semibold">{{ formatCurrency(sale.Subtotal) }}</div>
@@ -202,12 +198,12 @@
                             <div class="small fw-semibold text-primary">{{ formatCurrency(sale.Total) }}</div>
                           </div>
                         </div>
-                        <div class="d-flex gap-2">
-                          <button type="button" class="btn btn-outline-primary btn-sm flex-fill"
+                        <div class="d-flex gap-2 pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1"
                             @click="viewDetail(sale.Id)">
                             <span class="fal fa-eye me-1"></span>Ver Detalle
                           </button>
-                          <button type="button" class="btn btn-outline-danger btn-sm"
+                          <button type="button" class="btn btn-sm btn-outline-danger"
                             @click="removeSale(sale.Id)">
                             <span class="fal fa-trash-alt"></span>
                           </button>

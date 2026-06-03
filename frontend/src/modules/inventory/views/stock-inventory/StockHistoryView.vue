@@ -56,7 +56,7 @@
 
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Fecha</th>
                       <th class="text-center">Tipo</th>

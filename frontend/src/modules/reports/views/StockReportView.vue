@@ -83,7 +83,7 @@
               <!-- Desktop -->
               <div class="d-none d-md-block table-responsive">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Código</th>
                       <th>Producto</th>
@@ -106,7 +106,7 @@
                       <td class="text-end fw-semibold">{{ fmt(p.CurrentStock * p.SalePrice) }}</td>
                     </tr>
                   </tbody>
-                  <tfoot class="table-light fw-bold">
+                  <tfoot class="fw-bold">
                     <tr>
                       <td colspan="3">TOTALES</td>
                       <td class="text-center">{{ totalUnits.toLocaleString('es-BO') }}</td>

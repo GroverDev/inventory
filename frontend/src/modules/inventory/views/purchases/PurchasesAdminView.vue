@@ -67,7 +67,7 @@
               <!-- Tabla desktop -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Fecha</th>
                       <th>Proveedor</th>
@@ -126,29 +126,27 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12" v-for="(purchase, index) in purchases" :key="index">
-                    <div class="card">
-                      <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <h6 class="card-title mb-0">{{ purchase.ProviderName }}</h6>
+                    <div class="card shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ purchase.ProviderName }}</p>
                           <span :class="statusBadge(purchase.PurchaseStatusId)">
                             {{ purchase.PurchaseStatusName || statusLabel(purchase.PurchaseStatusId) }}
                           </span>
                         </div>
-                        <small class="text-muted d-block mb-1">
-                          <i class="fal fa-calendar me-1"></i>{{ formatDate(purchase.PurchaseDate) }}
-                        </small>
-                        <div class="fw-semibold mb-2">{{ formatCurrency(purchase.Total) }}</div>
-                        <div class="d-flex gap-2">
+                        <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(purchase.PurchaseDate) }}</small>
+                        <div class="fs-6 fw-bold">{{ formatCurrency(purchase.Total) }}</div>
+                        <div class="d-flex gap-2 pt-1">
                           <button v-if="purchase.PurchaseStatusId !== 3"
-                            type="button" class="btn btn-outline-success btn-sm flex-fill"
+                            type="button" class="btn btn-sm btn-outline-success flex-fill"
                             @click="receivePurchase(purchase.Id)">
                             <span class="fal fa-box-check me-1"></span>Recepcionar
                           </button>
-                          <button type="button" class="btn btn-outline-primary btn-sm flex-fill"
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-fill"
                             @click="editPurchase(purchase.Id)">
                             <span class="fal fa-edit me-1"></span>Editar
                           </button>
-                          <button type="button" class="btn btn-outline-danger btn-sm"
+                          <button type="button" class="btn btn-sm btn-outline-danger"
                             @click="removePurchase(purchase.Id)">
                             <span class="fal fa-trash-alt"></span>
                           </button>

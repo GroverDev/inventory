@@ -164,40 +164,22 @@
                 </div>
               </div>
 
-              <!-- Checklist agrupado por módulo -->
+              <!-- Árbol jerárquico de formularios -->
               <div class="panel-content pt-0">
                 <div v-if="allForms.length === 0" class="text-center py-4">
                   <i class="fal fa-spinner fa-spin fa-2x text-muted d-block mb-2"></i>
                   <small class="text-muted">Cargando formularios...</small>
                 </div>
 
-                <div v-for="(group, moduleId) in formsByModule" :key="moduleId" class="mb-4">
-                  <h6 class="text-muted border-bottom pb-1 mb-2">
-                    <i class="fal fa-th-large me-1"></i>
-                    {{ group.moduleName }}
-                  </h6>
-                  <div class="row g-1">
-                    <div
-                      v-for="form in group.forms"
-                      :key="form.Id"
-                      class="col-12 col-sm-6"
-                    >
-                      <div class="form-check">
-                        <input
-                          type="checkbox"
-                          class="form-check-input"
-                          :id="`form-${form.Id}`"
-                          :value="form.Id"
-                          v-model="selectedFormIds"
-                        />
-                        <label class="form-check-label" :for="`form-${form.Id}`">
-                          <i v-if="form.IconCss" :class="form.IconCss" class="me-1 text-muted"></i>
-                          {{ form.NameForm }}
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <FormTreeNode
+                  v-for="root in formsAsTree"
+                  :key="root.form.Id"
+                  :node="root"
+                  :level="0"
+                  :selected-ids="selectedFormIds"
+                  @update:selected-ids="selectedFormIds = $event"
+                  class="mb-1"
+                />
               </div>
 
             </div>
@@ -220,20 +202,18 @@ import { Role } from '@/modules/user-account/models/role.model';
 import useRole from '@/modules/user-account/composables/useRole';
 import useForm from '@/modules/user-account/composables/useForm';
 import type { Form } from '@/modules/user-account/models/form.model';
-import useModule from '@/modules/user-account/composables/useModule';
-import type { Module } from '@/modules/user-account/models/module.model';
+import FormTreeNode from './FormTreeNode.vue';
+import type { TreeNode } from './FormTreeNode.vue';
 
 const router = useRouter();
 const route = useRoute();
 const { getRoleById, createRole, updateRole, getFormsByRole, assignForms } = useRole();
 const { getForms } = useForm();
-const { getModules } = useModule();
 
 const localRole = ref(new Role());
 const isSaved = ref(false);
 const allForms = ref<Form[]>([]);
 const selectedFormIds = ref<number[]>([]);
-const modules = ref<Module[]>([]);
 
 const rules = computed(() => ({
   NameRol: { required },
@@ -242,24 +222,26 @@ const rules = computed(() => ({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const v$ = useVuelidate(rules, localRole as any);
 
-interface FormGroup {
-  moduleName: string;
-  forms: Form[];
-}
+const formsAsTree = computed((): TreeNode[] => {
+  const nodeMap = new Map<number, TreeNode>();
+  allForms.value.forEach(form => nodeMap.set(form.Id, { form, children: [] }));
 
-const formsByModule = computed<Record<number, FormGroup>>(() => {
-  const moduleMap: Record<number, string> = {};
-  modules.value.forEach(m => { moduleMap[m.Id] = m.NameModule; });
-
-  const groups: Record<number, FormGroup> = {};
+  const roots: TreeNode[] = [];
   allForms.value.forEach(form => {
-    const mid = form.ModuleId ?? 0;
-    if (!groups[mid]) {
-      groups[mid] = { moduleName: moduleMap[mid] ?? 'Sin módulo', forms: [] };
-    }
-    groups[mid].forms.push(form);
+    const node = nodeMap.get(form.Id)!;
+    const parent = nodeMap.get(form.FormId);
+    if (parent) parent.children.push(node);
+    else roots.push(node);
   });
-  return groups;
+
+  const sortNode = (n: TreeNode) => {
+    n.children.sort((a, b) => a.form.Orden - b.form.Orden);
+    n.children.forEach(sortNode);
+  };
+  roots.sort((a, b) => a.form.Orden - b.form.Orden);
+  roots.forEach(sortNode);
+
+  return roots;
 });
 
 const allSelected = computed(() => selectedFormIds.value.length === allForms.value.length && allForms.value.length > 0);
@@ -276,7 +258,6 @@ onMounted(async () => {
   const id = route.params.id as string;
   const roleId = parseInt(id);
 
-  await loadModules();
   await loadAllForms();
 
   if (roleId > 0) {
@@ -298,11 +279,6 @@ const loadAllForms = async () => {
 const loadAssignedForms = async (rolId: number) => {
   const { ok, Data } = await getFormsByRole(rolId);
   if (ok) selectedFormIds.value = Data.map((f: Form) => f.Id);
-};
-
-const loadModules = async () => {
-  const { ok, Data } = await getModules('');
-  if (ok) modules.value = Data;
 };
 
 const returnPage = () => {

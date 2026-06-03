@@ -57,7 +57,7 @@
               <!-- Tabla (desktop md+) -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Nombre</th>
                       <th class="d-none d-lg-table-cell">Descripción</th>
@@ -109,25 +109,23 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="(lab, index) in laboratories" :key="index">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <h6 class="card-title mb-0">{{ lab.LaboratoryName }}</h6>
-                          <span :class="lab.IsActive ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2'">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ lab.LaboratoryName }}</p>
+                          <span class="badge rounded-pill" :class="lab.IsActive ? 'text-bg-success' : 'text-bg-secondary'">
                             {{ lab.IsActive ? 'Activo' : 'Inactivo' }}
                           </span>
                         </div>
-                        <small class="text-muted mb-1">{{ lab.Description }}</small>
-                        <small class="text-muted mb-2"><i class="fal fa-phone me-1"></i>{{ lab.Celular }}</small>
-                        <div class="mt-auto">
-                          <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" @click="editLaboratory(lab)">
-                              <span class="fal fa-edit me-1"></span>Editar
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" @click="removeLaboratory(lab.Id)">
-                              <span class="fal fa-trash-alt me-1"></span>Eliminar
-                            </button>
-                          </div>
+                        <small class="text-muted">{{ lab.Description }}</small>
+                        <small class="text-muted"><i class="fal fa-phone me-1"></i>{{ lab.Celular }}</small>
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="editLaboratory(lab)">
+                            <span class="fal fa-edit me-1"></span>Editar
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-danger" @click="removeLaboratory(lab.Id)">
+                            <span class="fal fa-trash-alt"></span>
+                          </button>
                         </div>
                       </div>
                     </div>

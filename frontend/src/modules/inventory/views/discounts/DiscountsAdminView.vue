@@ -38,7 +38,7 @@
               <!-- Tabla desktop -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Nombre</th>
                       <th>Tipo</th>
@@ -86,30 +86,29 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="d in discounts" :key="d.Id">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                          <h6 class="card-title mb-0">{{ d.Name }}</h6>
-                          <span :class="d.IsActive ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2'">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ d.Name }}</p>
+                          <span class="badge rounded-pill" :class="d.IsActive ? 'text-bg-success' : 'text-bg-secondary'">
                             {{ d.IsActive ? 'Activo' : 'Inactivo' }}
                           </span>
                         </div>
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                          <span class="badge"
-                            :class="d.Type === 'Percentage' ? 'bg-info-subtle text-info' : 'bg-warning-subtle text-warning'">
+                        <div class="d-flex align-items-center gap-2">
+                          <span class="badge" :class="d.Type === 'Percentage' ? 'bg-info-subtle text-info' : 'bg-warning-subtle text-warning'">
                             {{ d.Type === 'Percentage' ? 'Porcentaje' : 'Monto fijo' }}
                           </span>
                           <span class="fw-bold text-primary">
                             {{ d.Type === 'Percentage' ? d.Value + '%' : 'Bs. ' + formatNum(d.Value) }}
                           </span>
                         </div>
-                        <small class="text-muted mb-3">{{ d.Description || '—' }}</small>
-                        <div class="mt-auto btn-group w-100" role="group">
-                          <button type="button" class="btn btn-outline-primary btn-sm" @click="openModal(d)">
+                        <small class="text-muted">{{ d.Description || '—' }}</small>
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="openModal(d)">
                             <span class="fal fa-edit me-1"></span>Editar
                           </button>
-                          <button type="button" class="btn btn-outline-danger btn-sm" @click="remove(d.Id)">
-                            <span class="fal fa-trash-alt me-1"></span>Eliminar
+                          <button type="button" class="btn btn-sm btn-outline-danger" @click="remove(d.Id)">
+                            <span class="fal fa-trash-alt"></span>
                           </button>
                         </div>
                       </div>

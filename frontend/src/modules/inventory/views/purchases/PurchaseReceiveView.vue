@@ -90,7 +90,7 @@
               <i class="fal fa-boxes me-1"></i> Cantidades Recibidas
             </h6>
             <table class="table table-sm align-middle">
-              <thead class="table-light">
+              <thead class="">
                 <tr>
                   <th>Producto</th>
                   <th class="text-center">Cantidad Ordenada</th>

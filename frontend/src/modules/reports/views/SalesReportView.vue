@@ -76,7 +76,7 @@
               <!-- Desktop -->
               <div class="d-none d-md-block table-responsive">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Fecha</th>
                       <th>Cliente</th>
@@ -94,7 +94,7 @@
                       <td class="text-end fw-semibold">{{ fmt(s.Total) }}</td>
                     </tr>
                   </tbody>
-                  <tfoot class="table-light fw-bold">
+                  <tfoot class="fw-bold">
                     <tr>
                       <td colspan="2">TOTALES</td>
                       <td class="text-end">{{ fmt(totalSubtotal) }}</td>

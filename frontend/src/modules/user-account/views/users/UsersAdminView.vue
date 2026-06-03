@@ -65,7 +65,7 @@
               <!-- Tabla (desktop md+) -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Nombre Completo</th>
                       <th>Correo Electrónico</th>
@@ -160,54 +160,48 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="(user, index) in users" :key="index">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <h6 class="card-title mb-0">{{ user.FullName }}</h6>
-                          <div class="d-flex gap-1 ms-2">
-                            <span class="badge" :class="user.IsActive ? 'bg-success' : 'bg-secondary'">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ user.FullName }}</p>
+                          <div class="d-flex gap-1">
+                            <span class="badge rounded-pill" :class="user.IsActive ? 'text-bg-success' : 'text-bg-secondary'">
                               {{ user.IsActive ? 'Activo' : 'Inactivo' }}
                             </span>
-                            <span v-if="user.MfaEnabled" class="badge bg-success" title="TOTP activo">
+                            <span v-if="user.MfaEnabled" class="badge rounded-pill text-bg-success" title="TOTP activo">
                               <i class="fal fa-shield-check"></i>
                             </span>
-                            <span v-else-if="user.MfaRequired" class="badge bg-warning text-dark" title="TOTP requerido">
+                            <span v-else-if="user.MfaRequired" class="badge rounded-pill text-bg-warning" title="TOTP requerido">
                               <i class="fal fa-exclamation-triangle"></i>
                             </span>
                           </div>
                         </div>
-                        <small class="text-muted mb-1">{{ user.Email }}</small>
-                        <small v-if="user.LastAccess" class="text-muted mb-3">
+                        <small class="text-muted">{{ user.Email }}</small>
+                        <small v-if="user.LastAccess" class="text-muted">
                           <i class="fal fa-clock me-1"></i>{{ formatDate(user.LastAccess) }}
                         </small>
-                        <div class="mt-auto d-flex flex-column gap-1">
-                          <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm"
-                              @click="editUser(user)">
+                        <div class="mt-auto d-flex flex-column gap-1 pt-1">
+                          <div class="d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="editUser(user)">
                               <span class="fal fa-edit me-1"></span>Editar
                             </button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm"
-                              @click="openPasswordModal(user)">
-                              <span class="fal fa-key me-1"></span>Contraseña
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="openPasswordModal(user)" title="Cambiar contraseña">
+                              <span class="fal fa-key"></span>
                             </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm"
-                              @click="removeUser(user.Uuid)">
-                              <span class="fal fa-trash-alt me-1"></span>Eliminar
+                            <button type="button" class="btn btn-sm btn-outline-danger" @click="removeUser(user.Uuid)" title="Eliminar">
+                              <span class="fal fa-trash-alt"></span>
                             </button>
                           </div>
                           <button v-if="!user.MfaEnabled && !user.MfaRequired"
-                            type="button" class="btn btn-outline-warning btn-sm w-100"
-                            @click="requireMfa(user)">
+                            type="button" class="btn btn-sm btn-outline-warning w-100" @click="requireMfa(user)">
                             <span class="fal fa-shield-alt me-1"></span>Requerir TOTP
                           </button>
                           <button v-if="user.MfaRequired && !user.MfaEnabled"
-                            type="button" class="btn btn-outline-secondary btn-sm w-100"
-                            @click="unrequireMfa(user)">
+                            type="button" class="btn btn-sm btn-outline-secondary w-100" @click="unrequireMfa(user)">
                             <span class="fal fa-shield me-1"></span>Quitar obligatoriedad
                           </button>
                           <button v-if="user.MfaEnabled"
-                            type="button" class="btn btn-outline-danger btn-sm w-100"
-                            @click="resetMfa(user)">
+                            type="button" class="btn btn-sm btn-outline-danger w-100" @click="resetMfa(user)">
                             <span class="fal fa-undo me-1"></span>Resetear TOTP
                           </button>
                         </div>

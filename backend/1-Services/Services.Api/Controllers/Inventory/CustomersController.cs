@@ -54,7 +54,7 @@ public class CustomersController(ICustomersApplication _customersApplication) : 
 
     // GET: api/Client
     [HttpGet]
-    public async Task<ActionResult<Response<List<CustomerRequest>>>> GetCustomers(string CustomerName)
+    public async Task<ActionResult<Response<List<CustomerRequest>>>> GetCustomers(string CustomerName = "")
     {
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
 

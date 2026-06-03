@@ -57,7 +57,7 @@
               <!-- Tabla (desktop md+) -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Nombre Completo</th>
                       <th>Nro. Documento</th>
@@ -107,30 +107,24 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="(customer, index) in customers" :key="index">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <h6 class="card-title mb-0">{{ customer.FullName }}</h6>
-                          <span :class="customer.IsActive ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2'">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ customer.FullName }}</p>
+                          <span class="badge rounded-pill" :class="customer.IsActive ? 'text-bg-success' : 'text-bg-secondary'">
                             {{ customer.IsActive ? 'Activo' : 'Inactivo' }}
                           </span>
                         </div>
-                        <small class="text-muted mb-1">
-                          <i class="fal fa-id-card me-1"></i>{{ customer.DocumentNumber }}
-                        </small>
-                        <small class="text-muted mb-1">{{ customer.Email }}</small>
-                        <small class="text-muted mb-2">
-                          <i class="fal fa-phone me-1"></i>{{ customer.Cellphone }}
-                        </small>
-                        <div class="mt-auto">
-                          <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" @click="editCustomer(customer)">
-                              <span class="fal fa-edit me-1"></span>Editar
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" @click="removeCustomer(customer.Id)">
-                              <span class="fal fa-trash-alt me-1"></span>Eliminar
-                            </button>
-                          </div>
+                        <small class="text-muted"><i class="fal fa-id-card me-1"></i>{{ customer.DocumentNumber }}</small>
+                        <small class="text-muted">{{ customer.Email }}</small>
+                        <small class="text-muted"><i class="fal fa-phone me-1"></i>{{ customer.Cellphone }}</small>
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="editCustomer(customer)">
+                            <span class="fal fa-edit me-1"></span>Editar
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-danger" @click="removeCustomer(customer.Id)">
+                            <span class="fal fa-trash-alt"></span>
+                          </button>
                         </div>
                       </div>
                     </div>

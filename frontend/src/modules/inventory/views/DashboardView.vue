@@ -90,7 +90,7 @@
                 <small class="text-muted">Sin ventas registradas hoy</small>
               </div>
               <table v-else class="table table-sm table-hover mb-0 align-middle">
-                <thead class="table-light">
+                <thead class="">
                   <tr>
                     <th>Cliente</th>
                     <th>Hora</th>
@@ -129,7 +129,7 @@
                 <small class="text-muted">Todos los productos tienen stock suficiente</small>
               </div>
               <table v-else class="table table-sm table-hover mb-0 align-middle">
-                <thead class="table-light">
+                <thead class="">
                   <tr>
                     <th>Producto</th>
                     <th class="text-center">Stock</th>

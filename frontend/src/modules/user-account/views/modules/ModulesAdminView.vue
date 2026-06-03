@@ -64,7 +64,7 @@
               <!-- Tabla (desktop md+) -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Nombre del Módulo</th>
                       <th class="d-none d-lg-table-cell">Ruta</th>
@@ -112,27 +112,22 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="(module, index) in modules" :key="index">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <h6 class="card-title mb-0">{{ module.NameModule }}</h6>
-                          <span class="badge bg-light text-secondary border ms-2">{{ module.ShowOrder }}</span>
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ module.NameModule }}</p>
+                          <span class="badge bg-body-secondary text-secondary border">Orden {{ module.ShowOrder }}</span>
                         </div>
-                        <div class="mb-2">
-                          <i :class="module.IconCss" class="text-primary me-1"></i>
-                          <small class="text-muted">{{ module.Route }}</small>
-                        </div>
-                        <div class="mt-auto">
-                          <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm"
-                              @click="editModule(module)">
-                              <span class="fal fa-edit me-1"></span>Editar
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm"
-                              @click="removeModule(module.Id)">
-                              <span class="fal fa-trash-alt me-1"></span>Eliminar
-                            </button>
-                          </div>
+                        <small class="text-muted">
+                          <i :class="module.IconCss" class="text-primary me-1"></i>{{ module.Route }}
+                        </small>
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="editModule(module)">
+                            <span class="fal fa-edit me-1"></span>Editar
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-danger" @click="removeModule(module.Id)">
+                            <span class="fal fa-trash-alt"></span>
+                          </button>
                         </div>
                       </div>
                     </div>

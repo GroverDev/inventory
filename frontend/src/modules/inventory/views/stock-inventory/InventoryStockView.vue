@@ -85,7 +85,7 @@
               <!-- Tabla desktop -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>SKU</th>
                       <th>Producto</th>
@@ -139,32 +139,30 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="product in products" :key="product.Id">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <small class="text-muted font-monospace">{{ product.ProductCode }}</small>
-                          <span class="badge" :class="product.IsActive ? 'bg-success' : 'bg-secondary'">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <code class="bg-body-secondary rounded px-2 py-1 small">{{ product.ProductCode }}</code>
+                          <span class="badge rounded-pill" :class="product.IsActive ? 'text-bg-success' : 'text-bg-secondary'">
                             {{ product.IsActive ? 'Activo' : 'Inactivo' }}
                           </span>
                         </div>
-                        <h6 class="card-title mb-2">{{ product.ProductName }}</h6>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                        <p class="fw-semibold mb-0 lh-sm">{{ product.ProductName }}</p>
+                        <div class="d-flex justify-content-between align-items-end">
                           <div>
-                            <small class="text-muted">Stock actual</small>
-                            <div>
-                              <span class="badge fs-6" :class="stockBadgeClass(product)">{{ product.CurrentStock }}</span>
-                            </div>
+                            <span class="badge rounded-pill px-3" :class="stockBadgeClass(product)">{{ product.CurrentStock }}</span>
+                            <div class="text-muted" style="font-size:0.7rem;">Stock actual</div>
                           </div>
                           <div class="text-end">
-                            <small class="text-muted">Mínimo</small>
-                            <div><small>{{ product.MinReorderQuantity }}</small></div>
+                            <small class="fw-semibold">{{ product.MinReorderQuantity }}</small>
+                            <div class="text-muted" style="font-size:0.7rem;">Mínimo</div>
                           </div>
                         </div>
-                        <div class="mt-auto d-flex gap-2">
-                          <button type="button" class="btn btn-outline-info btn-sm flex-fill" @click="goHistory(product)">
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-info flex-grow-1" @click="goHistory(product)">
                             <span class="fal fa-history me-1"></span>Historial
                           </button>
-                          <button type="button" class="btn btn-outline-warning btn-sm flex-fill" @click="goAdjust(product)">
+                          <button type="button" class="btn btn-sm btn-outline-warning flex-grow-1" @click="goAdjust(product)">
                             <span class="fal fa-balance-scale me-1"></span>Ajuste
                           </button>
                         </div>

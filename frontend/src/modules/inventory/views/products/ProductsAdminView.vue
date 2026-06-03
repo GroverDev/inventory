@@ -75,7 +75,7 @@
               <!-- Tabla (desktop md+) -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Código</th>
                       <th>Nombre del Producto</th>
@@ -141,33 +141,71 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="product in products" :key="product.Id">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                          <small class="text-muted">{{ product.ProductCode }}</small>
-                          <span class="badge" :class="product.IsActive ? 'bg-success' : 'bg-secondary'">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+
+                        <!-- Fila 1: código + estado -->
+                        <div class="d-flex justify-content-between align-items-center">
+                          <code class="bg-body-secondary rounded px-2 py-1 small">{{ product.ProductCode }}</code>
+                          <span
+                            class="badge rounded-pill"
+                            :class="product.IsActive ? 'text-bg-success' : 'text-bg-secondary'"
+                          >
                             {{ product.IsActive ? 'Activo' : 'Inactivo' }}
                           </span>
                         </div>
-                        <h6 class="card-title mb-1">{{ product.ProductName }}</h6>
-                        <small class="text-muted mb-2">{{ product.LaboratoryName }}</small>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                          <span class="fw-semibold text-success">Bs. {{ product.SalePrice.toFixed(2) }}</span>
-                          <span class="d-flex align-items-center gap-1">
-                            <small class="text-muted">Stock:</small>
-                            <span class="badge" :class="stockBadgeClass(product)">{{ product.CurrentStock }}</span>
+
+                        <!-- Fila 2: nombre -->
+                        <div>
+                          <p class="fw-semibold mb-0 lh-sm">{{ product.ProductName }}</p>
+                        </div>
+
+                        <!-- Fila 3: laboratorio + categoría + unidad -->
+                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                          <small v-if="product.LaboratoryName" class="text-muted">
+                            <i class="fal fa-flask me-1"></i>{{ product.LaboratoryName }}
+                          </small>
+                          <small v-if="product.CategoryName" class="text-muted">
+                            · {{ product.CategoryName }}
+                          </small>
+                          <span v-if="product.UnitName" class="badge text-bg-light border ms-1">
+                            {{ product.UnitName }}
                           </span>
                         </div>
-                        <div class="mt-auto">
-                          <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" @click="editProduct(product)">
-                              <span class="fal fa-edit me-1"></span>Editar
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" @click="deleteProduct(product)">
-                              <span class="fal fa-trash-alt me-1"></span>Eliminar
-                            </button>
+
+                        <!-- Fila 4: precio y stock -->
+                        <div class="d-flex justify-content-between align-items-end mt-1">
+                          <div>
+                            <div class="fs-6 fw-bold text-success">Bs. {{ product.SalePrice.toFixed(2) }}</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Precio de venta</div>
+                          </div>
+                          <div class="text-end">
+                            <span class="badge rounded-pill px-3" :class="stockBadgeClass(product)">
+                              {{ product.CurrentStock }}
+                            </span>
+                            <div class="text-muted" style="font-size: 0.7rem;">Stock</div>
                           </div>
                         </div>
+
+                        <!-- Fila 5: acciones -->
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-outline-primary flex-grow-1"
+                            @click="editProduct(product)"
+                          >
+                            <span class="fal fa-edit me-1"></span>Editar
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            title="Eliminar"
+                            @click="deleteProduct(product)"
+                          >
+                            <span class="fal fa-trash-alt"></span>
+                          </button>
+                        </div>
+
                       </div>
                     </div>
                   </div>

@@ -51,7 +51,7 @@
             <!-- Tabla desktop -->
             <div v-else class="d-none d-md-block">
               <table class="table table-hover table-sm align-middle mb-0">
-                <thead class="table-light">
+                <thead class="">
                   <tr>
                     <th>Cajero</th>
                     <th>Apertura</th>
@@ -102,36 +102,38 @@
 
             <!-- Cards móvil -->
             <div class="d-md-none">
-              <div v-for="s in sessions" :key="s.Id" class="card mb-2">
-                <div class="card-body py-2 px-3">
-                  <div class="d-flex justify-content-between align-items-start mb-1">
-                    <div>
-                      <span class="fw-semibold small">{{ s.UserFullName }}</span><br>
-                      <small class="text-muted">{{ formatDate(s.OpenedAt) }}</small>
-                    </div>
-                    <span class="badge" :class="s.IsOpen ? 'bg-success' : 'bg-secondary'">
-                      {{ s.IsOpen ? 'Abierta' : 'Cerrada' }}
-                    </span>
-                  </div>
-                  <div class="row g-1 text-center small mb-2">
-                    <div class="col-4">
-                      <div class="text-muted">Ventas</div>
-                      <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
-                    </div>
-                    <div class="col-4">
-                      <div class="text-muted">Gastos</div>
-                      <div class="text-danger fw-semibold">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</div>
-                    </div>
-                    <div class="col-4">
-                      <div class="text-muted">Diferencia</div>
-                      <div :class="s.Difference === null ? '' : s.Difference >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
-                        {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
+              <div class="row g-3">
+                <div v-for="s in sessions" :key="s.Id" class="col-12">
+                  <div class="card shadow rounded-3">
+                    <div class="card-body d-flex flex-column gap-2">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <p class="fw-semibold mb-0 lh-sm">{{ s.UserFullName }}</p>
+                        <span class="badge rounded-pill" :class="s.IsOpen ? 'text-bg-success' : 'text-bg-secondary'">
+                          {{ s.IsOpen ? 'Abierta' : 'Cerrada' }}
+                        </span>
                       </div>
+                      <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(s.OpenedAt) }}</small>
+                      <div class="row g-1 text-center small">
+                        <div class="col-4">
+                          <div class="text-muted">Ventas</div>
+                          <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Gastos</div>
+                          <div class="text-danger fw-semibold">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Diferencia</div>
+                          <div :class="s.Difference === null ? '' : s.Difference >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                            {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
+                          </div>
+                        </div>
+                      </div>
+                      <button class="btn btn-sm btn-outline-secondary w-100 mt-auto pt-1" @click="selectSession(s)">
+                        <i class="fal fa-eye me-1"></i>Ver detalle
+                      </button>
                     </div>
                   </div>
-                  <button class="btn btn-sm btn-outline-secondary w-100" @click="selectSession(s)">
-                    <i class="fal fa-eye me-1"></i>Ver detalle
-                  </button>
                 </div>
               </div>
             </div>
@@ -240,7 +242,7 @@
                 <!-- Tabla de ventas con detalle expandible -->
                 <div class="table-responsive">
                   <table class="table table-sm table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="">
                       <tr>
                         <th style="width:28px"></th>
                         <th>Hora</th>
@@ -304,7 +306,7 @@
                 Sin movimientos en este turno.
               </div>
               <table v-else class="table table-sm table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="">
                   <tr>
                     <th>Tipo</th>
                     <th>Descripción</th>

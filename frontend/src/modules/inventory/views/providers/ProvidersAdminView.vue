@@ -57,7 +57,7 @@
               <!-- Tabla (desktop md+) -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="table-light">
+                  <thead class="">
                     <tr>
                       <th>Nombre</th>
                       <th class="d-none d-lg-table-cell">Descripción</th>
@@ -103,25 +103,19 @@
               <div class="d-md-none">
                 <div class="row g-3">
                   <div class="col-12 col-sm-6" v-for="(provider, index) in providers" :key="index">
-                    <div class="card h-100">
-                      <div class="card-body d-flex flex-column">
-                        <h6 class="card-title mb-1">{{ provider.ProviderName }}</h6>
-                        <small class="text-muted mb-1">{{ provider.Description }}</small>
-                        <small class="text-muted mb-1">
-                          <i class="fal fa-map-marker-alt me-1"></i>{{ provider.Direction }}
-                        </small>
-                        <small class="text-muted mb-2">
-                          <i class="fal fa-phone me-1"></i>{{ provider.Celular }}
-                        </small>
-                        <div class="mt-auto">
-                          <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" @click="editProvider(provider)">
-                              <span class="fal fa-edit me-1"></span>Editar
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" @click="removeProvider(provider.Id)">
-                              <span class="fal fa-trash-alt me-1"></span>Eliminar
-                            </button>
-                          </div>
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <p class="fw-semibold mb-0 lh-sm">{{ provider.ProviderName }}</p>
+                        <small class="text-muted">{{ provider.Description }}</small>
+                        <small class="text-muted"><i class="fal fa-map-marker-alt me-1"></i>{{ provider.Direction }}</small>
+                        <small class="text-muted"><i class="fal fa-phone me-1"></i>{{ provider.Celular }}</small>
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="editProvider(provider)">
+                            <span class="fal fa-edit me-1"></span>Editar
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-danger" @click="removeProvider(provider.Id)">
+                            <span class="fal fa-trash-alt"></span>
+                          </button>
                         </div>
                       </div>
                     </div>

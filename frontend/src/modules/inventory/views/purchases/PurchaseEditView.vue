@@ -172,7 +172,7 @@
 
             <template v-else>
               <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
+                <thead class="">
                   <tr>
                     <th>Producto</th>
                     <th class="text-center">Cantidad</th>
