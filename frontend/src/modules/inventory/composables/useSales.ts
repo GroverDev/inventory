@@ -1,6 +1,6 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
-import type { ResponseObject, ResponseArray } from '@/modules/common/models/response.model';
-import type { Sale } from '../models/sale.model';
+import type { ResponseObject } from '@/modules/common/models/response.model';
+import type { Sale, SalesPagedResult } from '../models/sale.model';
 
 const { get, post, del } = useApi();
 
@@ -10,12 +10,19 @@ const useSales = () => {
     return await post<ResponseObject<string>>('Sales', sale);
   }
 
-  const getSales = async (dateInitial: string, dateEnd: string) => {
-    return await get<ResponseArray<Sale>>(`Sales?saleDateInitial=${dateInitial}&saleDateEnd=${dateEnd}`);
+  const getSales = async (dateInitial: string, dateEnd: string, page = 1, pageSize = 50, sellerName?: string) => {
+    const params = new URLSearchParams({
+      saleDateInitial: dateInitial,
+      saleDateEnd: dateEnd,
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (sellerName) params.append('sellerName', sellerName);
+    return await get<ResponseObject<SalesPagedResult>>(`Sales?${params}`);
   }
 
   const getSaleById = async (id: string) => {
-    return await get<ResponseObject<Sale>>(`Sales/${id}`);  // returns SaleProductResponse shape, compatible with Sale+CustomerName+Detail
+    return await get<ResponseObject<Sale>>(`Sales/${id}`);
   }
 
   const deleteSale = async (id: string) => {

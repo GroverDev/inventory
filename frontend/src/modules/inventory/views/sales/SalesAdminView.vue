@@ -42,20 +42,20 @@
                 </div>
                 <div class="col-6 col-md-3">
                   <label class="form-label small text-muted mb-1">Vendedor</label>
-                  <select class="form-select form-select-sm" v-model="filtro.seller">
+                  <select class="form-select form-select-sm" v-model="filtro.seller" @change="onSellerChange">
                     <option value="">Todos</option>
                     <option v-for="s in sellerOptions" :key="s" :value="s">{{ s }}</option>
                   </select>
                 </div>
                 <div class="col-6 col-md-3 d-flex gap-2">
-                  <button class="btn btn-primary btn-sm flex-fill" @click="getSalesData">
+                  <button class="btn btn-primary btn-sm flex-fill" @click="getSalesData(1)">
                     <span class="fal fa-search me-1"></span>Buscar
                   </button>
                   <button
-                    v-if="filteredSales.length > 0"
+                    v-if="sales.length > 0"
                     class="btn btn-outline-success btn-sm"
                     @click="exportExcel"
-                    title="Exportar a Excel"
+                    title="Exportar página actual a Excel"
                   >
                     <span class="fal fa-file-excel"></span>
                   </button>
@@ -63,25 +63,25 @@
               </div>
             </div>
 
-            <!-- KPIs del período -->
-            <div v-if="filteredSales.length > 0" class="row g-2 mb-3">
+            <!-- KPIs del período (calculados en servidor sobre todo el rango) -->
+            <div v-if="totalCount > 0" class="row g-2 mb-3">
               <div class="col-6 col-md-3">
                 <div class="kpi-card">
                   <div class="kpi-label"><i class="fal fa-receipt me-1"></i>Ventas</div>
-                  <div class="kpi-value">{{ filteredSales.length }}</div>
+                  <div class="kpi-value">{{ totalCount }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
                 <div class="kpi-card">
                   <div class="kpi-label"><i class="fal fa-calculator me-1"></i>Subtotal</div>
-                  <div class="kpi-value">{{ formatCurrency(totalSubtotalPeriod) }}</div>
+                  <div class="kpi-value">{{ formatCurrency(periodTotals.Subtotal) }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
                 <div class="kpi-card kpi-card--discount">
                   <div class="kpi-label"><i class="fal fa-tag me-1"></i>Descuentos</div>
-                  <div class="kpi-value text-danger">− {{ formatCurrency(totalDiscountsPeriod) }}</div>
-                  <div class="kpi-sub" v-if="totalSubtotalPeriod > 0">
+                  <div class="kpi-value text-danger">− {{ formatCurrency(periodTotals.Discounts) }}</div>
+                  <div class="kpi-sub" v-if="periodTotals.Subtotal > 0">
                     {{ discountRatePct }}% del subtotal
                   </div>
                 </div>
@@ -89,21 +89,39 @@
               <div class="col-6 col-md-3">
                 <div class="kpi-card kpi-card--total">
                   <div class="kpi-label"><i class="fal fa-check-circle me-1"></i>Total cobrado</div>
-                  <div class="kpi-value">{{ formatCurrency(totalPeriod) }}</div>
+                  <div class="kpi-value">{{ formatCurrency(periodTotals.Total) }}</div>
                 </div>
               </div>
             </div>
 
-            <!-- Contador -->
-            <div v-if="filteredSales.length > 0" class="mb-2">
+            <!-- Contador + paginación superior -->
+            <div v-if="totalCount > 0" class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
               <small class="text-muted">
                 <span class="fal fa-list me-1"></span>
-                <strong>{{ filteredSales.length }}</strong> venta(s) encontrada(s)
+                Mostrando <strong>{{ sales.length }}</strong> de <strong>{{ totalCount }}</strong> venta(s)
+                <span v-if="totalPages > 1"> · Página {{ currentPage }} de {{ totalPages }}</span>
               </small>
+              <nav v-if="totalPages > 1" aria-label="Paginación ventas">
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                    <button class="page-link" @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">
+                      <i class="fal fa-chevron-left"></i>
+                    </button>
+                  </li>
+                  <li v-for="p in visiblePages" :key="p" class="page-item" :class="{ active: p === currentPage }">
+                    <button class="page-link" @click="goToPage(p)">{{ p }}</button>
+                  </li>
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                    <button class="page-link" @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages">
+                      <i class="fal fa-chevron-right"></i>
+                    </button>
+                  </li>
+                </ul>
+              </nav>
             </div>
 
             <!-- Estado vacío -->
-            <div v-if="filteredSales.length === 0" class="text-center py-5">
+            <div v-if="sales.length === 0" class="text-center py-5">
               <i class="fal fa-receipt fa-3x text-muted d-block mb-3"></i>
               <p class="text-muted mb-0">No se encontraron ventas en el período seleccionado.</p>
             </div>
@@ -112,7 +130,7 @@
               <!-- Tabla desktop -->
               <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
-                  <thead class="">
+                  <thead>
                     <tr>
                       <th>Fecha</th>
                       <th>Cliente</th>
@@ -124,7 +142,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(sale, index) in filteredSales" :key="index">
+                    <tr v-for="(sale, index) in sales" :key="index">
                       <td>{{ formatDate(sale.SaleDate) }}</td>
                       <td class="fw-semibold">{{ sale.CustomerName }}</td>
                       <td><small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small></td>
@@ -159,12 +177,12 @@
                   <tfoot>
                     <tr class="fw-bold">
                       <td colspan="3" class="text-end text-muted small">TOTALES DEL PERÍODO</td>
-                      <td class="text-end">{{ formatCurrency(totalSubtotalPeriod) }}</td>
+                      <td class="text-end">{{ formatCurrency(periodTotals.Subtotal) }}</td>
                       <td class="text-end text-danger">
-                        <span v-if="totalDiscountsPeriod > 0">− {{ formatCurrency(totalDiscountsPeriod) }}</span>
+                        <span v-if="periodTotals.Discounts > 0">− {{ formatCurrency(periodTotals.Discounts) }}</span>
                         <span v-else class="text-muted">—</span>
                       </td>
-                      <td class="text-end text-primary">{{ formatCurrency(totalPeriod) }}</td>
+                      <td class="text-end text-primary">{{ formatCurrency(periodTotals.Total) }}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -174,7 +192,7 @@
               <!-- Cards móvil -->
               <div class="d-md-none">
                 <div class="row g-3">
-                  <div class="col-12" v-for="(sale, index) in filteredSales" :key="index">
+                  <div class="col-12" v-for="(sale, index) in sales" :key="index">
                     <div class="card shadow rounded-3">
                       <div class="card-body d-flex flex-column gap-2">
                         <div class="d-flex justify-content-between align-items-center">
@@ -183,7 +201,6 @@
                         </div>
                         <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(sale.SaleDate) }}</small>
                         <small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small>
-                        <!-- Desglose de importes cuando hay descuentos -->
                         <div v-if="sale.TotalDiscounts > 0" class="d-flex gap-3 px-2 py-1 rounded bg-body-secondary">
                           <div class="text-center flex-fill">
                             <div class="kpi-label">Subtotal</div>
@@ -213,6 +230,27 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Paginación inferior -->
+              <div v-if="totalPages > 1" class="d-flex justify-content-center mt-3">
+                <nav aria-label="Paginación ventas inferior">
+                  <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                      <button class="page-link" @click="goToPage(currentPage - 1)" :disabled="currentPage === 1">
+                        <i class="fal fa-chevron-left"></i>
+                      </button>
+                    </li>
+                    <li v-for="p in visiblePages" :key="p" class="page-item" :class="{ active: p === currentPage }">
+                      <button class="page-link" @click="goToPage(p)">{{ p }}</button>
+                    </li>
+                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                      <button class="page-link" @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages">
+                        <i class="fal fa-chevron-right"></i>
+                      </button>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
             </template>
 
           </div>
@@ -230,11 +268,18 @@ import type { Sale } from '@/modules/inventory/models/sale.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import utils from '@/utils/msg';
 
+const PAGE_SIZE = 50;
+
 const sales = ref<Sale[]>([]);
+const currentPage = ref(1);
+const totalCount = ref(0);
+const periodTotals = ref({ Subtotal: 0, Discounts: 0, Total: 0 });
+const allSellers = ref<string[]>([]);
+
 const { getSales, deleteSale } = useSales();
 const router = useRouter();
 
-// ── Helpers de fecha (local, no UTC) ──────────────────────
+// ── Helpers de fecha ──────────────────────────────────────
 const toLocalDateStr = (d: Date): string => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -269,38 +314,40 @@ const filtro = ref({ dateInitial: today, dateEnd: today, seller: '' });
 
 const applyQuick = (key: QuickKey) => {
   activeQuick.value = key;
+  filtro.value.seller = '';
   if (key === 'today') filtro.value = { ...filtro.value, dateInitial: today, dateEnd: today };
   if (key === 'week')  filtro.value = { ...filtro.value, dateInitial: getWeekStart(), dateEnd: today };
   if (key === 'month') filtro.value = { ...filtro.value, dateInitial: getMonthStart(), dateEnd: today };
-  getSalesData();
+  getSalesData(1);
 };
 
-// ── Computed ───────────────────────────────────────────────
-const sellerOptions = computed(() => {
-  const names = sales.value.map(s => s.SellerName).filter(n => !!n);
-  return [...new Set(names)].sort();
+const onSellerChange = () => getSalesData(1);
+
+// ── Paginación ─────────────────────────────────────────────
+const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)));
+
+const visiblePages = computed(() => {
+  const pages: number[] = [];
+  const delta = 2;
+  const left = Math.max(1, currentPage.value - delta);
+  const right = Math.min(totalPages.value, currentPage.value + delta);
+  for (let i = left; i <= right; i++) pages.push(i);
+  return pages;
 });
 
-const filteredSales = computed(() =>
-  filtro.value.seller
-    ? sales.value.filter(s => s.SellerName === filtro.value.seller)
-    : sales.value
-);
+const goToPage = (page: number) => {
+  if (page < 1 || page > totalPages.value) return;
+  getSalesData(page);
+};
 
-const totalSubtotalPeriod = computed(() =>
-  +filteredSales.value.reduce((s, v) => s + v.Subtotal, 0).toFixed(2)
-);
-const totalDiscountsPeriod = computed(() =>
-  +filteredSales.value.reduce((s, v) => s + v.TotalDiscounts, 0).toFixed(2)
-);
-const totalPeriod = computed(() =>
-  +filteredSales.value.reduce((s, v) => s + v.Total, 0).toFixed(2)
-);
+// ── KPIs (totales del período completo, vienen del servidor) ─
 const discountRatePct = computed(() =>
-  totalSubtotalPeriod.value > 0
-    ? ((totalDiscountsPeriod.value / totalSubtotalPeriod.value) * 100).toFixed(1)
+  periodTotals.value.Subtotal > 0
+    ? ((periodTotals.value.Discounts / periodTotals.value.Subtotal) * 100).toFixed(1)
     : '0.0'
 );
+
+const sellerOptions = computed(() => allSellers.value);
 
 // ── Formatters ─────────────────────────────────────────────
 const formatDate = (val: string | Date): string => {
@@ -311,10 +358,27 @@ const formatDate = (val: string | Date): string => {
 const formatCurrency = (val: number): string =>
   (val ?? 0).toLocaleString('es-BO', { style: 'currency', currency: 'BOB' });
 
-// ── Datos ──────────────────────────────────────────────────
-const getSalesData = async () => {
-  const { Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd);
-  sales.value = Data ?? [];
+// ── Carga de datos ─────────────────────────────────────────
+const getSalesData = async (page: number) => {
+  currentPage.value = page;
+  const { Data } = await getSales(
+    filtro.value.dateInitial,
+    filtro.value.dateEnd,
+    page,
+    PAGE_SIZE,
+    filtro.value.seller || undefined,
+  );
+  sales.value       = Data?.Items ?? [];
+  totalCount.value  = Data?.TotalCount ?? 0;
+  periodTotals.value = {
+    Subtotal:  Data?.PeriodSubtotal  ?? 0,
+    Discounts: Data?.PeriodDiscounts ?? 0,
+    Total:     Data?.PeriodTotal     ?? 0,
+  };
+  // Actualiza vendedores disponibles solo cuando no hay filtro activo
+  if (!filtro.value.seller) {
+    allSellers.value = [...new Set(sales.value.map(s => s.SellerName).filter(Boolean))].sort();
+  }
 };
 
 const viewDetail = (id: string) => router.push({ name: 'sale-detail', params: { id } });
@@ -325,14 +389,14 @@ const removeSale = async (id: string) => {
     const { ok: deleted } = await deleteSale(id);
     if (deleted) {
       await utils.showMessageModal({ Description: 'La venta se eliminó correctamente.', MessageType: 'success' });
-      await getSalesData();
+      await getSalesData(currentPage.value);
     }
   }
 };
 
-// ── Export Excel ───────────────────────────────────────────
+// ── Export Excel (página actual + totales del período) ─────
 const exportExcel = () => {
-  const rows = filteredSales.value.map(s => ({
+  const rows = sales.value.map(s => ({
     Fecha:       formatDate(s.SaleDate),
     Cliente:     s.CustomerName,
     Vendedor:    s.SellerName || '',
@@ -341,17 +405,16 @@ const exportExcel = () => {
     Total:       s.Total,
   }));
 
-  // Fila de totales al final
   rows.push({
-    Fecha:      'TOTALES',
+    Fecha:      'TOTALES DEL PERÍODO',
     Cliente:    '',
     Vendedor:   '',
-    Subtotal:   totalSubtotalPeriod.value,
-    Descuentos: totalDiscountsPeriod.value,
-    Total:      totalPeriod.value,
+    Subtotal:   periodTotals.value.Subtotal,
+    Descuentos: periodTotals.value.Discounts,
+    Total:      periodTotals.value.Total,
   });
 
-  const fileName = `ventas_${filtro.value.dateInitial}_${filtro.value.dateEnd}.xlsx`;
+  const fileName = `ventas_${filtro.value.dateInitial}_${filtro.value.dateEnd}_p${currentPage.value}.xlsx`;
   exportToExcel(rows, fileName);
 };
 

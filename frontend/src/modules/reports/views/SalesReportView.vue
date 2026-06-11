@@ -149,8 +149,8 @@ const fmt     = (v: number) => v.toLocaleString('es-BO', { style: 'currency', cu
 const fmtDate = (v: string | Date) => new Date(v).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const load = async () => {
-  const { ok, Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd);
-  if (ok) sales.value = Data ?? [];
+  const { ok, Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd, 1, 10000);
+  if (ok) sales.value = Data?.Items ?? [];
 };
 
 const exportar = () => {

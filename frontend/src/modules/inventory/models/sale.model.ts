@@ -2,6 +2,14 @@ import type { SaleDetail } from "./saleDetail.model";
 import type { SalePayment } from "./paymentMethod.model";
 import type { SaleReturn } from "./saleReturn.model";
 
+export interface SalesPagedResult {
+  Items: Sale[];
+  TotalCount: number;
+  PeriodSubtotal: number;
+  PeriodDiscounts: number;
+  PeriodTotal: number;
+}
+
 export class Sale {
   public Id: string = '';
   public CustomerId: string = '';

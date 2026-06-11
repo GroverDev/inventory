@@ -66,12 +66,14 @@ public class SalesController(
 
     // GET: api/Sales
     [HttpGet]
-    public async Task<ActionResult<Response<List<SaleProductResponse>>>> GetSales(string saleDateInitial, string saleDateEnd)
+    public async Task<ActionResult<Response<SalesPagedResponse>>> GetSales(
+        string saleDateInitial, string saleDateEnd,
+        int page = 1, int pageSize = 50, string? sellerName = null)
     {
         var datos = TokenData.GetData(HttpContext);
         if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
 
-        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Rol);
+        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Rol, page, pageSize, sellerName);
     }
 
     // GET api/Sales/GUID

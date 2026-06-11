@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+
+  # ── Base de datos PostgreSQL ──────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: punto_venta_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: punto_venta_pg
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db:/backups          # los backups quedan accesibles dentro del contenedor en /backups
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend .NET 10 ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: punto_venta_api
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Cadenas de conexión — apuntan al servicio "db" de esta red interna
+      ConnectionStrings__InventoryConnection:   "Server=db;Database=punto_venta_pg;User Id=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
+      ConnectionStrings__SeguridadConnection:   "Host=db;Database=punto_venta_pg;Username=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
+      ConnectionStrings__FacturacionConnection: "Server=db;Database=punto_venta_pg;User Id=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
+      # JWT
+      JwtSettings__Secret:    ${JWT_SECRET}
+      JwtSettings__Issuer:    ${JWT_ISSUER}
+      JwtSettings__Audience:  ${JWT_AUDIENCE}
+      JwtSettings__TimeToken: ${JWT_TIME_TOKEN}
+      # MFA / TOTP
+      MfaSettings__EncryptionKeyHex:  ${MFA_ENCRYPTION_KEY}
+      MfaSettings__MaxFailedAttempts: 5
+      MfaSettings__LockoutMinutes:    15
+      MfaSettings__Issuer:            PuntoDeVenta
+      # Límites de descuento para cajeros
+      PosSettings__MaxCashierDiscountPct:    ${POS_MAX_CASHIER_DISCOUNT_PCT}
+      PosSettings__MaxCashierDiscountAmount: ${POS_MAX_CASHIER_DISCOUNT_AMOUNT}
+    ports:
+      - "127.0.0.1:6001:6001"   # Nginx en el VPS hace proxy desde api.ideanueva.com
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # ── Frontend Vue 3 (compilado y servido por Nginx interno) ─
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: punto_venta_web
+    restart: always
+    ports:
+      - "127.0.0.1:8080:80"    # Nginx en el VPS hace proxy desde app.ideanueva.com
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

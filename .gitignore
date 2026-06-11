@@ -1,0 +1,5 @@
+# Secretos — nunca al repositorio
+.env
+
+# Backups huérfanos en la raíz
+futbol_backup.sql

@@ -91,43 +91,77 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
         return numberRows;
     }
 
-     public async Task<List<SaleProductResponse>> GetSales(DateTime SaleDateInitial, DateTime SaleDateEnd, int? userId = null)
+    public async Task<SalesPagedResponse> GetSales(DateTime saleDateInitial, DateTime saleDateEnd, int? userId = null, int page = 1, int pageSize = 50, string? sellerName = null)
     {
-        List<SaleProductResponse> listSales = [];
+        SalesPagedResponse result = new();
         using var db = _DbContext.CreateConnection;
         try
         {
             db.Open();
-            string userFilter = userId.HasValue ? "AND s.created_by = @UserId" : "";
-            string sqlQuery = $@"
-                       SELECT s.id, s.customer_id, c.full_name AS CustomerName,
-                              s.sale_date, s.subtotal, s.total_discounts,
-                              COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
-                              s.total, s.is_active,
-                              COALESCE(u.full_name, '') AS SellerName
-                         FROM sales s
-                        INNER JOIN customers c ON c.id = s.customer_id
-                        LEFT  JOIN sec.users u ON u.id = s.created_by
-                        WHERE s.state
-                          AND s.sale_date >= @SaleDateInitial
-                          AND s.sale_date <= @SaleDateEnd
-                          {userFilter}
-                        ORDER BY s.sale_date DESC;
-                ";
+            string userFilter   = userId.HasValue                   ? "AND s.created_by = @UserId"    : "";
+            string sellerFilter = !string.IsNullOrEmpty(sellerName) ? "AND u.full_name = @SellerName" : "";
+            int offset = (page - 1) * pageSize;
 
-            var result = await db.QueryAsync<SaleProductResponse>(sqlQuery, new { SaleDateInitial, SaleDateEnd, UserId = userId });
-            listSales = result!.ToList();
-            foreach (var saleProduct in listSales)
+            string sqlQuery = $@"
+                SELECT s.id, s.customer_id, c.full_name AS CustomerName,
+                       s.sale_date, s.subtotal, s.total_discounts,
+                       COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
+                       s.total, s.is_active,
+                       COALESCE(u.full_name, '') AS SellerName,
+                       COUNT(*)                OVER() AS TotalCount,
+                       SUM(s.subtotal)         OVER() AS PeriodSubtotal,
+                       SUM(s.total_discounts)  OVER() AS PeriodDiscounts,
+                       SUM(s.total)            OVER() AS PeriodTotal
+                  FROM sales s
+                 INNER JOIN customers c ON c.id = s.customer_id
+                 LEFT  JOIN sec.users u ON u.id = s.created_by
+                 WHERE s.state
+                   AND s.sale_date >= @SaleDateInitial
+                   AND s.sale_date <= @SaleDateEnd
+                   {userFilter}
+                   {sellerFilter}
+                 ORDER BY s.sale_date DESC
+                 LIMIT @PageSize OFFSET @Offset;
+            ";
+
+            var rows = (await db.QueryAsync<SalePageRow>(sqlQuery, new
             {
-                var resulDetail = await _salesDetailRepository.GetSalesProductDetail(saleProduct.Id, db);
-                saleProduct.Detail = [.. resulDetail!];
+                SaleDateInitial = saleDateInitial,
+                SaleDateEnd     = saleDateEnd,
+                UserId          = userId,
+                SellerName      = sellerName,
+                PageSize        = pageSize,
+                Offset          = offset,
+            })).ToList();
+
+            if (rows.Count > 0)
+            {
+                result.TotalCount      = rows[0].TotalCount;
+                result.PeriodSubtotal  = rows[0].PeriodSubtotal;
+                result.PeriodDiscounts = rows[0].PeriodDiscounts;
+                result.PeriodTotal     = rows[0].PeriodTotal;
+            }
+
+            foreach (var row in rows)
+            {
+                var detail = await _salesDetailRepository.GetSalesProductDetail(row.Id, db);
+                row.Detail = [.. detail];
+                result.Items.Add(row);
             }
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw new Exception(ex.Message, ex); }
         finally { db.Close(); }
 
-        return listSales;
+        return result;
+    }
+
+    private class SalePageRow : SaleProductResponse
+    {
+        public int TotalCount { get; set; }
+        public decimal PeriodSubtotal { get; set; }
+        public decimal PeriodDiscounts { get; set; }
+        public decimal PeriodTotal { get; set; }
     }
 
      public async Task<SaleProductResponse> GetSale(Guid Id)

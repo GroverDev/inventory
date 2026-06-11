@@ -180,50 +180,47 @@ public class SalesApplication(
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return respuesta;
     }
-    public async Task<Response<List<SaleProductResponse>>> GetSales(string saleDateInitial, string saleDateEnd, int userId, string rol)
+    public async Task<Response<SalesPagedResponse>> GetSales(string saleDateInitial, string saleDateEnd, int userId, string rol, int page = 1, int pageSize = 50, string? sellerName = null)
     {
-        Response<List<SaleProductResponse>> sales = new() { Data = [] };
+        Response<SalesPagedResponse> response = new() { Data = new() };
         try
         {
             saleDateInitial += " 00:00:01";
-            saleDateEnd += " 23:59:59";
-            #region Valida Fechas
+            saleDateEnd     += " 23:59:59";
+
             if (!DateTime.TryParse(saleDateInitial, out _))
                 throw new CustomException("Fecha desde, es incorrecto.", MessageTypes.Warning);
-
             if (Convert.ToDateTime(saleDateInitial).Year > DateTime.Now.Year + 1)
-                throw new CustomException($"Fecha desde, el año  no puede ser mayor al año {(DateTime.Now.Year + 1).ToString()}.", MessageTypes.Warning);
-
+                throw new CustomException($"Fecha desde, el año no puede ser mayor al año {DateTime.Now.Year + 1}.", MessageTypes.Warning);
             if (Convert.ToDateTime(saleDateInitial).Year < 1900)
                 throw new CustomException("Fecha desde, el año no puede ser menor al año 1900.", MessageTypes.Warning);
 
             if (!DateTime.TryParse(saleDateEnd, out _))
                 throw new CustomException("Fecha hasta, es incorrecto.", MessageTypes.Warning);
-
             if (Convert.ToDateTime(saleDateEnd).Year > DateTime.Now.Year + 1)
-                throw new CustomException($"Fecha hasta, el año  no puede ser mayor al año {(DateTime.Now.Year + 1).ToString()}.", MessageTypes.Warning);
-
+                throw new CustomException($"Fecha hasta, el año no puede ser mayor al año {DateTime.Now.Year + 1}.", MessageTypes.Warning);
             if (Convert.ToDateTime(saleDateEnd).Year < 1900)
                 throw new CustomException("Fecha hasta, el año no puede ser menor al año 1900.", MessageTypes.Warning);
 
             if (Convert.ToDateTime(saleDateInitial) > Convert.ToDateTime(saleDateEnd))
                 throw new CustomException("Fecha desde, no puede ser mayor a la Fecha hasta.", MessageTypes.Warning);
-            #endregion
 
-            int? filterUserId = rol == "Cajero" ? userId : null;
-            var respList = await _salesRepository.GetSales(Convert.ToDateTime(saleDateInitial), Convert.ToDateTime(saleDateEnd), filterUserId);
+            int? filterUserId   = rol == "Cajero" ? userId : null;
+            string? filterSeller = rol == "Cajero" ? null  : sellerName;
 
-            foreach (var saleItem in respList)
-            {
-                var sale = saleItem.Adapt<SaleProductResponse>();
-                sales.Data.Add(sale);
-            }
-            sales.ok = true;
+            response.Data = await _salesRepository.GetSales(
+                Convert.ToDateTime(saleDateInitial),
+                Convert.ToDateTime(saleDateEnd),
+                filterUserId,
+                page,
+                pageSize,
+                filterSeller);
 
+            response.ok = true;
         }
-        catch (CustomException ex) { sales.SetMessage(MessageTypes.Warning, ex.Message); }
-        catch (Exception ex) { sales.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
-        return sales;
+        catch (CustomException ex) { response.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { response.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
+        return response;
     }
     public async Task<Response<SaleProductResponse>> GetSale(string id)
     {
