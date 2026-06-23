@@ -1,5 +1,6 @@
 # Secretos — nunca al repositorio
 .env
+**/appsettings.Development.json
 
 # Backups huérfanos en la raíz
 futbol_backup.sql
