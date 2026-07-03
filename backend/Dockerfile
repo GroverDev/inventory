@@ -9,14 +9,10 @@ WORKDIR /app
 
 # Copiar los archivos de proyecto de cada proyecto y restaurar las dependencias
 COPY 1-Services/Services.Api/Services.Api.csproj 1-Services/Services.Api/
-COPY 2-Application/Facturacion.Application/Facturacion.Application.csproj 2-Application/Facturacion.Application/
 COPY 2-Application/Inventory.Application/Inventory.Application.csproj 2-Application/Inventory.Application/
-COPY 2-Application/Siat.Application/Siat.Application.csproj 2-Application/Siat.Application/
 COPY 2-Application/Seguridad.Application/Seguridad.Application.csproj 2-Application/Seguridad.Application/
-COPY 3-Infrastructure/Facturacion.Infrastructure/Facturacion.Infrastructure.csproj 3-Infrastructure/Facturacion.Infrastructure/
 COPY 3-Infrastructure/Inventory.Infrastructure/Inventory.Infrastructure.csproj 3-Infrastructure/Inventory.Infrastructure/
 COPY 3-Infrastructure/Seguridad.Infrastructure/Seguridad.Infrastructure.csproj 3-Infrastructure/Seguridad.Infrastructure/
-COPY 4-Domain/Facturacion.Domain/Facturacion.Domain.csproj 4-Domain/Facturacion.Domain/
 COPY 4-Domain/Inventory.Domain/Inventory.Domain.csproj 4-Domain/Inventory.Domain/
 COPY 4-Domain/Seguridad.Domain/Seguridad.Domain.csproj 4-Domain/Seguridad.Domain/
 COPY Common.Utilities/Common.Utilities.csproj Common.Utilities/
