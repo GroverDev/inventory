@@ -122,7 +122,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _overCashierLimit(DiscountResult r) {
     if (!_isCashier) return false;
     if (r.id.isNotEmpty) return false; // catálogo no requiere autorización
-    if (r.type == 'Percentage') return r.value > _settings.maxCashierDiscountPct;
+    if (r.type == 'Percentage') {
+      return r.value > _settings.maxCashierDiscountPct;
+    }
     if (r.type == 'FixedAmount') {
       return r.value > _settings.maxCashierDiscountAmount;
     }
@@ -202,23 +204,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-          left: 16,
-          right: 16,
         ),
         child: StatefulBuilder(
           builder: (context, setSheet) {
             final paid = lines.fold<double>(0, (s, l) => s + l.amountGiven);
             final pending = (total - paid).clamp(0, double.infinity).toDouble();
-            final change =
-                (paid - total).clamp(0, double.infinity).toDouble();
+            final change = (paid - total).clamp(0, double.infinity).toDouble();
 
             void addLine() {
               final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
               if (method == null || amount <= 0) return;
               final returned = method!.requiresChanges
-                  ? (paid + amount - total)
-                      .clamp(0, double.infinity)
-                      .toDouble()
+                  ? (paid + amount - total).clamp(0, double.infinity).toDouble()
                   : 0.0;
               setSheet(() {
                 lines.add(SalePayment(
@@ -232,104 +229,112 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               });
             }
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Cobrar venta',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Total a cobrar'),
-                      Text(currency(total),
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: method?.id,
-                  isExpanded: true,
-                  decoration:
-                      const InputDecoration(labelText: 'Método de pago'),
-                  items: _methods
-                      .map((m) => DropdownMenuItem(
-                          value: m.id, child: Text(m.name)))
-                      .toList(),
-                  onChanged: (v) => setSheet(
-                      () => method = _methods.firstWhere((m) => m.id == v)),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: amountCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'Monto (Bs.)',
-                          hintText: pending > 0
-                              ? 'Pendiente: ${currency(pending)}'
-                              : null,
-                        ),
-                        onSubmitted: (_) => addLine(),
-                      ),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Cobrar venta',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(width: 8),
-                    FilledButton.tonal(
-                      onPressed: addLine,
-                      child: const Text('Agregar'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                for (var i = 0; i < lines.length; i++)
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(lines[i].paymentMethodName),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(currency(lines[i].amountGiven)),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () =>
-                              setSheet(() => lines.removeAt(i)),
-                        ),
+                        const Text('Total a cobrar'),
+                        Text(currency(total),
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
-                const Divider(),
-                _kv('Total pagado', currency(paid)),
-                if (pending > 0)
-                  _kv('Pendiente', currency(pending), color: Colors.red),
-                if (change > 0)
-                  _kv('Vuelto', currency(change), color: Colors.green),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: paid + 0.0001 < total
-                      ? null
-                      : () => Navigator.pop(sheetContext, lines),
-                  icon: const Icon(Icons.check),
-                  label: const Text('Confirmar venta'),
-                ),
-                const SizedBox(height: 12),
-              ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: method?.id,
+                    isExpanded: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Método de pago'),
+                    items: _methods
+                        .map((m) =>
+                            DropdownMenuItem(value: m.id, child: Text(m.name)))
+                        .toList(),
+                    onChanged: (v) => setSheet(
+                        () => method = _methods.firstWhere((m) => m.id == v)),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: amountCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            labelText: 'Monto (Bs.)',
+                            hintText: pending > 0
+                                ? 'Pendiente: ${currency(pending)}'
+                                : null,
+                          ),
+                          onSubmitted: (_) => addLine(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonal(
+                        // El tema global fuerza minimumSize con ancho infinito
+                        // (Size.fromHeight) para los botones de acción a ancho
+                        // completo; aquí es un botón en línea, así que acotamos
+                        // el ancho mínimo para que no reclame ancho infinito.
+                        style: FilledButton.styleFrom(
+                            minimumSize: const Size(64, 48)),
+                        onPressed: addLine,
+                        child: const Text('Agregar'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < lines.length; i++)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(lines[i].paymentMethodName),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(currency(lines[i].amountGiven)),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () => setSheet(() => lines.removeAt(i)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const Divider(),
+                  _kv('Total pagado', currency(paid)),
+                  if (pending > 0)
+                    _kv('Pendiente', currency(pending), color: Colors.red),
+                  if (change > 0)
+                    _kv('Vuelto', currency(change), color: Colors.green),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: paid + 0.0001 < total
+                        ? null
+                        : () => Navigator.pop(sheetContext, lines),
+                    icon: const Icon(Icons.check),
+                    label: const Text('Confirmar venta'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             );
           },
         ),
@@ -410,8 +415,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 leading: const Icon(Icons.warning_amber, color: Colors.red),
                 title: Text(_error!),
                 trailing: TextButton(
-                    onPressed: _loadCatalogs,
-                    child: const Text('Reintentar')),
+                    onPressed: _loadCatalogs, child: const Text('Reintentar')),
               ),
             ),
           Expanded(
@@ -468,8 +472,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         child: SizedBox(
                             height: 16,
                             width: 16,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2)),
+                            child: CircularProgressIndicator(strokeWidth: 2)),
                       )
                     : null,
               ),
@@ -478,9 +481,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ListTile(
                 dense: true,
                 title: Text(c.fullName),
-                subtitle: c.documentNumber.isEmpty
-                    ? null
-                    : Text(c.documentNumber),
+                subtitle:
+                    c.documentNumber.isEmpty ? null : Text(c.documentNumber),
                 onTap: () => _selectCustomer(c),
               ),
           ],
@@ -514,8 +516,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   Flexible(
                     child: Text(
                       '${line.discountLabel}  − ${currency(line.lineTotalDiscounts)}',
-                      style: const TextStyle(
-                          color: Colors.green, fontSize: 12),
+                      style: const TextStyle(color: Colors.green, fontSize: 12),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

@@ -8,7 +8,8 @@ class AppConfig {
   /// 10.0.2.2 es el alias del host desde el emulador Android.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://10.0.2.2:6001/',
+    //defaultValue: 'http://10.0.2.2:6001/',
+    defaultValue: 'https://api.ideanueva.com/',
   );
 
   static const String appName = 'Inventario Móvil';

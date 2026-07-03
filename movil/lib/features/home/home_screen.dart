@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../orders/orders_screen.dart';
 import '../pos/pos_screen.dart';
 import '../products/products_screen.dart';
+import '../sales/sales_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,13 @@ class HomeScreen extends StatelessWidget {
         icon: Icons.point_of_sale_outlined,
         color: Colors.teal,
         builder: (_) => const PosScreen(),
+      ),
+      _Module(
+        title: 'Ventas',
+        subtitle: 'Ver ventas y registrar devoluciones',
+        icon: Icons.receipt_outlined,
+        color: Colors.purple,
+        builder: (_) => const SalesScreen(),
       ),
       _Module(
         title: 'Pedidos',

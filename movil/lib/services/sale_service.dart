@@ -3,6 +3,7 @@ import '../core/network/api_response.dart';
 import '../models/cash_session.dart';
 import '../models/login_models.dart';
 import '../models/sale.dart';
+import '../models/sale_history.dart';
 
 class SaleService {
   SaleService(this._api);
@@ -16,6 +17,57 @@ class SaleService {
       body: req.toJson(),
     );
     return res.data ?? '';
+  }
+
+  /// GET api/Sales — registro de ventas paginado en un rango de fechas.
+  /// Las fechas se envían en formato `yyyy-MM-dd`.
+  Future<SalesPage> getSales({
+    required String dateInitial,
+    required String dateEnd,
+    int page = 1,
+    int pageSize = 20,
+    String? sellerName,
+  }) async {
+    final res = await _api.get<SalesPage>(
+      'api/Sales',
+      (data) => SalesPage.fromJson(data as Map<String, dynamic>),
+      query: {
+        'saleDateInitial': dateInitial,
+        'saleDateEnd': dateEnd,
+        'page': page,
+        'pageSize': pageSize,
+        if (sellerName != null && sellerName.isNotEmpty) 'sellerName': sellerName,
+      },
+    );
+    return res.data ??
+        SalesPage(
+          items: const [],
+          totalCount: 0,
+          periodSubtotal: 0,
+          periodDiscounts: 0,
+          periodTotal: 0,
+        );
+  }
+
+  /// GET api/Sales/{id} — venta con detalle, cobros y devoluciones.
+  Future<SaleFull?> getSaleById(String id) async {
+    final res = await _api.get<SaleFull?>(
+      'api/Sales/$id',
+      (data) => data == null
+          ? null
+          : SaleFull.fromJson(data as Map<String, dynamic>),
+    );
+    return res.data;
+  }
+
+  /// POST api/SaleReturn — registra la devolución de una venta.
+  Future<String> createReturn(SaleReturnRequest req) async {
+    final res = await _api.post<String>(
+      'api/SaleReturn',
+      (data) => data?.toString() ?? '',
+      body: req.toJson(),
+    );
+    return res.message.description;
   }
 
   /// GET api/CashSession/active — sesión de caja abierta del usuario.
