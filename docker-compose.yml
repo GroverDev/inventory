@@ -5,7 +5,7 @@ services:
   # ── Base de datos PostgreSQL ──────────────────────────────
   db:
     image: postgres:16-alpine
-    container_name: punto_venta_db
+    container_name: pos_db_dos
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -27,7 +27,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: punto_venta_api
+    container_name: pos_backend_dos
     restart: always
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -61,7 +61,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: punto_venta_web
+    container_name: pos_frontend_dos
     restart: always
     ports:
       - "127.0.0.1:8080:80"    # Nginx en el VPS hace proxy desde app.ideanueva.com
