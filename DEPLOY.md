@@ -20,7 +20,8 @@ nano .env
 docker compose up --build -d
 
 # 4. Restaurar la base de datos (solo una vez — el volumen queda persistido)
-docker exec -i punto_venta_db psql -U postgres punto_venta_pg < db/28052026_inventory_backup.sql
+#    Usa el backup más reciente disponible en db/
+docker exec -i punto_venta_db psql -U postgres punto_venta_pg < db/02062026_inventory_backup.sql
 ```
 
 ---

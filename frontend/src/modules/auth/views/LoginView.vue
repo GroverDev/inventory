@@ -96,8 +96,8 @@ const router = useRouter();
 const showPassword = ref(false);
 
 const loginForm = ref({
-  usuario: 'grover@ideanueva.com',
-  contrasenia: '@Temporal1'
+  usuario: '',
+  contrasenia: ''
 });
 
 const reglas = {
