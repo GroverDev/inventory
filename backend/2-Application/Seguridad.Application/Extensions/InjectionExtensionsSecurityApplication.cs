@@ -22,6 +22,7 @@ public static class InjectionExtensionsSecurityApplication
         services.AddScoped<IAccessMenuApplication, AccessMenuApplication>();
         services.AddScoped<IUsersApplication, UsersApplication>();
         services.AddScoped<IModulesApplication, ModulesApplication>();
+        services.AddScoped<IAdminApplication, AdminApplication>();
         return services;
     }
 }

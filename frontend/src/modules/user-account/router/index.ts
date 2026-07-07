@@ -105,5 +105,16 @@ export default {
         titleForm: 'Editar Rol'
       },
     },
+    {
+      path: 'company-reset',
+      name: 'company-reset',
+      component: () => import(/* webpackChunkName: "company-reset" */ '@/modules/user-account/views/admin/CompanyResetView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Resetear Empresa',
+        titleForm: 'Resetear Empresa'
+      },
+    },
   ],
 };

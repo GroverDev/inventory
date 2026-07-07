@@ -14,6 +14,7 @@ public static class InjectionExtensionsSecurityInfrastructure
         services.AddScoped<IRolesRepository, RolesRepository>();
         services.AddScoped<IUsersRepository, UsersRepository>();
         services.AddScoped<IModulesRepository, ModulesRepository>();
+        services.AddScoped<IAdminRepository, AdminRepository>();
         return services;
     }
 }
