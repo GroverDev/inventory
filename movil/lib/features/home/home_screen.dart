@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../orders/orders_screen.dart';
 import '../pos/pos_screen.dart';
@@ -18,28 +19,28 @@ class HomeScreen extends StatelessWidget {
         title: 'Productos',
         subtitle: 'Buscar y modificar productos',
         icon: Icons.inventory_2_outlined,
-        color: Colors.indigo,
+        color: AppPalette.color1,
         builder: (_) => const ProductsScreen(),
       ),
       _Module(
         title: 'Punto de venta',
         subtitle: 'Vender desde el móvil',
         icon: Icons.point_of_sale_outlined,
-        color: Colors.teal,
+        color: AppPalette.deep,
         builder: (_) => const PosScreen(),
       ),
       _Module(
         title: 'Ventas',
         subtitle: 'Ver ventas y registrar devoluciones',
         icon: Icons.receipt_outlined,
-        color: Colors.purple,
+        color: AppPalette.color2,
         builder: (_) => const SalesScreen(),
       ),
       _Module(
         title: 'Pedidos',
         subtitle: 'Compras a proveedores',
         icon: Icons.receipt_long_outlined,
-        color: Colors.deepOrange,
+        color: AppPalette.ink,
         builder: (_) => const OrdersScreen(),
       ),
     ];
