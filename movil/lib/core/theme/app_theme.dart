@@ -22,8 +22,12 @@ class AppPalette {
   /// Estados activos, contenedores destacados, indicadores de selección.
   static const Color color4 = Color(0xFFA0E3D2);
 
-  /// Fondo principal y lienzo claro.
+  /// Capa clara para contenedores destacados (chips seleccionados, etc.).
   static const Color color5 = Color(0xFFD6F5EC);
+
+  /// Fondo principal de las pantallas: blanco con un tinte teal casi
+  /// imperceptible para que las tarjetas blancas conserven separación.
+  static const Color canvas = Color(0xFFF6FCFA);
 
   /// Tinta de alto contraste para texto (cumple AA sobre color5 y blanco).
   static const Color ink = Color(0xFF0B3D36);
@@ -67,7 +71,7 @@ class AppTheme {
       inversePrimary: AppPalette.color4,
       shadow: AppPalette.deep,
     );
-    return _base(scheme, scaffold: AppPalette.color5);
+    return _base(scheme, scaffold: AppPalette.canvas);
   }
 
   static ThemeData dark() {
