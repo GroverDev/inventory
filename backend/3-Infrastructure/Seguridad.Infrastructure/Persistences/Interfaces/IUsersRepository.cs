@@ -6,7 +6,7 @@ namespace Seguridad.Infrastructure;
 public interface IUsersRepository
 {
     public Task<List<UsersResponse>> GetUsers(UserSearchRequest userSearchRequest);
-    public Task<bool> CreateUser(Users user, int userId);
+    public Task<string> CreateUser(Users user, int userId);
     public Task<bool> CreateUserOutPassword(Users user, int userId);
     public Task<UsersResponse> GetUser(Guid uuid);
     public Task<bool> UpdateUser(Users user, int modifiedBy);

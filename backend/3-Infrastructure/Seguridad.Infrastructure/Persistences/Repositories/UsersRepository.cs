@@ -19,6 +19,14 @@ public class UsersRepository(SeguridadDbContext _context) : IUsersRepository
                           ? " u.email ILIKE @Email "
                           : " full_name ILIKE @full_name ";
 
+        // Filtro de estado: true = solo activos, false = solo inactivos, null = todos.
+        string activeFilter = userSearchRequest.IsActive switch
+        {
+            true  => " u.is_active ",
+            false => " NOT u.is_active ",
+            _     => " TRUE "
+        };
+
         userSearchRequest.Email = "%" + userSearchRequest.Email + "%";
         userSearchRequest.FullName = "%" + userSearchRequest.FullName + "%";
         db.Open();
@@ -28,8 +36,7 @@ public class UsersRepository(SeguridadDbContext _context) : IUsersRepository
                                         COALESCE(m.is_required, false) AS mfa_required
                                  FROM sec.users u
                                  LEFT JOIN sec.user_mfa m ON m.user_id = u.id AND m.mfa_type = 'totp'
-                                WHERE u.is_active
-                                  AND " + subquery;
+                                WHERE " + activeFilter + " AND " + subquery;
         var listResp = await db.QueryAsync<UsersResponse>(query, new { userSearchRequest.Email, full_name = userSearchRequest.FullName });
         objResp = listResp.ToList();
     }
@@ -38,9 +45,8 @@ public class UsersRepository(SeguridadDbContext _context) : IUsersRepository
     return objResp;
 }
 
-public async Task<bool> CreateUser(Users user, int userId)
+public async Task<string> CreateUser(Users user, int userId)
 {
-    var ok = false;
     using var db = _context.CreateConnection;
     try
     {
@@ -62,7 +68,6 @@ public async Task<bool> CreateUser(Users user, int userId)
                              VALUES (@Id, @UserName,@Password, @Email, @FullName, @LastAccess, @ChangePassword, @IsActive, @CreatedBy, now(),  @ModifiedBy, now() ,@Uuid);";
             await db.ExecuteAsync(sqlQuery, user, transaction);
             transaction.Commit();
-            ok = true;
         }
         catch (CustomException ex)
         {
@@ -76,9 +81,9 @@ public async Task<bool> CreateUser(Users user, int userId)
         }
     }
     catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
-    catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<string>(ex); }
     finally { db.Close(); }
-    return ok;
+    return user.Uuid.ToString();
 }
 public async Task<bool> CreateUserOutPassword(Users user, int userId)
 {

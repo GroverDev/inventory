@@ -34,7 +34,11 @@ public class AccessMenuApplication(
                     identacion = "",
                     url = acceso.Route,
                     SeMuestraEnMenu = acceso.ShowMenu,
-                    EsFormulario = acceso.IsFormRegister
+                    EsFormulario = acceso.IsFormRegister,
+                    CanCreate = acceso.CanCreate,
+                    CanRead = acceso.CanRead,
+                    CanUpdate = acceso.CanUpdate,
+                    CanDelete = acceso.CanDelete
                 };
                 listaRest.Add(accesoNg);
             }
@@ -86,13 +90,23 @@ public class AccessMenuApplication(
     private static List<Forms> remueveDuplicados(List<Forms> listaFormConDuplicados)
     {
         var listaFormSinDuplicados = new List<Forms>();
-        Dictionary<int, int> codigosUnicos = new Dictionary<int, int>();
+        Dictionary<int, Forms> codigosUnicos = new Dictionary<int, Forms>();
         foreach (var formu in listaFormConDuplicados)
         {
             if (!codigosUnicos.ContainsKey(formu.Id))
             {
-                codigosUnicos.Add(formu.Id, 0);
+                codigosUnicos.Add(formu.Id, formu);
                 listaFormSinDuplicados.Add(formu);
+            }
+            else
+            {
+                // El usuario tiene el mismo formulario en varios roles:
+                // el permiso efectivo es la unión (OR) de los permisos de cada rol.
+                var existente = codigosUnicos[formu.Id];
+                existente.CanCreate |= formu.CanCreate;
+                existente.CanRead   |= formu.CanRead;
+                existente.CanUpdate |= formu.CanUpdate;
+                existente.CanDelete |= formu.CanDelete;
             }
         }
         return listaFormSinDuplicados;

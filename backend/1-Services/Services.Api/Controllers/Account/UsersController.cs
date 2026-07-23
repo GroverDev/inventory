@@ -27,7 +27,7 @@ public async Task<ActionResult<Response<List<UsersResponse>>>> Get([FromBody] Us
 }
 
 [HttpPost]
-public async Task<ActionResult<Response<bool>>> CreateUser([FromBody] UserRequest user) // Return Response<bool> based on IUsersApplication
+public async Task<ActionResult<Response<string>>> CreateUser([FromBody] UserRequest user) // Devuelve el UUID del nuevo usuario
 {
     if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
     var datos = TokenData.GetData(HttpContext);

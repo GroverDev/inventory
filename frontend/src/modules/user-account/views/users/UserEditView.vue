@@ -407,12 +407,12 @@ const saveUser = async () => {
 
   if (respuesta) {
     if (!user.value.Uuid || user.value.Uuid === '0') {
-      const { ok, Data: idUser } = await createUser(user.value);
-      if (ok) {
+      const { ok, Data: newUuid } = await createUser(user.value);
+      if (ok && newUuid) {
         isSaved.value = true;
-        user.value.Uuid = idUser;
-        await utils.showMessageModal({ Description: 'El usuario se creó correctamente.', MessageType: 'success' });
-        returnPage();
+        user.value.Uuid = newUuid;
+        await loadUserRoles(newUuid);
+        await utils.showMessageModal({ Description: 'El usuario se creó correctamente. Ahora asigne sus roles y presione «Guardar Roles».', MessageType: 'success' });
       }
     } else {
       const { ok, Data: okResp } = await updateUser(user.value);

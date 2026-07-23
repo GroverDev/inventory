@@ -14,21 +14,25 @@ public class FormsRepository(SeguridadDbContext _context) : IFormsRepository
         try
         {
             db.Open();
-            string query = @"select f.id, 
-                                      f.form_id, 
-                                      f.show_order, 
+            string query = @"select f.id,
+                                      f.form_id,
+                                      f.show_order,
                                       f.name_form ,
                                       f.description ,
-                                      f.icon_css , 
+                                      f.icon_css ,
                                       f.show_menu ,
-                                      f.state , 
+                                      f.state ,
                                       f.is_form_register ,
-                                      f.route  
-                                 from sec.forms f 
-                                      inner join sec.roles_forms rf 
-                                   on rf.form_id  = f.id 
+                                      f.route  ,
+                                      COALESCE(rf.can_create, true) as can_create,
+                                      COALESCE(rf.can_read,   true) as can_read,
+                                      COALESCE(rf.can_update, true) as can_update,
+                                      COALESCE(rf.can_delete, true) as can_delete
+                                 from sec.forms f
+                                      inner join sec.roles_forms rf
+                                   on rf.form_id  = f.id
                                 where rf.rol_id  = @IdRol
-                                  and f.state 
+                                  and f.state
                                   and rf.state ";
             var resultFormularios = await db.QueryAsync<Forms>(query, new { IdRol = rolId });
             formularios = resultFormularios.ToList();

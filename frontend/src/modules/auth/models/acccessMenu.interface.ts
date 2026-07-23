@@ -21,6 +21,10 @@ export class AccessMenu {
   public url: string = '';
   public SeMuestraEnMenu: boolean = false;
   public EsFormulario: boolean = false;
+  public CanCreate: boolean = false;
+  public CanRead: boolean = false;
+  public CanUpdate: boolean = false;
+  public CanDelete: boolean = false;
   public Children: AccessMenu[] = [];
 
 }

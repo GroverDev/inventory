@@ -6,6 +6,7 @@ using Inventory.Domain;
 using Inventory.Domain.Entities.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Seguridad.Application;
 using Services.Api.Utils;
 
 namespace Services.Api.Controllers.Inventory;
@@ -14,17 +15,22 @@ namespace Services.Api.Controllers.Inventory;
 [Route("api/[controller]")]
 [Authorize]
 [ApiController]
-public class ProductController(IProductApplication _productApplication) : ControllerBase
+public class ProductController(IProductApplication _productApplication, IRolesApplication _rolesApplication) : ControllerBase
 {
+    // Formulario (route) al que pertenece este controlador, usado para verificar permisos por acción.
+    private const string FormRoute = "products-admin";
     // POST api/Product
     [HttpPost()]
     public async Task<ActionResult<Response<string>>> CreateProduct([FromBody] ProductRequest productRequest)
     {
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
-       
+
         var datos = TokenData.GetData(HttpContext);
 
-        if (!Guid.TryParse(productRequest.Id, out _)) productRequest.Id = ""; 
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "create"))
+            return new Response<string>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para crear productos." } };
+
+        if (!Guid.TryParse(productRequest.Id, out _)) productRequest.Id = "";
         if (!Guid.TryParse(productRequest.LaboratoryId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Laboratory ID no valido" } });
         if (!Guid.TryParse(productRequest.UomId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "El Id de la unidad de medida es no valido" } });
 
@@ -41,6 +47,9 @@ public class ProductController(IProductApplication _productApplication) : Contro
     {
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
         var datos = TokenData.GetData(HttpContext);
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<int>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para actualizar productos." } };
 
         if (items == null || items.Count == 0)
             return BadRequest(new Response<int>() { Message = new Msg() { MessageType = "error", Description = "La lista de productos no puede estar vacía." } });
@@ -67,6 +76,9 @@ public class ProductController(IProductApplication _productApplication) : Contro
        
         var datos = TokenData.GetData(HttpContext);
 
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
+
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
         if (!Guid.TryParse(productRequest.LaboratoryId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "ProviderId no valido" } });
         if (!Guid.TryParse(productRequest.UomId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "El Id de la unidad de medida es no valido" } });
@@ -86,6 +98,9 @@ public class ProductController(IProductApplication _productApplication) : Contro
     {
         if(!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
         var datos = TokenData.GetData(HttpContext);
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "delete"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para eliminar productos." } };
 
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
 

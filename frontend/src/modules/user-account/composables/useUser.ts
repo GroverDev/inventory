@@ -7,13 +7,18 @@ const { post, get, put, del } = useApi();
 
 const useUser = () => {
 
-  const getUsersByName = async (searchUserName: string, searchEmail: string): Promise<ResponseArray<User>> => {
+  const getUsersByName = async (
+    searchUserName: string,
+    searchEmail: string,
+    includeInactive = false,
+  ): Promise<ResponseArray<User>> => {
     return await post<ResponseArray<User>>(
       `Users/GetUsers`,
       {
         Email: searchEmail,
         FullName: searchUserName,
-        // IsActive: true // Postman example body: { "email": "", "fullName": "" }
+        // true = solo activos, null = todos (activos + inactivos)
+        IsActive: includeInactive ? null : true,
       }
     );
   }

@@ -107,4 +107,17 @@ public class RolesApplication(IRolesRepository _rolesRepository) : IRolesApplica
         catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return resp;
     }
+
+    public async Task<bool> HasFormPermission(int userId, string formRoute, string action)
+    {
+        try
+        {
+            return await _rolesRepository.HasFormPermission(userId, formRoute, action);
+        }
+        catch
+        {
+            // Ante cualquier error de verificación, denegar por seguridad.
+            return false;
+        }
+    }
 }

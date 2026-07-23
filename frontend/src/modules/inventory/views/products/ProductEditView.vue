@@ -42,7 +42,7 @@
                           Opciones
                         </button>
                         <div class="dropdown-menu dropdown-menu-lg-right">
-                          <button type="button" class="dropdown-item border-bottom border-1"
+                          <button v-if="canSave" type="button" class="dropdown-item border-bottom border-1"
                             :disabled="isSaved" @click="saveProduct">
                             <span class="fal fa-save me-1"></span>Grabar
                           </button>
@@ -54,7 +54,7 @@
                       </div>
                     </div>
                     <div class="d-none d-md-flex gap-2">
-                      <button type="button" class="btn btn-sm btn-primary"
+                      <button v-if="canSave" type="button" class="btn btn-sm btn-primary"
                         :disabled="isSaved" @click="saveProduct">
                         <span class="fal fa-save me-1"></span>Grabar
                       </button>
@@ -364,6 +364,7 @@ import useProduct from '@/modules/inventory/composables/useProduct';
 import useLaboratory from '@/modules/inventory/composables/useLaboratory';
 import useCategory from '@/modules/inventory/composables/useCategory';
 import useUnitOfMeasurement from '@/modules/inventory/composables/useUnitOfMeasurement';
+import usePermissions from '@/modules/common/composables/usePermissions';
 
 const router = useRouter();
 
@@ -411,6 +412,14 @@ try {
 
 const isSaved = ref(false);
 
+const { can } = usePermissions();
+// Permiso efectivo para grabar: crear si es nuevo, actualizar si es edición.
+const canSave = computed(() =>
+  product.value.Id === '0'
+    ? can('products-admin', 'create')
+    : can('products-admin', 'update')
+);
+
 // Clase dinámica para el campo Stock Actual según nivel vs mínimo
 const stockClass = computed((): string => {
   if (!product.value.MinReorderQuantity) return '';
@@ -454,6 +463,10 @@ const returnPage = () => {
 };
 
 const saveProduct = async () => {
+  if (!canSave.value) {
+    await utils.showMessageModal({ Description: 'No tiene permiso para guardar productos.', MessageType: 'warning' });
+    return;
+  }
   if (!v$.value.$invalid) {
     const respuesta = await utils.showMessageQuestion('¿Desea guardar el producto?');
     if (respuesta) {

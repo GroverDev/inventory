@@ -10,9 +10,9 @@ namespace Seguridad.Application;
 
 public class UsersApplication(IUsersRepository _usersRepository, IMfaRepository _mfaRepository) : IUsersApplication
 {
-    public async Task<Response<bool>> CreateUser(UserRequest userRequest, int UserId)
+    public async Task<Response<string>> CreateUser(UserRequest userRequest, int UserId)
 {
-    var resp = new Response<bool>();
+    var resp = new Response<string>();
     try
     {
         var user = userRequest.Adapt<Users>();

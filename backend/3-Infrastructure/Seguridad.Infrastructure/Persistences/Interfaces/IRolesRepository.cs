@@ -11,4 +11,5 @@ public interface IRolesRepository
     Task<int> UpdateRole(Roles role);
     Task<int> DeleteRole(int id, int modifiedBy);
     Task AssignFormsToRole(int rolId, List<int> formIds, int userId);
+    Task<bool> HasFormPermission(int userId, string formRoute, string action);
 }

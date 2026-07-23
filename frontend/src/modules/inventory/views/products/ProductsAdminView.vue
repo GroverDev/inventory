@@ -16,13 +16,13 @@
 
             <!-- Botones de acción -->
             <div class="mt-0 mb-4 d-flex flex-wrap gap-2">
-              <button type="button" class="btn btn-sm btn-primary" @click="newProduct">
+              <button v-if="canCreate" type="button" class="btn btn-sm btn-primary" @click="newProduct">
                 <span class="fal fa-plus-square me-1"></span>Nuevo Producto
               </button>
               <button type="button" class="btn btn-sm btn-success" @click="exportProducts">
                 <span class="fal fa-file-excel me-1"></span>Exportar Excel
               </button>
-              <label class="btn btn-sm btn-outline-success mb-0" style="cursor:pointer;">
+              <label v-if="canUpdate" class="btn btn-sm btn-outline-success mb-0" style="cursor:pointer;">
                 <span class="fal fa-file-import me-1"></span>Importar Excel
                 <input type="file" accept=".xlsx,.xls" class="d-none" ref="fileInputRef" @change="onFileImport" />
               </label>
@@ -64,7 +64,7 @@
             <div v-if="products.length === 0" class="text-center py-5">
               <i class="fal fa-box-open fa-3x text-muted d-block mb-3"></i>
               <p class="text-muted mb-2">Ingrese un nombre para buscar productos en el inventario</p>
-              <button type="button" class="btn btn-sm btn-outline-primary" @click="newProduct">
+              <button v-if="canCreate" type="button" class="btn btn-sm btn-outline-primary" @click="newProduct">
                 <span class="fal fa-plus me-1"></span>Crear nuevo producto
               </button>
             </div>
@@ -116,6 +116,7 @@
                       </td>
                       <td class="text-center text-nowrap">
                         <button
+                          v-if="canUpdate"
                           type="button"
                           class="btn btn-outline-primary btn-sm me-1"
                           title="Editar"
@@ -124,6 +125,7 @@
                           <span class="fal fa-edit"></span>
                         </button>
                         <button
+                          v-if="canDelete"
                           type="button"
                           class="btn btn-outline-danger btn-sm"
                           title="Eliminar"
@@ -131,6 +133,7 @@
                         >
                           <span class="fal fa-trash-alt"></span>
                         </button>
+                        <span v-if="!canUpdate && !canDelete" class="text-muted small">Solo lectura</span>
                       </td>
                     </tr>
                   </tbody>
@@ -188,8 +191,9 @@
                         </div>
 
                         <!-- Fila 5: acciones -->
-                        <div class="d-flex gap-2 mt-auto pt-1">
+                        <div v-if="canUpdate || canDelete" class="d-flex gap-2 mt-auto pt-1">
                           <button
+                            v-if="canUpdate"
                             type="button"
                             class="btn btn-sm btn-outline-primary flex-grow-1"
                             @click="editProduct(product)"
@@ -197,6 +201,7 @@
                             <span class="fal fa-edit me-1"></span>Editar
                           </button>
                           <button
+                            v-if="canDelete"
                             type="button"
                             class="btn btn-sm btn-outline-danger"
                             title="Eliminar"
@@ -222,15 +227,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import useProduct from '@/modules/inventory/composables/useProduct';
 import type { Product, ProductBulkUpdate } from '@/modules/inventory/models/product.model';
 import utils from '@/utils/msg';
 import { exportToExcel, exportTemplateToExcel, readExcel } from '@/utils/excelHelper';
 import { useRouter } from "vue-router";
+import usePermissions from '@/modules/common/composables/usePermissions';
 
 const { getProductsByName, getAllProducts, bulkUpdateProducts } = useProduct();
 const router = useRouter();
+
+const { can } = usePermissions();
+const canCreate = computed(() => can('products-admin', 'create'));
+const canUpdate = computed(() => can('products-admin', 'update'));
+const canDelete = computed(() => can('products-admin', 'delete'));
 
 const filtro = ref({ nombreProducto: '', estado: '1' });
 const products = ref<Product[]>([]);

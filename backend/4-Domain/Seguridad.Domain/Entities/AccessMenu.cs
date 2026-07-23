@@ -32,6 +32,13 @@ public class AccessMenu
     public bool SeMuestraEnMenu { get; set; }
 
     public bool EsFormulario { get; set; }
+
+    // Permisos granulares del formulario para el usuario (unión de sus roles).
+    public bool CanCreate { get; set; }
+    public bool CanRead { get; set; }
+    public bool CanUpdate { get; set; }
+    public bool CanDelete { get; set; }
+
     public List<AccessMenu> Children { get; set; }
 
 }

@@ -40,6 +40,20 @@
                   <button class="btn btn-primary" type="button" @click="getUsers">Buscar</button>
                 </div>
               </div>
+              <div class="col-12 col-md-5 col-lg-6">
+                <div class="form-check mt-2 mt-md-0">
+                  <input
+                    id="chkIncludeInactive"
+                    class="form-check-input"
+                    type="checkbox"
+                    v-model="filtro.IncludeInactive"
+                    @change="getUsers"
+                  />
+                  <label class="form-check-label" for="chkIncludeInactive">
+                    Mostrar también usuarios inactivos
+                  </label>
+                </div>
+              </div>
             </div>
 
             <!-- Contador de resultados -->
@@ -323,6 +337,7 @@ const savePassword = async () => {
 const filtro = ref({
   FullName: '',
   Email: '',
+  IncludeInactive: false,
 });
 
 const formatDate = (date?: Date): string => {
@@ -331,7 +346,11 @@ const formatDate = (date?: Date): string => {
 };
 
 const getUsers = async () => {
-  const { Data: usersResp } = await getUsersByName(filtro.value.FullName, filtro.value.Email);
+  const { Data: usersResp } = await getUsersByName(
+    filtro.value.FullName,
+    filtro.value.Email,
+    filtro.value.IncludeInactive,
+  );
   users.value = usersResp;
 };
 

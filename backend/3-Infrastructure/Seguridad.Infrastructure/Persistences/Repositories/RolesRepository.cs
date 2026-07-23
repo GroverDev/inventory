@@ -169,4 +169,34 @@ public class RolesRepository(SeguridadDbContext _context) : IRolesRepository
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
         finally { db.Close(); }
     }
+
+    public async Task<bool> HasFormPermission(int userId, string formRoute, string action)
+    {
+        // El nombre de columna proviene de un switch cerrado (no de la entrada del usuario) → sin riesgo de inyección.
+        string col = action switch
+        {
+            "create" => "can_create",
+            "update" => "can_update",
+            "delete" => "can_delete",
+            _        => "can_read"
+        };
+
+        using var db = _context.CreateConnection;
+        try
+        {
+            db.Open();
+            // Unión de permisos entre los roles del usuario. NULL = acceso total (COALESCE true).
+            // Si el usuario no tiene el formulario asignado, bool_or sobre vacío es NULL → false (sin acceso).
+            string query = $@"SELECT COALESCE(bool_or(COALESCE(rf.{col}, true)), false)
+                                FROM sec.users_roles ur
+                                     INNER JOIN sec.roles_forms rf ON rf.rol_id = ur.rol_id
+                                     INNER JOIN sec.forms f        ON f.id      = rf.form_id
+                               WHERE ur.user_id = @UserId
+                                 AND ur.state AND rf.state AND f.state
+                                 AND f.route = @FormRoute";
+            return await db.ExecuteScalarAsync<bool>(query, new { UserId = userId, FormRoute = formRoute });
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
 }

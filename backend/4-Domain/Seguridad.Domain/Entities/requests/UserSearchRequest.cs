@@ -7,24 +7,21 @@ public class UserSearchRequest
     //public string UserName { get; set; }="";
     public string Email { get; set; } = "";
     public string FullName { get; set; } = "";
-    public bool IsActive { get; set; }
+    // Filtro de estado: true = solo activos (por defecto), false = solo inactivos, null = todos.
+    public bool? IsActive { get; set; } = true;
 }
 public class UserSearchRequestValidator : AbstractValidator<UserSearchRequest>
 {
     public UserSearchRequestValidator()
     {
+        // Los filtros son opcionales: si ambos van vacíos se listan todos los usuarios.
+        // Solo se valida la longitud cuando el campo trae un valor.
         RuleFor(user => user.Email)
-            .Cascade(CascadeMode.Stop)
             .Length(3, 70).WithMessage("El correo electrónico debe tener entre 3 y 70 caracteres")
-            .When(user => user.FullName.Length== 0)
-            .WithMessage("El correo electrónico es un dato obligatorio y minimamente debe tener 3 y maximo 70 caracteres.");
+            .When(user => !string.IsNullOrWhiteSpace(user.Email));
 
         RuleFor(user => user.FullName)
-            .Cascade(CascadeMode.Stop)
             .Length(3, 70).WithMessage("El nombre del usuario debe tener entre 3 y 70 caracteres")
-            .When(user => user.Email.Length== 0)
-            .WithMessage("El  nombre del usuario es un dato obligatorioy minimamente debe tener 3 y maximo 70 caracteres.");
-
-
+            .When(user => !string.IsNullOrWhiteSpace(user.FullName));
     }
 }
