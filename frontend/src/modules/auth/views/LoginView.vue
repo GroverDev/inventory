@@ -44,22 +44,25 @@
             <div class="mb-4">
               <label for="password" class="form-label">Contraseña</label>
               <div class="password-group">
-                <input 
-                  :type="showPassword ? 'text' : 'password'" 
-                  class="form-control custom-input" 
-                  id="password" 
+                <input
+                  :type="showPassword ? 'text' : 'password'"
+                  class="form-control custom-input password-input"
+                  id="password"
                   placeholder="Ingresa tu contraseña"
                   v-model.trim="v$.contrasenia.$model"
                   :class="{ 'is-invalid': v$.contrasenia.$dirty && v$.contrasenia.$invalid }"
                 >
-                <i 
-                  class="toggle-password bi" 
-                  :class="showPassword ? 'bi-eye-slash' : 'bi-eye'"
+                <button
+                  type="button"
+                  class="toggle-password"
+                  :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
                   @click="showPassword = !showPassword"
-                ></i>
-                <div class="invalid-feedback" v-if="v$.contrasenia.$dirty && v$.contrasenia.required.$invalid">
-                  La contraseña es obligatoria.
-                </div>
+                >
+                  <i class="fal" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                </button>
+              </div>
+              <div class="invalid-feedback d-block" v-if="v$.contrasenia.$dirty && v$.contrasenia.required.$invalid">
+                La contraseña es obligatoria.
               </div>
             </div>
 
@@ -255,13 +258,30 @@ const loginSubmit = async () => {
   position: relative;
 }
 
+.password-input {
+  padding-right: 3rem;
+}
+
+/* Corre el ícono de validación de Bootstrap para no chocar con el ojo */
+.password-input.is-invalid {
+  background-position: right 2.75rem center;
+}
+
 .toggle-password {
   position: absolute;
-  right: 15px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  padding: 0.4rem 0.6rem;
   cursor: pointer;
   color: #666;
+  line-height: 1;
+}
+
+.toggle-password:hover {
+  color: #3e9e5d;
 }
 
 .forgot-password {
