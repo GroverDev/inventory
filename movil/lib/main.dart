@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/config/app_config.dart';
+import 'core/navigation/navigator_key.dart';
 import 'core/network/api_client.dart';
 import 'core/storage/auth_storage.dart';
 import 'core/theme/app_theme.dart';
@@ -50,6 +51,7 @@ class InventoryApp extends StatelessWidget {
       child: MaterialApp(
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
+        navigatorKey: navigatorKey,
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         home: const _Root(),

@@ -10,6 +10,13 @@ public class LoginResponse
         public string Email { get; set; }="";
         public bool ChangePassword { get; set; }
         public string Token { get; set; }="";
+
+        /// <summary>
+        /// Solo se entrega a clientes que lo soportan (móvil). Vacío en web,
+        /// donde se omite de la respuesta por ser null/vacío.
+        /// </summary>
+        public string RefreshToken { get; set; }="";
+
         public bool RequireTotp { get; set; }
         public bool TotpSetupRequired { get; set; }
         public string TotpSessionToken { get; set; }="";

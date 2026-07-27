@@ -9,6 +9,7 @@ public static class InjectionExtensionsSecurityInfrastructure
         services.AddSingleton<SeguridadDbContext>();
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IMfaRepository, MfaRepository>();
         services.AddScoped<IFormsRepository, FormsRepository>();
         services.AddScoped<IRolesRepository, RolesRepository>();

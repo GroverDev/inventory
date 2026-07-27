@@ -35,7 +35,23 @@ class ApiClient {
   final AuthStorage _storage;
   late final Dio _dio;
 
-  /// Notificado cuando una llamada devuelve 401 (token vencido/ inválido).
+  /// Cliente aparte para renovar la sesión: no lleva el interceptor de auth,
+  /// así que el token vencido no interfiere y no puede reentrar en el flujo
+  /// de refresco.
+  Dio get _refreshDio => Dio(BaseOptions(
+        baseUrl: AppConfig.apiBaseUrl,
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {'Content-Type': 'application/json'},
+        validateStatus: (s) => s != null && s < 500,
+      ));
+
+  /// Refresco en curso. Si varias peticiones fallan a la vez, todas esperan
+  /// al mismo intento en lugar de rotar el token varias veces (lo que
+  /// dispararía la detección de reuso del backend y cerraría la sesión).
+  Future<bool>? _refreshing;
+
+  /// Notificado cuando la sesión ya no puede recuperarse.
   void Function()? onUnauthorized;
 
   Future<ApiResponse<T>> get<T>(
@@ -67,12 +83,18 @@ class ApiClient {
 
   Future<ApiResponse<T>> _send<T>(
     Future<Response> Function() call,
-    T Function(dynamic data) parse,
-  ) async {
+    T Function(dynamic data) parse, {
+    bool allowRefresh = true,
+  }) async {
     try {
       final res = await call();
 
       if (res.statusCode == 401) {
+        // El access token dura poco a propósito: se renueva con el refresh
+        // token y se reintenta la llamada sin que el usuario se entere.
+        if (allowRefresh && await _tryRefresh()) {
+          return _send<T>(call, parse, allowRefresh: false);
+        }
         onUnauthorized?.call();
         throw ApiException('Sesión expirada. Inicia sesión nuevamente.');
       }
@@ -102,6 +124,40 @@ class ApiClient {
         throw ApiException('No se pudo conectar con el servidor.');
       }
       throw ApiException(_extractError(e.response?.data));
+    }
+  }
+
+  /// Renueva el par de tokens. Devuelve `false` si la sesión ya no es
+  /// recuperable (refresh vencido, revocado o inexistente).
+  Future<bool> _tryRefresh() {
+    return _refreshing ??=
+        _doRefresh().whenComplete(() => _refreshing = null);
+  }
+
+  Future<bool> _doRefresh() async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      final res = await _refreshDio.post('api/Login/refresh', data: {
+        'RefreshToken': refreshToken,
+        'Device': AppConfig.deviceName,
+        'LoginFrom': AppConfig.loginFromReconexionMovil,
+      });
+
+      final body = res.data;
+      if (body is! Map<String, dynamic> || body['ok'] != true) return false;
+
+      final data = body['Data'];
+      if (data is! Map<String, dynamic>) return false;
+
+      final token = (data['Token'] ?? '') as String;
+      if (token.isEmpty) return false;
+
+      await _storage.saveTokens(token, (data['RefreshToken'] ?? '') as String);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

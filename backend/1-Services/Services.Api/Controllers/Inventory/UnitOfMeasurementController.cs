@@ -12,7 +12,7 @@ namespace Services.Api.Controllers.Inventory;
 
 [Route("api/[controller]")]
 [ApiController]
-//[Authorize]
+[Authorize]
 public class UnitOfMeasurementController(IUnitsOfMeasurementApplication _unitsOfMeasurementApplication) : ControllerBase
     {
         // GET: api/UnitOfMeasurement

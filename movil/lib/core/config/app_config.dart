@@ -16,4 +16,9 @@ class AppConfig {
 
   /// Origen que se envía al backend (campo Device / LoginFrom).
   static const String deviceName = 'mobile';
+
+  /// Valores del enum InicioSesionDesde del backend. Determinan que el
+  /// servidor entregue refresh token y un access token de vida corta.
+  static const int loginFromMovil = 2;
+  static const int loginFromReconexionMovil = 4;
 }

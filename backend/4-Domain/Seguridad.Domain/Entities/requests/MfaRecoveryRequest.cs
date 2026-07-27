@@ -6,6 +6,8 @@ public class MfaRecoveryRequest
 {
     public string TotpSessionToken { get; set; } = "";
     public string RecoveryCode { get; set; } = "";
+    public string Device { get; set; } = "";
+    public Enums.InicioSesionDesde LoginFrom { get; set; } = Enums.InicioSesionDesde.Web;
 }
 
 public class MfaRecoveryRequestValidator : AbstractValidator<MfaRecoveryRequest>

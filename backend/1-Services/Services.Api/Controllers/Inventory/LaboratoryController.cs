@@ -16,7 +16,7 @@ namespace Services.Api.Controllers.Inventory;
 
 [ApiExplorerSettings(GroupName = "POS")]
 [Route("api/[controller]")]
-//[Authorize]
+[Authorize]
 [ApiController]
 public class LaboratoryController (ILaboratoryApplication _laboratoryApplication): ControllerBase
 {

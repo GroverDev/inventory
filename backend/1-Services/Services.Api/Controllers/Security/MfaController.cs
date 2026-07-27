@@ -2,6 +2,7 @@ using Common.Utilities;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using QRCoder;
 using Seguridad.Application;
 using Seguridad.Domain;
@@ -16,9 +17,28 @@ namespace Services.Api.Controllers.Security;
 [ApiController]
 public class MfaController(
     IMfaApplication _mfaApplication,
+    IAuthenticationApplication _authenticationApplication,
     IOptions<JwtSettings> jwtSettings) : ControllerBase
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
+
+    /// <summary>
+    /// Completa la respuesta con el JWT y, para clientes que lo soportan, un
+    /// refresh token. Es la vía normal del móvil cuando el 2FA está activo.
+    /// </summary>
+    private async Task IssueTokens(LoginResponse data, Seguridad.Domain.Enums.InicioSesionDesde from, string device)
+    {
+        bool refreshable = LoginController.UsesRefreshToken(from);
+
+        data.Token = TokenJwt.GetToken(data, _jwtSettings.Secret,
+            refreshable ? _jwtSettings.TimeTokenRefreshable : _jwtSettings.TimeToken);
+
+        if (refreshable)
+            data.RefreshToken = await _authenticationApplication.IssueRefreshToken(
+                data.UserId, device,
+                Enum.GetName(typeof(Seguridad.Domain.Enums.InicioSesionDesde), from) ?? "",
+                _jwtSettings.RefreshTokenDays);
+    }
 
     [Authorize]
     [HttpGet("setup")]
@@ -53,6 +73,7 @@ public class MfaController(
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     [HttpPost("verify")]
     public async Task<ActionResult<Response<LoginResponse>>> Verify([FromBody] TotpVerifyRequest request)
     {
@@ -69,12 +90,13 @@ public class MfaController(
 
         var resp = await _mfaApplication.VerifyTotpAndCompleteLogin(userId.Value, request);
         if (resp.ok)
-            resp.Data!.Token = TokenJwt.GetToken(resp.Data, _jwtSettings.Secret, _jwtSettings.TimeToken);
+            await IssueTokens(resp.Data!, request.LoginFrom, request.Device);
 
         return Ok(resp);
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     [HttpPost("verify-recovery")]
     public async Task<ActionResult<Response<LoginResponse>>> VerifyRecovery([FromBody] MfaRecoveryRequest request)
     {
@@ -91,7 +113,7 @@ public class MfaController(
 
         var resp = await _mfaApplication.VerifyRecoveryAndCompleteLogin(userId.Value, request);
         if (resp.ok)
-            resp.Data!.Token = TokenJwt.GetToken(resp.Data, _jwtSettings.Secret, _jwtSettings.TimeToken);
+            await IssueTokens(resp.Data!, request.LoginFrom, request.Device);
 
         return Ok(resp);
     }

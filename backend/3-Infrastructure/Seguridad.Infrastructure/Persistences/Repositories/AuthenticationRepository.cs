@@ -100,6 +100,33 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
         return usuario;
     }
 
+    public async Task<int> RecentFailedAttempts(string email, int withinMinutes)
+    {
+        using var db = _context.CreateConnection;
+        try
+        {
+            db.Open();
+            // Solo cuentan los fallos posteriores al último acceso correcto:
+            // así un login exitoso reinicia el contador y un atacante no puede
+            // dejar bloqueada la cuenta de alguien que sí conoce su clave.
+            const string query = @"
+                SELECT COUNT(*)::int
+                FROM sec.users_login
+                WHERE login_value = @email
+                  AND login_success = false
+                  AND date > now() - (@minutes * interval '1 minute')
+                  AND date > COALESCE((
+                        SELECT MAX(date) FROM sec.users_login
+                        WHERE login_value = @email AND login_success = true
+                      ), to_timestamp(0))";
+
+            return await db.ExecuteScalarAsync<int>(query,
+                new { email, minutes = withinMinutes });
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<LoginResponse>(ex); }
+        finally { db.Close(); }
+    }
+
     public async Task<LoginResponse> CompleteLoginWithTotp(int userId, TotpVerifyRequest request)
     {
         var usuario = new LoginResponse();

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../orders/orders_screen.dart';
+import '../pos/pin_gate.dart';
 import '../pos/pos_screen.dart';
 import '../products/products_screen.dart';
 import '../sales/sales_screen.dart';
@@ -27,7 +28,7 @@ class HomeScreen extends StatelessWidget {
         subtitle: 'Vender desde el móvil',
         icon: Icons.point_of_sale_outlined,
         color: AppPalette.deep,
-        builder: (_) => const PosScreen(),
+        builder: (_) => const PinGate(child: PosScreen()),
       ),
       _Module(
         title: 'Ventas',

@@ -1,6 +1,7 @@
 using Common.Utilities;
 using Inventory.Application;
 using Inventory.Domain;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.Api.Utils;
 
@@ -8,6 +9,7 @@ namespace Services.Api.Controllers.Inventory;
 
 [ApiExplorerSettings(GroupName = "POS")]
 [Route("api/[controller]")]
+[Authorize]
 [ApiController]
 public class CategoryController(ICategoryApplication _categoryApplication) : ControllerBase
 {

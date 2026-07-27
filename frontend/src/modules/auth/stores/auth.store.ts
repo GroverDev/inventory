@@ -40,7 +40,9 @@ export const useAuthStore = defineStore('auth', () => {
           Password: password,
           Device: '',
           WithEmail: true,
-          LoginFrom: 5,
+          // InicioSesionDesde.Web — antes iba 5 (Postman), lo que falseaba la
+          // auditoría de accesos en sec.users_login.
+          LoginFrom: 1,
           LoginWith: 1
         }
       );
@@ -98,12 +100,20 @@ export const useAuthStore = defineStore('auth', () => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
   }
 
+  /// Renueva solo el access token tras un refresh, conservando el usuario.
+  const setToken = (newToken: string) => {
+    token.value = newToken
+    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+  }
+
   const completarTotp = (newUser: User) => {
     setAuth(newUser.Token, newUser);
     pendingUser.value = null;
   }
 
-  const logout = () => {
+  /// Limpia la sesión solo en el navegador, sin llamar al servidor. Se usa
+  /// cuando la sesión ya está muerta y revocar no aportaría nada.
+  const clearSession = () => {
     token.value = null
     user.value = null
     pendingUser.value = null
@@ -111,6 +121,18 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Remover header de autorización
     delete axios.defaults.headers.common['Authorization']
+  }
+
+  const logout = async () => {
+    // Revoca el refresh token en el servidor y borra la cookie: sin esto la
+    // sesión seguiría viva del lado del backend aunque el navegador la olvide.
+    try {
+      await post(`Login/revoke`, { RefreshToken: '' });
+    } catch {
+      // Sin red o sesión ya vencida: igual se limpia el navegador.
+    }
+
+    clearSession();
   }
 
   // Verificar si el token sigue siendo válido
@@ -151,7 +173,9 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     getAccessMenuApi,
     setAuth,
+    setToken,
     setAccessMenu,
+    clearSession,
     completarTotp,
     logout,
     //verifyToken,

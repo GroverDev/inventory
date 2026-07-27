@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../core/navigation/navigator_key.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_response.dart';
 import '../core/storage/auth_storage.dart';
@@ -175,12 +176,20 @@ class AuthProvider extends ChangeNotifier {
       userName: displayName,
       rolName: res.rolName,
       userId: res.userId,
+      refreshToken: res.refreshToken,
     );
     userName = displayName;
     rolName = res.rolName;
   }
 
   Future<void> logout() async {
+    // Se revoca antes de limpiar: así la sesión muere también en el servidor
+    // y no queda un refresh token vivo por 30 días.
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await _authService.revokeRefreshToken(refreshToken);
+    }
+
     await _storage.clear();
     _totpSessionToken = '';
     userName = '';
@@ -188,5 +197,9 @@ class AuthProvider extends ChangeNotifier {
     error = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();
+
+    // Cierra cualquier pantalla apilada (Productos, POS, etc.) para volver
+    // a la raíz, donde `_Root` ya muestra LoginScreen por el cambio de status.
+    navigatorKey.currentState?.popUntil((route) => route.isFirst);
   }
 }

@@ -1,3 +1,5 @@
+import '../core/config/app_config.dart';
+
 /// Espejo de LoginRequest / LoginResponse del backend.
 ///
 /// El payload se mantiene alineado con el de la web (`frontend`) para que el
@@ -15,9 +17,9 @@ class LoginRequest {
     required this.email,
     required this.password,
     this.userName = '',
-    this.device = '',
+    this.device = AppConfig.deviceName,
     this.withEmail = true,
-    this.loginFrom = 5,
+    this.loginFrom = AppConfig.loginFromMovil,
     this.loginWith = 1,
   });
 
@@ -39,6 +41,10 @@ class LoginResponse {
   final String email;
   final String token;
 
+  /// Sostiene la sesión larga. Solo llega en el login inicial y en cada
+  /// rotación; vacío significa "conservar el que ya está guardado".
+  final String refreshToken;
+
   /// 2FA ya configurado: aún NO hay token real, hay que verificar un código.
   final bool requireTotp;
 
@@ -59,6 +65,7 @@ class LoginResponse {
     required this.userName,
     required this.email,
     required this.token,
+    required this.refreshToken,
     required this.requireTotp,
     required this.totpSetupRequired,
     required this.totpSessionToken,
@@ -73,6 +80,7 @@ class LoginResponse {
         userName: j['UserName'] ?? '',
         email: j['Email'] ?? '',
         token: j['Token'] ?? '',
+        refreshToken: j['RefreshToken'] ?? '',
         requireTotp: j['RequireTotp'] ?? false,
         totpSetupRequired: j['TotpSetupRequired'] ?? false,
         totpSessionToken: j['TotpSessionToken'] ?? '',

@@ -2,6 +2,7 @@ import { ref } from 'vue';
 
 
 import { getApi } from '@/modules/common/composables/api/getApi';
+import { handleSessionExpired, tryRefreshSession } from '@/modules/common/composables/api/refreshSession';
 import { ResponseBase } from '@/modules/common/models';
 import { useAuthStore } from '@/modules/auth/stores/auth.store';
 import { useLoadingStore } from '@/modules/common/store/loadingStore';
@@ -58,29 +59,50 @@ export const useApi = () => {
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let apiResponse: any;
-      const requestConfig = {
-        headers,
-        timeout: finalConfig.timeout
+      const send = (authHeaders: Record<string, string>): Promise<any> => {
+        const requestConfig = {
+          headers: authHeaders,
+          timeout: finalConfig.timeout
+        };
+        switch (method) {
+          case 'GET':
+            return api.get(endpoint, requestConfig);
+          case 'POST':
+            return api.post(endpoint, body, requestConfig);
+          case 'PUT':
+            return api.put(endpoint, body, requestConfig);
+          case 'DELETE':
+            return api.delete(endpoint, requestConfig);
+          case 'PATCH':
+            return api.patch(endpoint, body, requestConfig);
+          default:
+            throw new Error(`Método HTTP no soportado: ${method}`);
+        }
       };
-      switch (method) {
-        case 'GET':
-          apiResponse = await api.get(endpoint, requestConfig);
-          break;
-        case 'POST':
-          apiResponse = await api.post(endpoint, body, requestConfig);
-          break;
-        case 'PUT':
-          apiResponse = await api.put(endpoint, body, requestConfig);
-          break;
-        case 'DELETE':
-          apiResponse = await api.delete(endpoint, requestConfig);
-          break;
-        case 'PATCH':
-          apiResponse = await api.patch(endpoint, body, requestConfig);
-          break;
-        default:
-          throw new Error(`Método HTTP no soportado: ${method}`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let apiResponse: any;
+      try {
+        apiResponse = await send(headers);
+      } catch (err) {
+        // El access token dura poco: si venció se renueva con la cookie y se
+        // reintenta una sola vez, sin que el usuario note nada.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((err as any)?.response?.status !== 401) throw err;
+
+        if (!(await tryRefreshSession())) {
+          // La sesión no se puede recuperar: se manda al login sin mostrar el
+          // modal de error genérico, que solo sería ruido encima del redirect.
+          await handleSessionExpired();
+          response = {} as T;
+          response.ok = false;
+          return response;
+        }
+
+        apiResponse = await send({
+          ...headers,
+          'Authorization': `Bearer ${authStore.getToken}`
+        });
       }
       response = apiResponse.data as T;
       if (!response.ok) {

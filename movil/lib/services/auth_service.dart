@@ -1,3 +1,4 @@
+import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_response.dart';
 import '../models/login_models.dart';
@@ -5,6 +6,21 @@ import '../models/login_models.dart';
 class AuthService {
   AuthService(this._api);
   final ApiClient _api;
+
+  /// POST api/Login/revoke — invalida el refresh token en el servidor para
+  /// que cerrar sesión corte la sesión de verdad y no solo en el dispositivo.
+  Future<void> revokeRefreshToken(String refreshToken) async {
+    if (refreshToken.isEmpty) return;
+    try {
+      await _api.post<bool>(
+        'api/Login/revoke',
+        (data) => data == true,
+        body: {'RefreshToken': refreshToken},
+      );
+    } catch (_) {
+      // Si falla (sin red, token ya vencido) igual se limpia el dispositivo.
+    }
+  }
 
   /// POST api/Login
   Future<LoginResponse> login(String email, String password) async {
@@ -30,7 +46,12 @@ class AuthService {
     final res = await _api.post<LoginResponse>(
       'api/Mfa/verify',
       (data) => LoginResponse.fromJson(data as Map<String, dynamic>),
-      body: {'TotpSessionToken': sessionToken, 'TotpCode': code},
+      body: {
+        'TotpSessionToken': sessionToken,
+        'TotpCode': code,
+        'Device': AppConfig.deviceName,
+        'LoginFrom': AppConfig.loginFromMovil,
+      },
     );
     final data = res.data;
     if (data == null || data.token.isEmpty) {
@@ -49,7 +70,12 @@ class AuthService {
     final res = await _api.post<LoginResponse>(
       'api/Mfa/verify-recovery',
       (data) => LoginResponse.fromJson(data as Map<String, dynamic>),
-      body: {'TotpSessionToken': sessionToken, 'RecoveryCode': recoveryCode},
+      body: {
+        'TotpSessionToken': sessionToken,
+        'RecoveryCode': recoveryCode,
+        'Device': AppConfig.deviceName,
+        'LoginFrom': AppConfig.loginFromMovil,
+      },
     );
     final data = res.data;
     if (data == null || data.token.isEmpty) {
