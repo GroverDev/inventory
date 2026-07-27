@@ -40,6 +40,17 @@ services:
       JwtSettings__Issuer:    ${JWT_ISSUER}
       JwtSettings__Audience:  ${JWT_AUDIENCE}
       JwtSettings__TimeToken: ${JWT_TIME_TOKEN}
+      # Sesión larga con refresh token (web y móvil)
+      JwtSettings__TimeTokenRefreshable: ${JWT_TIME_TOKEN_REFRESHABLE:-240}
+      JwtSettings__RefreshTokenDays:     ${JWT_REFRESH_TOKEN_DAYS:-30}
+      # CORS: sin el origen correcto el navegador bloquea toda la web. El
+      # valor por defecto evita dejarla caída si falta la variable en .env.
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN_WEB:-https://app.ideanueva.com}
+      # Nginx corre en el host y alcanza al contenedor por el gateway de la
+      # red Docker, cuya IP es dinámica: sin esto se ignora X-Forwarded-For y
+      # todos los clientes compartirían un mismo cupo de peticiones.
+      # Seguro aquí porque el puerto se publica solo en 127.0.0.1 (ver abajo).
+      ForwardedHeaders__TrustAllProxies: "true"
       # MFA / TOTP
       MfaSettings__EncryptionKeyHex:  ${MFA_ENCRYPTION_KEY}
       MfaSettings__MaxFailedAttempts: 5
