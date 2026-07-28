@@ -20,8 +20,8 @@ public class ProviderRepository(InventoryDbContext _DbContext): IProviderReposit
                 provider.Id = Guid.NewGuid();
                 string sqlQuery = @"
                         INSERT INTO providers
-                        (id, provider_name, description, direction, celular, state, created_by, created, modified_by, modified)
-                        VALUES(@Id, @ProviderName, @Description,@Direction, @celular, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
+                        (id, provider_name, description, direction, celular, is_company, is_active, state, created_by, created, modified_by, modified)
+                        VALUES(@Id, @ProviderName, @Description,@Direction, @celular, @IsCompany, @IsActive, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                     ";
                 var result = await db.ExecuteAsync(sqlQuery, provider);
                 transaction.Commit();

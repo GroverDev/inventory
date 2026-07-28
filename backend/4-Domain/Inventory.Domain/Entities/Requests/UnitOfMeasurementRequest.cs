@@ -5,7 +5,7 @@ namespace Inventory.Domain.Entities.Requests;
 
 public class UnitOfMeasurementRequest
 {
-    public string Id { get; set; } = "";
+    public string Id { get; set; } = Guid.Empty.ToString();
     public string Name { get; set; } = "";
     public int Proportion { get; set; }
     public int PrecisionRounding { get; set; }

@@ -19,8 +19,9 @@ public class ProviderApplication(IProviderRepository _providerRepository): IProv
             provider.CreatedBy = provider.ModifiedBy = createdBy;
             provider.Created = provider.Modified = DateTime.Now;
             provider.State = true;
-           
-            respuesta.Data = await _providerRepository.CreateProvider(provider); 
+            provider.IsActive = true;
+
+            respuesta.Data = await _providerRepository.CreateProvider(provider);
             respuesta.ok = true;
         }
         catch (CustomException ex) { respuesta.SetMessage(MessageTypes.Warning, ex.Message); }

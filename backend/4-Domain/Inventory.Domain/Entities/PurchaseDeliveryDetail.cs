@@ -1,4 +1,4 @@
-﻿using Common.Utilities;
+using Common.Utilities;
 
 namespace Inventory.Domain;
 
@@ -13,4 +13,8 @@ public class PurchaseDeliveryDetail:Audit
     public int DeliveryQuantity { get; set; }
 	public int OrderedQuantity { get; set; }
 
+    /// <summary>Precio unitario efectivamente facturado en esta recepción.</summary>
+    public decimal UnitPrice { get; set; }
+
+    public decimal FinalPrice => DeliveryQuantity * UnitPrice;
 }

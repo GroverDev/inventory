@@ -63,8 +63,9 @@
               <!-- Proveedor con búsqueda -->
               <div class="col-12 col-md-5 mb-3">
                 <label class="form-label">Proveedor <span class="text-danger">*</span></label>
-                <div class="input-group input-group-sm" v-if="!purchase.ProviderId">
+                <div class="input-group input-group-sm">
                   <input
+                    v-if="!purchase.ProviderId"
                     type="text"
                     class="form-control"
                     v-model="providerSearch"
@@ -73,14 +74,17 @@
                     @keyup.enter="searchProviders"
                     :disabled="isSaved"
                   />
-                  <button class="btn btn-outline-secondary" type="button" @click="searchProviders">
+                  <input
+                    v-else
+                    type="text"
+                    class="form-control fw-semibold"
+                    :value="purchase.ProviderName"
+                    readonly
+                  />
+                  <button v-if="!purchase.ProviderId" class="btn btn-outline-secondary" type="button" @click="searchProviders">
                     <i class="fal fa-search"></i>
                   </button>
-                </div>
-                <div v-else class="d-flex align-items-center gap-2">
-                  <span class="fw-semibold">{{ purchase.ProviderName }}</span>
-                  <button v-if="!isSaved" type="button" class="btn btn-link btn-sm p-0 text-danger"
-                    @click="clearProvider">
+                  <button v-else-if="!isSaved" class="btn btn-outline-danger" type="button" @click="clearProvider">
                     <i class="fal fa-times"></i>
                   </button>
                 </div>
@@ -118,6 +122,7 @@
                 <label class="form-label">Producto</label>
                 <div class="input-group input-group-sm">
                   <input
+                    v-if="!newLine.ProductId"
                     type="text"
                     class="form-control"
                     v-model="productSearch"
@@ -125,10 +130,21 @@
                     autocomplete="off"
                     @keyup.enter="searchProducts"
                   />
-                  <button class="btn btn-outline-secondary" type="button" @click="searchProducts">
+                  <input
+                    v-else
+                    type="text"
+                    class="form-control fw-semibold"
+                    :value="newLine.ProductName"
+                    readonly
+                  />
+                  <button v-if="!newLine.ProductId" class="btn btn-outline-secondary" type="button" @click="searchProducts">
                     <i class="fal fa-search"></i>
                   </button>
+                  <button v-else class="btn btn-outline-danger" type="button" @click="clearProduct">
+                    <i class="fal fa-times"></i>
+                  </button>
                 </div>
+                <!-- Dropdown resultados producto -->
                 <div v-if="productResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:350px">
                   <button
                     v-for="prod in productResults" :key="prod.Id"
@@ -295,6 +311,12 @@ const selectProduct = (prod: Product) => {
   newLine.value.OrderUnitPrice = prod.SalePrice ?? 0;
   productResults.value = [];
   productSearch.value = '';
+};
+
+const clearProduct = () => {
+  newLine.value.ProductId = '';
+  newLine.value.ProductName = '';
+  newLine.value.OrderUnitPrice = 0;
 };
 
 const addLine = () => {

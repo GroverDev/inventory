@@ -37,6 +37,8 @@
                   <option :value="1">Solicitado</option>
                   <option :value="2">Parcialmente recibido</option>
                   <option :value="3">Totalmente recibido</option>
+                  <option :value="5">Cerrado con faltante</option>
+                  <option :value="4">Cancelado</option>
                 </select>
               </div>
               <div class="col-12 col-md-3">
@@ -92,7 +94,7 @@
                       <td class="text-end fw-semibold">{{ formatCurrency(purchase.Total) }}</td>
                       <td class="text-center text-nowrap">
                         <button
-                          v-if="purchase.PurchaseStatusId !== 3"
+                          v-if="canReceive(purchase.PurchaseStatusId)"
                           type="button"
                           class="btn btn-outline-success btn-sm me-1"
                           title="Recepcionar"
@@ -101,6 +103,16 @@
                           <span class="fal fa-box-check"></span>
                         </button>
                         <button
+                          v-if="canClose(purchase.PurchaseStatusId)"
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm me-1"
+                          title="Cerrar con faltante"
+                          @click="closeWithShortage(purchase.Id)"
+                        >
+                          <span class="fal fa-lock-alt"></span>
+                        </button>
+                        <button
+                          v-if="canModify(purchase.PurchaseStatusId)"
                           type="button"
                           class="btn btn-outline-primary btn-sm me-1"
                           title="Editar"
@@ -109,6 +121,16 @@
                           <span class="fal fa-edit"></span>
                         </button>
                         <button
+                          v-if="canModify(purchase.PurchaseStatusId)"
+                          type="button"
+                          class="btn btn-outline-warning btn-sm me-1"
+                          title="Anular orden"
+                          @click="cancelOrder(purchase.Id)"
+                        >
+                          <span class="fal fa-ban"></span>
+                        </button>
+                        <button
+                          v-if="canModify(purchase.PurchaseStatusId)"
                           type="button"
                           class="btn btn-outline-danger btn-sm"
                           title="Eliminar"
@@ -116,6 +138,9 @@
                         >
                           <span class="fal fa-trash-alt"></span>
                         </button>
+                        <span v-if="isFinal(purchase.PurchaseStatusId)" class="text-muted small">
+                          <i class="fal fa-lock me-1"></i>Sin acciones
+                        </span>
                       </td>
                     </tr>
                   </tbody>
@@ -136,20 +161,36 @@
                         </div>
                         <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(purchase.PurchaseDate) }}</small>
                         <div class="fs-6 fw-bold">{{ formatCurrency(purchase.Total) }}</div>
-                        <div class="d-flex gap-2 pt-1">
-                          <button v-if="purchase.PurchaseStatusId !== 3"
+                        <div class="d-flex gap-2 pt-1 flex-wrap">
+                          <button v-if="canReceive(purchase.PurchaseStatusId)"
                             type="button" class="btn btn-sm btn-outline-success flex-fill"
                             @click="receivePurchase(purchase.Id)">
                             <span class="fal fa-box-check me-1"></span>Recepcionar
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-primary flex-fill"
+                          <button v-if="canClose(purchase.PurchaseStatusId)"
+                            type="button" class="btn btn-sm btn-outline-secondary flex-fill"
+                            @click="closeWithShortage(purchase.Id)">
+                            <span class="fal fa-lock-alt me-1"></span>Cerrar
+                          </button>
+                          <button v-if="canModify(purchase.PurchaseStatusId)"
+                            type="button" class="btn btn-sm btn-outline-primary flex-fill"
                             @click="editPurchase(purchase.Id)">
                             <span class="fal fa-edit me-1"></span>Editar
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-danger"
+                          <button v-if="canModify(purchase.PurchaseStatusId)"
+                            type="button" class="btn btn-sm btn-outline-warning"
+                            title="Anular orden"
+                            @click="cancelOrder(purchase.Id)">
+                            <span class="fal fa-ban"></span>
+                          </button>
+                          <button v-if="canModify(purchase.PurchaseStatusId)"
+                            type="button" class="btn btn-sm btn-outline-danger"
                             @click="removePurchase(purchase.Id)">
                             <span class="fal fa-trash-alt"></span>
                           </button>
+                          <small v-if="isFinal(purchase.PurchaseStatusId)" class="text-muted">
+                            <i class="fal fa-lock me-1"></i>Orden cerrada, sin acciones disponibles
+                          </small>
                         </div>
                       </div>
                     </div>
@@ -169,11 +210,11 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
-import type { Purchase } from '@/modules/inventory/models/purchase.model';
+import { PURCHASE_STATUS, type Purchase } from '@/modules/inventory/models/purchase.model';
 import utils from '@/utils/msg';
 
 const purchases = ref<Purchase[]>([]);
-const { getPurchases, deletePurchase } = usePurchase();
+const { getPurchases, deletePurchase, closePurchase, cancelPurchase } = usePurchase();
 const router = useRouter();
 
 const today = new Date().toISOString().split('T')[0];
@@ -190,16 +231,37 @@ const formatCurrency = (val: number): string =>
   val?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' }) ?? 'Bs. 0.00';
 
 const statusBadge = (statusId: number): string => {
-  if (statusId === 3) return 'badge bg-success';
-  if (statusId === 2) return 'badge bg-warning text-dark';
+  if (statusId === PURCHASE_STATUS.TOTALLY_RECEIVED) return 'badge bg-success';
+  if (statusId === PURCHASE_STATUS.PARTIALLY_RECEIVED) return 'badge bg-warning text-dark';
+  if (statusId === PURCHASE_STATUS.CANCELLED) return 'badge bg-danger';
+  if (statusId === PURCHASE_STATUS.CLOSED) return 'badge bg-secondary';
   return 'badge bg-info text-dark';
 };
 
 const statusLabel = (statusId: number): string => {
-  if (statusId === 3) return 'Tot. Recibido';
-  if (statusId === 2) return 'Parc. Recibido';
+  if (statusId === PURCHASE_STATUS.TOTALLY_RECEIVED) return 'Tot. Recibido';
+  if (statusId === PURCHASE_STATUS.PARTIALLY_RECEIVED) return 'Parc. Recibido';
+  if (statusId === PURCHASE_STATUS.CANCELLED) return 'Cancelado';
+  if (statusId === PURCHASE_STATUS.CLOSED) return 'Cerrado';
   return 'Solicitado';
 };
+
+// Las acciones disponibles se derivan del estado, igual que en el backend.
+// Ocultarlas es solo comodidad: el servidor vuelve a validar cada una.
+const canReceive = (statusId: number): boolean =>
+  statusId === PURCHASE_STATUS.REQUESTED || statusId === PURCHASE_STATUS.PARTIALLY_RECEIVED;
+
+const canClose = (statusId: number): boolean =>
+  statusId === PURCHASE_STATUS.PARTIALLY_RECEIVED;
+
+/** Editar, anular o eliminar solo mientras la orden no haya recibido nada. */
+const canModify = (statusId: number): boolean =>
+  statusId === PURCHASE_STATUS.REQUESTED;
+
+const isFinal = (statusId: number): boolean =>
+  statusId === PURCHASE_STATUS.TOTALLY_RECEIVED
+  || statusId === PURCHASE_STATUS.CANCELLED
+  || statusId === PURCHASE_STATUS.CLOSED;
 
 const getPurchasesData = async () => {
   const { Data } = await getPurchases(filtro.value.dateInitial, filtro.value.dateEnd, filtro.value.statusId);
@@ -218,6 +280,30 @@ const removePurchase = async (id: string) => {
       await utils.showMessageModal({ Description: 'La compra se eliminó correctamente.', MessageType: 'success' });
       await getPurchasesData();
     }
+  }
+};
+
+const closeWithShortage = async (id: string) => {
+  const ok = await utils.showMessageQuestion(
+    '¿Cerrar la orden con faltante? El saldo pendiente ya no se podrá recibir.'
+  );
+  if (!ok) return;
+
+  const { ok: closed } = await closePurchase(id);
+  if (closed) {
+    await utils.showMessageModal({ Description: 'La orden se cerró con faltante.', MessageType: 'success' });
+    await getPurchasesData();
+  }
+};
+
+const cancelOrder = async (id: string) => {
+  const ok = await utils.showMessageQuestion('¿Desea anular esta orden de compra?');
+  if (!ok) return;
+
+  const { ok: cancelled } = await cancelPurchase(id);
+  if (cancelled) {
+    await utils.showMessageModal({ Description: 'La orden se anuló correctamente.', MessageType: 'success' });
+    await getPurchasesData();
   }
 };
 

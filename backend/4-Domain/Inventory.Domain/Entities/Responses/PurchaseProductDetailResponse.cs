@@ -1,4 +1,4 @@
-﻿namespace Inventory.Domain;
+namespace Inventory.Domain;
 
 public class PurchaseProductDetailResponse
 {
@@ -13,4 +13,10 @@ public class PurchaseProductDetailResponse
     public decimal DeliveryFinalPrice { get; set; }
     public int PurchaseStatusId { get; set; }
     public string ProductName { get; set; } ="";
+
+    /// <summary>Acumulado recibido, sumado desde el log de recepciones.</summary>
+    public int ReceivedQuantity { get; set; }
+
+    /// <summary>Saldo por recibir. Es el tope de la próxima recepción.</summary>
+    public int PendingQuantity { get; set; }
 }

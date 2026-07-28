@@ -8,10 +8,6 @@
           <p class="info-text">
             Inicia sesión para monitorear, administrar y optimizar tus operaciones.
           </p>
-          <div class="illustration-placeholder">
-            <!-- Illustration would go here -->
-            <div class="turbine-graphic"></div>
-          </div>
         </div>
       </div>
 
@@ -24,10 +20,10 @@
           <form @submit.prevent="loginSubmit" novalidate>
             <div class="mb-4">
               <label for="email" class="form-label">Usuario</label>
-              <input 
-                type="email" 
-                class="form-control custom-input" 
-                id="email" 
+              <input
+                type="email"
+                class="form-control"
+                id="email"
                 placeholder="Ingresa tu usuario"
                 v-model.trim="v$.usuario.$model"
                 :class="{ 'is-invalid': v$.usuario.$dirty && v$.usuario.$invalid }"
@@ -46,7 +42,7 @@
               <div class="password-group">
                 <input
                   :type="showPassword ? 'text' : 'password'"
-                  class="form-control custom-input password-input"
+                  class="form-control password-input"
                   id="password"
                   placeholder="Ingresa tu contraseña"
                   v-model.trim="v$.contrasenia.$model"
@@ -71,7 +67,7 @@
             </div>
 
             <div class="d-grid gap-2">
-              <button type="submit" class="btn btn-primary custom-btn">
+              <button type="submit" class="btn btn-primary login-btn">
                 Ingresar
               </button>
             </div>
@@ -130,7 +126,7 @@ const loginSubmit = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f5f5f5;
+  background-color: var(--auth-bg);
   padding: 2rem;
   position: relative;
   z-index: 10;
@@ -142,17 +138,22 @@ const loginSubmit = async () => {
   width: 100%;
   max-width: 1200px;
   min-height: 700px;
-  background: white;
-  border-radius: 24px;
+  background: var(--auth-card-bg);
+  /* Mismo radio que la tarjeta de TotpView, la pantalla hermana. */
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+  box-shadow: var(--auth-card-shadow);
 }
 
 /* Left Panel */
 .info-panel {
   flex: 1;
-  background: linear-gradient(135deg, #2b84ea 0%, #3e9e5d 100%);
-  color: white;
+  /* Color plano de respaldo si el navegador no aplica el degradado. */
+  background: var(--bs-primary);
+  /* Misma diagonal azul→verde del diseño original, pero tomada del tema
+     activo: sigue a la plantilla si se cambia el theme. */
+  background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-success) 100%);
+  color: #fff;
   padding: 4rem;
   display: flex;
   flex-direction: column;
@@ -208,7 +209,7 @@ const loginSubmit = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--auth-card-bg);
   padding: 4rem;
 }
 
@@ -220,13 +221,13 @@ const loginSubmit = async () => {
 .form-title {
   font-size: 2rem;
   font-weight: 700;
-  color: #333;
+  color: var(--auth-title-color);
   margin-bottom: 0.5rem;
   text-align: center;
 }
 
 .form-subtitle {
-  color: #666;
+  color: var(--auth-subtitle-color);
   text-align: center;
   margin-bottom: 3rem;
   font-size: 0.95rem;
@@ -235,23 +236,16 @@ const loginSubmit = async () => {
 .form-label {
   font-weight: 600;
   font-size: 0.9rem;
-  color: #444;
+  color: var(--auth-email-color);
   margin-bottom: 0.5rem;
 }
 
-.custom-input {
-  background-color: #f3f4f6;
-  border: 1px solid transparent;
-  padding: 0.8rem 1rem;
-  border-radius: 50px; /* Fully rounded */
+/* Los inputs usan .form-control tal cual lo define el template (radio
+   --bs-border-radius: 0.375rem), igual que el resto de la aplicación.
+   Aquí solo se ajusta la altura, que en el login es mayor que en las grillas. */
+.form-control {
+  padding: 0.7rem 1rem;
   font-size: 0.95rem;
-  transition: all 0.3s ease;
-}
-
-.custom-input:focus {
-  background-color: white;
-  border-color: #3e9e5d;
-  box-shadow: 0 0 0 4px rgba(62, 158, 93, 0.1);
 }
 
 .password-group {
@@ -281,34 +275,27 @@ const loginSubmit = async () => {
 }
 
 .toggle-password:hover {
-  color: #3e9e5d;
+  color: var(--bs-primary);
 }
 
 .forgot-password {
-  color: #3e9e5d;
+  color: var(--bs-primary);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
 }
 
-.custom-btn {
-  background: linear-gradient(90deg, #2b84ea 0%, #3e9e5d 100%);
-  border: none;
-  padding: 0.8rem;
-  border-radius: 50px;
+/* Botón primario del template; solo se ajusta el alto para acompañar
+   a los inputs. Sin gradiente ni pastilla: el mismo botón que en el resto
+   de la aplicación. */
+.login-btn {
+  padding: 0.7rem;
   font-weight: 600;
   font-size: 1rem;
-  letter-spacing: 0.5px;
-  transition: transform 0.2s;
-}
-
-.custom-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(43, 132, 234, 0.3);
 }
 
 .sign-up-link {
-  color: #2b84ea;
+  color: var(--bs-primary);
   text-decoration: none;
   font-weight: 600;
 }

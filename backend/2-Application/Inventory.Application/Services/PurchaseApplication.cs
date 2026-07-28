@@ -11,6 +11,23 @@ namespace Inventory.Application.Services;
 
 public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurchaseApplication
 {
+    /// <summary>
+    /// Un producto solo puede aparecer una vez por orden. Con dos líneas del mismo
+    /// producto el pendiente deja de ser atribuible a una línea concreta y la
+    /// recepción no puede saber contra cuál descontar.
+    /// </summary>
+    private static void EnsureNoDuplicateProducts(List<PurchaseDetailRequest> detail)
+    {
+        var duplicated = detail
+            .GroupBy(d => d.ProductId)
+            .FirstOrDefault(g => g.Count() > 1);
+
+        if (duplicated is not null)
+            throw new CustomException(
+                $"El producto '{duplicated.First().ProductName}' está repetido en el detalle: únalo en una sola línea.",
+                MessageTypes.Warning);
+    }
+
     public async Task<Response<bool>> CreatePurchase(PurchaseRequest purchaseRequest, int createdBy)
     {
         Response<bool> respuesta = new();
@@ -23,6 +40,8 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
                 {
                     throw new CustomException("El total general no es igual a la suma del detalle del pedido.");
                 }
+
+                EnsureNoDuplicateProducts(purchaseRequest.Detail);
 
                 purchaseRequest.Id = Guid.Empty.ToString();
                 purchaseRequest.Detail.ForEach(x => { x.PurchaseId = purchaseRequest.Id; x.Id = purchaseRequest.Id; x.DeliveryUnitPrice = 0; x.DeliveredQuantity = 0; x.DeliveryFinalPrice = 0; });
@@ -54,6 +73,22 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
         {
             if (purchaseRequest.Detail.Count > 0)
             {
+                var suma = purchaseRequest.Detail.Sum(x => x.OrderFinalPrice);
+                if (suma != purchaseRequest.Total)
+                    throw new CustomException("El total general no es igual a la suma del detalle del pedido.");
+
+                EnsureNoDuplicateProducts(purchaseRequest.Detail);
+
+                // Las líneas agregadas durante la edición llegan sin Id: normalizarlas
+                // a Guid.Empty evita que Mapster falle al parsear una cadena vacía y
+                // le indica al repositorio que debe insertarlas.
+                purchaseRequest.Detail.ForEach(x =>
+                {
+                    if (!Guid.TryParse(x.Id, out var detailId) || detailId == Guid.Empty)
+                        x.Id = Guid.Empty.ToString();
+                    x.PurchaseId = purchaseRequest.Id;
+                });
+
                 var purchase = purchaseRequest.Adapt<Purchase>();
                 purchase.ModifiedBy = modifiedBy;
                 purchase.Modified = DateTime.Now;
@@ -77,58 +112,106 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
         Response<bool> respuesta = new();
         try
         {
-            if (purchaseDeliveryRequest.Detail.Count > 0)
+            if (!Guid.TryParse(purchaseDeliveryRequest.PurchaseId, out var purchaseId) || purchaseId == Guid.Empty)
+                throw new CustomException("La orden de compra indicada no es válida.", MessageTypes.Warning);
+
+            if (!DateTime.TryParse(purchaseDeliveryRequest.DeliveryDate, out var deliveryDate))
+                throw new CustomException("La fecha de recepción no es válida.", MessageTypes.Warning);
+
+            if (deliveryDate.Date > DateTime.Now.Date)
+                throw new CustomException("La fecha de recepción no puede ser futura.", MessageTypes.Warning);
+
+            // Solo viajan al dominio las líneas con mercadería efectivamente recibida.
+            var lines = purchaseDeliveryRequest.Detail.Where(d => d.DeliveryQuantity > 0).ToList();
+            if (lines.Count == 0)
+                throw new CustomException("Debe indicar al menos un producto con cantidad recibida.", MessageTypes.Warning);
+
+            var now = DateTime.Now;
+            var purchaseDelivery = new PurchaseDelivery
             {
-                purchaseDeliveryRequest.Id = Guid.Empty.ToString();
-                purchaseDeliveryRequest.Detail.ForEach(d => { d.Id = Guid.Empty.ToString(); d.PurchaseDeliveryId = Guid.Empty.ToString(); });
+                PurchaseId = purchaseId,
+                DeliveryDate = deliveryDate,
+                // Sin uid del cliente se genera uno: la operación deja de ser
+                // idempotente, pero nunca se bloquea una recepción legítima.
+                OperationUid = Guid.TryParse(purchaseDeliveryRequest.OperationUid, out var uid) && uid != Guid.Empty
+                    ? uid
+                    : Guid.NewGuid(),
+                IsActive = true,
+                State = true,
+                CreatedBy = modifiedBy,
+                ModifiedBy = modifiedBy,
+                Created = now,
+                Modified = now
+            };
 
-                var purchaseDelivery = purchaseDeliveryRequest.Adapt<PurchaseDelivery>();
-                purchaseDelivery.CreatedBy = modifiedBy;
-                purchaseDelivery.Created = DateTime.Now;
-                purchaseDelivery.ModifiedBy = modifiedBy;
-                purchaseDelivery.Modified = DateTime.Now;
-                purchaseDelivery.State = true;
+            foreach (var line in lines)
+            {
+                if (!Guid.TryParse(line.ProductId, out var productId) || productId == Guid.Empty)
+                    throw new CustomException("Uno de los productos de la recepción no es válido.", MessageTypes.Warning);
 
-                purchaseDelivery.Detail.ForEach(d =>
+                purchaseDelivery.Detail.Add(new PurchaseDeliveryDetail
                 {
-                    d.CreatedBy = purchaseDelivery.CreatedBy;
-                    d.Created = purchaseDelivery.Created;
-                    d.Modified = purchaseDelivery.Created;
-                    d.ModifiedBy = purchaseDelivery.CreatedBy;
-                    d.State = purchaseDelivery.State;
+                    ProductId = productId,
+                    DeliveryQuantity = line.DeliveryQuantity,
+                    UnitPrice = line.UnitPrice,
+                    DeliveryDate = deliveryDate,
+                    State = true,
+                    CreatedBy = modifiedBy,
+                    ModifiedBy = modifiedBy,
+                    Created = now,
+                    Modified = now
                 });
-
-                var rowsAffected = await _purchaseRepository.ReceiveOrders(purchaseDelivery);
-                if (rowsAffected <= 0)
-                    throw new CustomException("No se pudo modificar la compra");
-
-                if ((Domain.Enums.PurchaseStatusEnum)purchaseDeliveryRequest.PurchaseStatusId == Domain.Enums.PurchaseStatusEnum.TOTALLY_RECEIVED)
-                {
-                    var purchaseProduct = await _purchaseRepository.GetPurchase(Guid.Parse(purchaseDeliveryRequest.PurchaseId));
-                    var purchase = new Purchase()
-                    {
-                        Id = purchaseProduct.Id,
-                        Total = purchaseProduct.Total,
-                        PurchaseStatusId = purchaseProduct.PurchaseStatusId,
-                        IsActive = purchaseProduct.IsActive,
-                        ModifiedBy = modifiedBy,
-                        Modified = purchaseDelivery.Modified
-                    };
-                    if (purchaseProduct.PurchaseStatusId != purchaseDeliveryRequest.PurchaseStatusId)
-                    {
-                        purchase.PurchaseStatusId = purchaseDeliveryRequest.PurchaseStatusId;
-                        await _purchaseRepository.UpdatePurchase(purchase);
-                    }
-                }
-
-                respuesta.Data = respuesta.ok = true;
             }
-            else
-            {
-                throw new CustomException("El detalle del recepción no puede estar vacio.");
-            }
+
+            // El estado resultante lo deriva el repositorio de los saldos reales;
+            // lo que el cliente haya enviado en PurchaseStatusId se ignora.
+            var rowsAffected = await _purchaseRepository.ReceiveOrders(purchaseDelivery);
+            if (rowsAffected <= 0)
+                throw new CustomException("No se pudo registrar la recepción.");
+
+            respuesta.Data = respuesta.ok = true;
         }
-        catch (CustomException ex) { respuesta.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }
+        catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
+        return respuesta;
+    }
+
+    /// <summary>Cierra con faltante una orden que el proveedor no completará.</summary>
+    public async Task<Response<bool>> ClosePurchase(string id, int modifiedBy)
+    {
+        Response<bool> respuesta = new();
+        try
+        {
+            if (!Guid.TryParse(id, out var purchaseId) || purchaseId == Guid.Empty)
+                throw new CustomException("La orden de compra indicada no es válida.", MessageTypes.Warning);
+
+            var rowsAffected = await _purchaseRepository.ClosePurchase(purchaseId, modifiedBy);
+            if (rowsAffected <= 0)
+                throw new CustomException("No se pudo cerrar la orden de compra.");
+
+            respuesta.Data = respuesta.ok = true;
+        }
+        catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }
+        catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
+        return respuesta;
+    }
+
+    /// <summary>Anula una orden que todavía no recibió mercadería.</summary>
+    public async Task<Response<bool>> CancelPurchase(string id, int modifiedBy)
+    {
+        Response<bool> respuesta = new();
+        try
+        {
+            if (!Guid.TryParse(id, out var purchaseId) || purchaseId == Guid.Empty)
+                throw new CustomException("La orden de compra indicada no es válida.", MessageTypes.Warning);
+
+            var rowsAffected = await _purchaseRepository.CancelPurchase(purchaseId, modifiedBy);
+            if (rowsAffected <= 0)
+                throw new CustomException("No se pudo cancelar la orden de compra.");
+
+            respuesta.Data = respuesta.ok = true;
+        }
+        catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return respuesta;
     }

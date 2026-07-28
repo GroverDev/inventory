@@ -89,5 +89,33 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
         var respuesta = await _purchaseApplication.ReceiveOrders(purchaseDeliveryRequest, datos.UserId);
         return respuesta;
     }
+
+    // PUT api/Purchases/close/GUID
+    // Cierra con faltante una orden que el proveedor no completará.
+    [HttpPut("close/{id}")]
+    public async Task<ActionResult<Response<bool>>> ClosePurchase(string id)
+    {
+        if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
+
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+
+        var respuesta = await _purchaseApplication.ClosePurchase(id, datos.UserId);
+        return respuesta;
+    }
+
+    // PUT api/Purchases/cancel/GUID
+    // Anula una orden que todavía no recibió mercadería.
+    [HttpPut("cancel/{id}")]
+    public async Task<ActionResult<Response<bool>>> CancelPurchase(string id)
+    {
+        if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
+
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+
+        var respuesta = await _purchaseApplication.CancelPurchase(id, datos.UserId);
+        return respuesta;
+    }
 }
 

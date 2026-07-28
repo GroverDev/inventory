@@ -65,19 +65,30 @@ const usePurchase = () => {
 
   const receivePurchase = async (purchaseId: string, delivery: PurchaseDelivery): Promise<ResponseObject<boolean>> => {
     return await put<ResponseObject<boolean>>(`Purchases/reciveOrders/${purchaseId}`, {
-      id: delivery.Id,
       purchaseId: purchaseId,
       isActive: delivery.IsActive,
       deliveryDate: delivery.DeliveryDate,
-      purchaseStatusId: delivery.PurchaseStatusId,
-      detail: delivery.Detail.map(d => ({
-        id: d.Id,
-        purchaseDeliveryId: d.PurchaseDeliveryId,
-        productId: d.ProductId,
-        deliveryQuantity: d.DeliveryQuantity,
-        orderedQuantity: d.OrderedQuantity,
-      })),
+      operationUid: delivery.OperationUid,
+      // Solo las líneas con mercadería recibida. El estado resultante lo deriva
+      // el servidor de los saldos: no se envía.
+      detail: delivery.Detail
+        .filter(d => d.DeliveryQuantity > 0)
+        .map(d => ({
+          productId: d.ProductId,
+          deliveryQuantity: d.DeliveryQuantity,
+          unitPrice: d.UnitPrice,
+        })),
     });
+  }
+
+  /** Cierra con faltante una orden parcialmente recibida. */
+  const closePurchase = async (id: string): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Purchases/close/${id}`, {});
+  }
+
+  /** Anula una orden que todavía no recibió mercadería. */
+  const cancelPurchase = async (id: string): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Purchases/cancel/${id}`, {});
   }
 
   const getPurchaseStatuses = async (): Promise<ResponseArray<PurchaseStatus>> => {
@@ -91,6 +102,8 @@ const usePurchase = () => {
     updatePurchase,
     deletePurchase,
     receivePurchase,
+    closePurchase,
+    cancelPurchase,
     getPurchaseStatuses,
   }
 }

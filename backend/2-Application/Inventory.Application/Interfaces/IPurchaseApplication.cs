@@ -13,6 +13,12 @@ public interface IPurchaseApplication
 
     public Task<Response<bool>> ReceiveOrders(PurchaseDeliveryRequest purchaseDeliveryRequest, int modifiedBy);
 
+    /// <summary>Cierra con faltante una orden parcialmente recibida.</summary>
+    public Task<Response<bool>> ClosePurchase(string id, int modifiedBy);
+
+    /// <summary>Anula una orden que aún no recibió mercadería.</summary>
+    public Task<Response<bool>> CancelPurchase(string id, int modifiedBy);
+
     public Task<Response<List<PurchaseProductResponse>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus);
 
     public Task<Response<PurchaseRequest>> GetPurchase(string id);

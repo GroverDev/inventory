@@ -54,18 +54,11 @@ public async Task<Response<string>> CreateUnitOfMeasurement(UnitOfMeasurementReq
     Response<string> respuesta = new() { Data = "" };
     try
     {
+        unitOfMeasurementRequest.Id = Guid.Empty.ToString();
         unitOfMeasurementRequest.Name = unitOfMeasurementRequest.Name.Trim().ToUpper();
 
         var unit = unitOfMeasurementRequest.Adapt<UnitOfMeasurement>();
-        unit.UnitName = unitOfMeasurementRequest.Name; // Map manually if automapper fails or if property names differ (Name vs UnitName)
-                                                       // Checking mapping profile, if properties match it's fine. Need to check UnitOfMeasurementRequest vs UnitOfMeasurement
-                                                       // UnitOfMeasurementRequest has 'Name', UnitOfMeasurement has 'UnitName'. Automapper might need config or manual map.
-                                                       // I'll manually map just to be safe or update profile. Let's check profile first. 
-                                                       // Wait, I don't want to break flow. I'll simply map it here or rely on previous tools. I'll trust map but double check names.
-                                                       // Request: Name. Entity: UnitName.
-                                                       // I should update the mapping profile to map Name -> UnitName.
-                                                       // For now, I'll direct assign to be safe.
-        unit.UnitName = unitOfMeasurementRequest.Name;
+        unit.UnitName = unitOfMeasurementRequest.Name; // El request expone 'Name' y la entidad 'UnitName', Mapster no los enlaza solo.
 
         unit.IsActive = true;
         unit.State = true;

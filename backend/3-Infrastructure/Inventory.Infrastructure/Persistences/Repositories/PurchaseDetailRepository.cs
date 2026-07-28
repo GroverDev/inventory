@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -8,6 +8,13 @@ namespace Inventory.Infrastructure;
 
 public class PurchaseDetailRepository : IPurchaseDetailRepository
 {
+    /// <summary>Saldos de stock devueltos por el UPDATE ... RETURNING.</summary>
+    private sealed class StockChange
+    {
+        public int StockBefore { get; set; }
+        public int StockAfter { get; set; }
+    }
+
     public async Task<bool> CreatePurchaseDetail(PurchaseDetail detail, IDbConnection db, IDbTransaction transaction)
     {
         bool ok;
@@ -26,7 +33,7 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
-       
+
         return ok;
     }
 
@@ -39,9 +46,9 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
                     UPDATE purchases_detail
                        SET modified_by = @ModifiedBy,
                            modified = @Modified,
-                           delivery_unit_price = @DeliveryUnitPrice, 
-                           delivered_quantity = @DeliveredQuantity,
-                           delivery_final_price = @DeliveryFinalPrice,
+                           order_unit_price = @OrderUnitPrice,
+                           ordered_quantity = @OrderedQuantity,
+                           order_final_price = @OrderFinalPrice,
                            purchase_status_id = @PurchaseStatusId
                     WHERE id = @Id and product_id = @ProductId and purchase_id = @PurchaseId;
                 ";
@@ -51,32 +58,39 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
-       
+
         return ok;
     }
 
-    public async Task<bool> ReceiveOrdersDetail(PurchaseDeliveryDetail detail, IDbConnection db, IDbTransaction transaction)
+    /// <summary>
+    /// Registra una línea de recepción: graba el hecho, mueve el stock, deja el
+    /// movimiento auditable y actualiza el acumulado de la línea del pedido.
+    /// Todo dentro de la transacción que abre <see cref="PurchaseRepository.ReceiveOrders"/>.
+    /// </summary>
+    public async Task<bool> ReceiveOrdersDetail(Guid purchaseId, PurchaseDeliveryDetail detail, IDbConnection db, IDbTransaction transaction)
     {
         bool ok;
         try
         {
+            detail.Id = Guid.NewGuid();
             string sqlQuery = @"
                     INSERT INTO purchases_delivery_detail
-                            (id, purchase_delivery_id, product_id, ordered_quantity, delivery_quantity, state, created_by, created, modified_by, modified)
-                    VALUES(@Id, @PurchaseDeliveryId, @ProductId, @OrderedQuantity, @DeliveryQuantity, @State, @CreatedBy, @Created, @ModifiedBy , @Modified);
+                            (id, purchase_delivery_id, product_id, ordered_quantity, delivery_quantity, unit_price, state, created_by, created, modified_by, modified)
+                    VALUES(@Id, @PurchaseDeliveryId, @ProductId, @OrderedQuantity, @DeliveryQuantity, @UnitPrice, @State, @CreatedBy, @Created, @ModifiedBy , @Modified);
                 ";
 
             await db.ExecuteAsync(sqlQuery, detail, transaction);
 
-            int stockBefore = await db.ExecuteScalarAsync<int>(
-                "SELECT current_stock FROM products WHERE id = @Id",
-                new { Id = detail.ProductId }, transaction);
-
-            await db.ExecuteAsync(
-                "UPDATE products SET current_stock = current_stock + @DeliveryQuantity WHERE id = @ProductId;",
-                new { detail.DeliveryQuantity, detail.ProductId }, transaction);
-
-            int stockAfter = stockBefore + detail.DeliveryQuantity;
+            // Mueve el stock y obtiene ambos saldos en una sola sentencia. Con un
+            // SELECT y un UPDATE separados, otra transacción puede intercalarse
+            // entre los dos y dejar registrado un stock_after que nunca existió.
+            var stock = await db.QuerySingleAsync<StockChange>(@"
+                    UPDATE products
+                       SET current_stock = current_stock + @DeliveryQuantity
+                     WHERE id = @ProductId
+                 RETURNING current_stock - @DeliveryQuantity AS stock_before,
+                           current_stock                     AS stock_after;
+                ", new { detail.DeliveryQuantity, detail.ProductId }, transaction);
 
             var movement = new StockMovement
             {
@@ -84,8 +98,8 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
                 ProductId = detail.ProductId,
                 MovementType = "COMPRA",
                 Quantity = detail.DeliveryQuantity,
-                StockBefore = stockBefore,
-                StockAfter = stockAfter,
+                StockBefore = stock.StockBefore,
+                StockAfter = stock.StockAfter,
                 ReferenceId = detail.PurchaseDeliveryId,
                 ReferenceType = "PURCHASE",
                 State = true,
@@ -105,6 +119,29 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
                         @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
             ";
             await db.ExecuteAsync(movSql, movement, transaction);
+
+            // Caché denormalizado sobre la línea del pedido. La verdad sigue siendo
+            // el log de recepciones; esto solo evita recalcularlo en cada consulta.
+            string cacheSql = @"
+                UPDATE purchases_detail
+                   SET delivered_quantity   = delivered_quantity + @DeliveryQuantity,
+                       delivery_unit_price  = @UnitPrice,
+                       delivery_final_price = delivery_final_price + (@DeliveryQuantity * @UnitPrice),
+                       modified_by          = @ModifiedBy,
+                       modified             = @Modified
+                 WHERE purchase_id = @PurchaseId
+                   AND product_id  = @ProductId
+                   AND state;
+            ";
+            await db.ExecuteAsync(cacheSql, new
+            {
+                detail.DeliveryQuantity,
+                detail.UnitPrice,
+                detail.ModifiedBy,
+                detail.Modified,
+                PurchaseId = purchaseId,
+                detail.ProductId
+            }, transaction);
 
             ok = true;
         }
