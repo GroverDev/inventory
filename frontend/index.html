@@ -26,11 +26,14 @@
 
 
   <!-- Base css -->
-  <link rel="stylesheet" media="screen, print" href="assets/css/smartapp.css">
+  <!-- Rutas absolutas: estos archivos viven en public/ y Vite no reescribe sus
+       URLs. Con ruta relativa se resolverían contra la ruta actual y fallarían
+       al recargar en vistas anidadas como /inventory/algo. -->
+  <link rel="stylesheet" media="screen, print" href="/assets/css/smartapp.css">
 
   <!-- Icons css-->
-  <link rel="stylesheet" media="screen, print" href="assets/webfonts/smartadmin/sa-icons.css">
-  <link rel="stylesheet" media="screen, print" href="assets/webfonts/fontawesome/fontawesome.css">
+  <link rel="stylesheet" media="screen, print" href="/assets/webfonts/smartadmin/sa-icons.css">
+  <link rel="stylesheet" media="screen, print" href="/assets/webfonts/fontawesome/fontawesome.css">
 
   <!-- Save/Load functionality moved to themeStore -->
 </head>
@@ -43,9 +46,9 @@
   <!-- Sidebar Link Active Script -->
 
   <!-- Core scripts -->
-  <script src="assets/plugins/bootstrap/bootstrap.bundle.min.js"></script>
+  <script src="/assets/plugins/bootstrap/bootstrap.bundle.min.js"></script>
   <!-- Dependable scripts -->
-  <script src="assets/plugins/sortablejs/Sortable.min.js"></script>
+  <script src="/assets/plugins/sortablejs/Sortable.min.js"></script>
 
   <!-- Legacy scripts removed: smartNavigation, smartFilter, smartSlimscroll, smartApp, blank.js -->
 
