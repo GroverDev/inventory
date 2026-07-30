@@ -4,9 +4,30 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/ui/confirm_dialog.dart';
 import '../../models/cash_session.dart';
 import '../../models/discount.dart';
+import '../../providers/cart_provider.dart';
 import '../../services/sale_service.dart';
+
+/// ── Descartar la venta en curso ─────────────────────────────
+///
+/// Muestra qué se pierde (cantidad y total) para que la confirmación sea
+/// informada y no un reflejo. Ninguno de los dos botones dice solo "Cancelar":
+/// en un diálogo titulado "Descartar venta" eso volvería ambiguo cuál cancela
+/// la venta y cuál cancela el diálogo.
+Future<bool> confirmDiscardSale(BuildContext context, CartProvider cart) {
+  final items = cart.itemCount;
+  return confirm(
+    context,
+    title: 'Descartar venta',
+    message: 'Se quitarán $items ${items == 1 ? 'producto' : 'productos'} '
+        'por ${currency(cart.total)}. No se puede deshacer.',
+    cancelLabel: 'Seguir vendiendo',
+    confirmLabel: 'Descartar venta',
+    destructive: true,
+  );
+}
 
 /// Resultado de elegir un descuento (línea o cabecera).
 class DiscountResult {

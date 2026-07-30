@@ -166,11 +166,12 @@
 ### Funcional
 6. **`products_providers`** — catálogo producto×proveedor sin implementar.
 7. **`sequences_key`** — secuencias personalizadas por tabla sin implementar.
+8. **Ventas suspendidas (POS móvil)** — hoy una venta en curso solo se puede *descartar*. Falta poder **aparcarla y retomarla**: el caso real es el cliente que se va a buscar plata y vuelve en cinco minutos, mientras el cajero atiende a los que esperan. Requiere persistir el carrito (líneas + descuentos de línea y de cabecera), una pantalla de ventas suspendidas y atarlas al turno de caja. Es lo que hacen Square, Lightspeed y Odoo; se pospuso por costo hasta que los cajeros lo pidan.
 
 ### DevOps / repositorio
-8. **Migraciones manuales** — sin runner ni orden garantizado; varios `migration_*.sql` y `docker-compose.yml` sin commitear.
-9. **Backups de BD en el repo** — ~9 MB de `db/*.sql` versionados (+ `futbol_backup.sql` vacío huérfano). Deberían salir de git.
-10. **Sin CI/CD** configurado.
+9. **Migraciones manuales** — sin runner ni orden garantizado; varios `migration_*.sql` y `docker-compose.yml` sin commitear.
+10. **Backups de BD en el repo** — ~9 MB de `db/*.sql` versionados (+ `futbol_backup.sql` vacío huérfano). Deberían salir de git.
+11. **Sin CI/CD** configurado.
 
 ---
 

@@ -44,6 +44,11 @@ class AuthProvider extends ChangeNotifier {
   /// Formularios habilitados para el usuario con sus permisos granulares.
   List<AccessMenu> _accessMenu = const [];
 
+  /// Se invoca al cerrar sesión, para que el estado que pertenece al turno y
+  /// no a la app (el carrito del POS) no sobreviva al cambio de usuario.
+  /// Lo cablea `main.dart`; acá no se conoce quién escucha.
+  void Function()? onSessionEnd;
+
   /// Token temporal del flujo 2FA (no es el JWT real).
   String _totpSessionToken = '';
 
@@ -258,6 +263,7 @@ class AuthProvider extends ChangeNotifier {
     await _storage.clear();
     _totpSessionToken = '';
     _accessMenu = const [];
+    onSessionEnd?.call();
     userName = '';
     rolName = '';
     error = null;

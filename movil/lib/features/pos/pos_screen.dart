@@ -110,8 +110,20 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
+  /// Descarta la venta en curso. Vive en la barra superior, lejos del botón de
+  /// cobrar: es destructiva y no debe quedar a un dedo de distancia de la
+  /// acción que confirma.
+  Future<void> _discardSale() async {
+    final cart = context.read<CartProvider>();
+    if (cart.isEmpty) return;
+    if (!await confirmDiscardSale(context, cart)) return;
+    cart.clear();
+    _snack('Venta descartada.');
+  }
+
   Future<void> _closeSession() async {
     if (_session == null) return;
+    final cart = context.read<CartProvider>();
     final result = await closeCashDialog(context, _session!);
     if (result == null) return;
     try {
@@ -121,6 +133,9 @@ class _PosScreenState extends State<PosScreen> {
             notes: result.notes,
           );
       if (mounted) setState(() => _session = null);
+      // Sin caja abierta la venta no se puede cobrar: el carrito no sobrevive
+      // al turno.
+      cart.clear();
       _snack('Caja cerrada correctamente.');
     } on ApiException catch (e) {
       _snack(e.message);
@@ -190,6 +205,14 @@ class _PosScreenState extends State<PosScreen> {
       appBar: AppBar(
         title: const Text('Punto de venta'),
         actions: [
+          // Solo existe cuando hay algo que descartar: un botón permanentemente
+          // deshabilitado enseña a ignorar esa zona de la barra.
+          if (!cart.isEmpty)
+            IconButton(
+              tooltip: 'Descartar venta',
+              icon: const Icon(Icons.remove_shopping_cart_outlined),
+              onPressed: _discardSale,
+            ),
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 8),

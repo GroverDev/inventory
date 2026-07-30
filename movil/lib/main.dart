@@ -25,15 +25,24 @@ import 'services/sale_service.dart';
 void main() {
   final storage = AuthStorage();
   final api = ApiClient(storage);
+  // Se crea acá y no dentro del árbol de widgets porque el AuthProvider
+  // necesita una referencia para vaciarlo al cerrar sesión.
+  final cart = CartProvider();
 
-  runApp(InventoryApp(storage: storage, api: api));
+  runApp(InventoryApp(storage: storage, api: api, cart: cart));
 }
 
 class InventoryApp extends StatelessWidget {
-  const InventoryApp({super.key, required this.storage, required this.api});
+  const InventoryApp({
+    super.key,
+    required this.storage,
+    required this.api,
+    required this.cart,
+  });
 
   final AuthStorage storage;
   final ApiClient api;
+  final CartProvider cart;
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +58,12 @@ class InventoryApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) =>
               AuthProvider(AuthService(api), storage, api, AccessMenuService(api))
+                // El carrito pertenece al turno, no a la app: al cerrar sesión
+                // no puede quedar para el cajero siguiente.
+                ..onSessionEnd = cart.clear
                 ..bootstrap(),
         ),
-        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider.value(value: cart),
         ChangeNotifierProvider(
           create: (_) => ThemeProvider(ThemeStorage())..load(),
         ),

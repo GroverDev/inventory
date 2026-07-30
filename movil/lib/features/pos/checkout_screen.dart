@@ -336,6 +336,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  /// Descarta la venta y vuelve al POS: una pantalla de cobro sin carrito no
+  /// tiene nada que hacer.
+  Future<void> _discardSale() async {
+    final cart = context.read<CartProvider>();
+    if (cart.isEmpty) return;
+    if (!await confirmDiscardSale(context, cart)) return;
+    cart.clear();
+    if (mounted) Navigator.pop(context);
+  }
+
   Future<void> _finalize(List<SalePayment> payments) async {
     final cart = context.read<CartProvider>();
     setState(() => _saving = true);
@@ -396,7 +406,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Cobrar')),
+      appBar: AppBar(
+        title: const Text('Cobrar'),
+        actions: [
+          // Es acá donde se suele decidir que la venta no va, así que el mismo
+          // acceso que en el POS.
+          if (!cart.isEmpty)
+            IconButton(
+              tooltip: 'Descartar venta',
+              icon: const Icon(Icons.remove_shopping_cart_outlined),
+              onPressed: _discardSale,
+            ),
+        ],
+      ),
       // El carrito se muestra de inmediato; los catálogos (métodos de pago,
       // descuentos, settings) cargan en segundo plano sin bloquear la pantalla.
       body: Column(
