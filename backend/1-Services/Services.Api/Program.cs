@@ -22,6 +22,7 @@ using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using Services.Api.jwt;
+using Services.Api.Security;
 using Sqids;
 
 
@@ -132,6 +133,20 @@ builder.Services.AddCors(options =>
                   .AllowCredentials();
         });
 
+});
+
+// Cloudflare Turnstile. El captcha se exige a los navegadores parados en
+// nuestra propia web, identificados por su Origin, así que reutiliza la lista
+// de CORS: una sola definición de "cuál es nuestra web".
+builder.Services.Configure<TurnstileSettings>(builder.Configuration.GetSection("Turnstile"));
+builder.Services.PostConfigure<TurnstileSettings>(o => o.WebOrigins = allowedOrigins);
+// Singleton: el estado del circuito es compartido por todas las peticiones.
+builder.Services.AddSingleton<TurnstileCircuitBreaker>();
+builder.Services.AddHttpClient<ITurnstileValidator, TurnstileValidator>(client =>
+{
+    // El login no puede quedar esperando a un servicio externo. Si Cloudflare
+    // tarda, se corta y el corte cuenta como falla para el circuit breaker.
+    client.Timeout = TimeSpan.FromSeconds(5);
 });
 
 // Detrás de un proxy inverso (nginx) la IP del cliente llega en X-Forwarded-For.

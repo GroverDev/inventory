@@ -16,10 +16,7 @@ Widget _sheetBody() => Padding(
                 Expanded(child: TextField(controller: TextEditingController())),
                 const SizedBox(width: 8),
                 FilledButton.tonal(
-                    style:
-                        FilledButton.styleFrom(minimumSize: const Size(64, 48)),
-                    onPressed: () {},
-                    child: const Text('Agregar')),
+                    onPressed: () {}, child: const Text('Agregar')),
               ],
             ),
           ],

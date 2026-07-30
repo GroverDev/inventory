@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../models/access_menu.dart';
 import '../../providers/auth_provider.dart';
 import '../orders/orders_screen.dart';
 import '../pos/pin_gate.dart';
 import '../pos/pos_screen.dart';
 import '../products/products_screen.dart';
 import '../sales/sales_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -15,33 +17,38 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    // Los acentos teal del modo claro no contrastan sobre las superficies
+    // oscuras, así que en dark se usan los de la paleta de la web.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final modules = <_Module>[
       _Module(
         title: 'Productos',
-        subtitle: 'Buscar y modificar productos',
+        subtitle: auth.can(kProductsForm, PermAction.update)
+            ? 'Buscar y modificar productos'
+            : 'Consultar productos',
         icon: Icons.inventory_2_outlined,
-        color: AppPalette.color1,
+        color: isDark ? AppDarkPalette.primary : AppPalette.color1,
         builder: (_) => const ProductsScreen(),
       ),
       _Module(
         title: 'Punto de venta',
         subtitle: 'Vender desde el móvil',
         icon: Icons.point_of_sale_outlined,
-        color: AppPalette.deep,
+        color: isDark ? AppDarkPalette.success : AppPalette.deep,
         builder: (_) => const PinGate(child: PosScreen()),
       ),
       _Module(
         title: 'Ventas',
         subtitle: 'Ver ventas y registrar devoluciones',
         icon: Icons.receipt_outlined,
-        color: AppPalette.color2,
+        color: isDark ? AppDarkPalette.info : AppPalette.color2,
         builder: (_) => const SalesScreen(),
       ),
       _Module(
         title: 'Pedidos',
         subtitle: 'Compras a proveedores',
         icon: Icons.receipt_long_outlined,
-        color: AppPalette.ink,
+        color: isDark ? AppDarkPalette.warning : AppPalette.ink,
         builder: (_) => const OrdersScreen(),
       ),
     ];
@@ -50,34 +57,13 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Inicio'),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'logout') context.read<AuthProvider>().logout();
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(auth.userName,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    if (auth.rolName.isNotEmpty)
-                      Text(auth.rolName,
-                          style: const TextStyle(fontSize: 12)),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.logout),
-                  title: Text('Cerrar sesión'),
-                ),
-              ),
-            ],
+          IconButton(
+            tooltip: 'Ajustes',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),

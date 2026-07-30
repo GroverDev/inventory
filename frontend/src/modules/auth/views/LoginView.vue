@@ -66,8 +66,22 @@
               <a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
             </div>
 
+            <!-- Normalmente no se ve: solo aparece si Cloudflare pide un clic,
+                 y en ese caso el propio componente reserva su espacio. -->
+            <TurnstileWidget
+              ref="turnstileRef"
+              :site-key="turnstileSiteKey"
+              :theme="themeStore.theme === 'dark' ? 'dark' : 'light'"
+              @update:token="turnstileToken = $event"
+              @update:status="turnstileStatus = $event"
+            />
+
             <div class="d-grid gap-2">
-              <button type="submit" class="btn btn-primary login-btn">
+              <button
+                type="submit"
+                class="btn btn-primary login-btn"
+                :disabled="!canSubmit"
+              >
                 Ingresar
               </button>
             </div>
@@ -87,12 +101,29 @@ import { useAuth } from '@/modules/auth/composables/useAuth';
 import { useRouter } from "vue-router";
 import useVuelidate from '@vuelidate/core';
 import { required, email } from '@vuelidate/validators';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import TurnstileWidget from '@/modules/auth/components/TurnstileWidget.vue';
+import { useThemeStore } from '@/stores/themeStore';
 
 const { loginApp } = useAuth();
 const router = useRouter();
+const themeStore = useThemeStore();
 
 const showPassword = ref(false);
+
+// Sin site key configurada el widget no se muestra y el login funciona como
+// siempre: quien exige el token es el backend, según la cabecera Origin.
+const turnstileSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY ?? '') as string;
+const turnstileToken = ref('');
+const turnstileStatus = ref<'pending' | 'ready' | 'unavailable'>('pending');
+const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null);
+
+// Solo se espera al captcha mientras esté resolviéndose. Si Cloudflare no
+// carga, el formulario se habilita igual: el backend exige el token únicamente
+// ante señal de abuso, así que el login limpio no debe depender del widget.
+const canSubmit = computed(
+  () => !turnstileSiteKey || turnstileToken.value !== '' || turnstileStatus.value === 'unavailable'
+);
 
 const loginForm = ref({
   usuario: '',
@@ -110,12 +141,25 @@ const loginSubmit = async () => {
   const isFormCorrect = await v$.value.$validate();
   if (!isFormCorrect) return;
 
-  const ok = await loginApp(loginForm.value.usuario, loginForm.value.contrasenia);
+  const ok = await loginApp(
+    loginForm.value.usuario,
+    loginForm.value.contrasenia,
+    turnstileToken.value
+  );
+
   if (ok.success) {
     router.push({ name: 'inventory-dashboard' });
-  } else if (ok.requireTotp) {
-    router.push({ name: ok.totpSetupRequired ? 'totp-setup' : 'totp' });
+    return;
   }
+
+  if (ok.requireTotp) {
+    router.push({ name: ok.totpSetupRequired ? 'totp-setup' : 'totp' });
+    return;
+  }
+
+  // El token de Turnstile es de un solo uso: si el login no prosperó hay que
+  // pedir uno nuevo o el siguiente intento fallaría por token duplicado.
+  turnstileRef.value?.reset();
 }
 </script>
 

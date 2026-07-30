@@ -1,10 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/navigation/navigator_key.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_response.dart';
 import '../core/storage/auth_storage.dart';
+import '../models/access_menu.dart';
 import '../models/login_models.dart';
+import '../services/access_menu_service.dart';
 import '../services/auth_service.dart';
 
 enum AuthStatus {
@@ -20,7 +25,7 @@ enum AuthStatus {
 }
 
 class AuthProvider extends ChangeNotifier {
-  AuthProvider(this._authService, this._storage, this._api) {
+  AuthProvider(this._authService, this._storage, this._api, this._menuService) {
     // Si el cliente HTTP detecta 401, cerramos sesión.
     _api.onUnauthorized = logout;
   }
@@ -28,12 +33,16 @@ class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
   final AuthStorage _storage;
   final ApiClient _api;
+  final AccessMenuService _menuService;
 
   AuthStatus status = AuthStatus.unknown;
   String userName = '';
   String rolName = '';
   bool loading = false;
   String? error;
+
+  /// Formularios habilitados para el usuario con sus permisos granulares.
+  List<AccessMenu> _accessMenu = const [];
 
   /// Token temporal del flujo 2FA (no es el JWT real).
   String _totpSessionToken = '';
@@ -45,10 +54,63 @@ class AuthProvider extends ChangeNotifier {
       userName = await _storage.readUserName() ?? '';
       rolName = await _storage.readRolName() ?? '';
       status = AuthStatus.authenticated;
-    } else {
-      status = AuthStatus.unauthenticated;
+      notifyListeners();
+      await _loadAccessMenu();
+      return;
     }
+    status = AuthStatus.unauthenticated;
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------
+  // Permisos granulares por formulario (mismo criterio que la web).
+  // ---------------------------------------------------------------------
+
+  /// ¿El usuario puede ejecutar [action] sobre el formulario [route]?
+  ///
+  /// [route] es la ruta del formulario en seguridad (ej. `products-admin`).
+  /// Si el formulario no está en su menú, no tiene acceso.
+  bool can(String route, PermAction action) =>
+      _findByRoute(route, _accessMenu)?.allows(action) ?? false;
+
+  AccessMenu? _findByRoute(String route, List<AccessMenu> nodes) {
+    for (final node in nodes) {
+      if (node.url == route) return node;
+      final found = _findByRoute(route, node.children);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  /// Usa primero el menú cacheado (para no quedar sin permisos si no hay red)
+  /// y luego lo refresca desde el backend.
+  Future<void> _loadAccessMenu() async {
+    final cached = await _storage.readAccessMenu();
+    if (cached != null && cached.isNotEmpty) {
+      _accessMenu = _decodeMenu(cached);
+      notifyListeners();
+    }
+    try {
+      _accessMenu = await _menuService.getMenu();
+      await _storage.saveAccessMenu(
+        jsonEncode(_accessMenu.map((e) => e.toJson()).toList()),
+      );
+      notifyListeners();
+    } catch (_) {
+      // Sin conexión: se conserva lo cacheado. Si no hay caché, el usuario
+      // queda en modo consulta hasta que se pueda leer el menú; el backend
+      // valida igualmente cada escritura.
+    }
+  }
+
+  List<AccessMenu> _decodeMenu(String json) {
+    try {
+      return (jsonDecode(json) as List)
+          .map((e) => AccessMenu.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -79,6 +141,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
+      await _loadAccessMenu();
       status = AuthStatus.authenticated;
       return true;
     } on ApiException catch (e) {
@@ -112,6 +175,7 @@ class AuthProvider extends ChangeNotifier {
       final res = await action();
       await _persist(res);
       _totpSessionToken = '';
+      await _loadAccessMenu();
       status = AuthStatus.authenticated;
       return true;
     } on ApiException catch (e) {
@@ -167,6 +231,7 @@ class AuthProvider extends ChangeNotifier {
   void finishTotpSetup() {
     status = AuthStatus.authenticated;
     notifyListeners();
+    unawaited(_loadAccessMenu());
   }
 
   Future<void> _persist(LoginResponse res) async {
@@ -192,6 +257,7 @@ class AuthProvider extends ChangeNotifier {
 
     await _storage.clear();
     _totpSessionToken = '';
+    _accessMenu = const [];
     userName = '';
     rolName = '';
     error = null;

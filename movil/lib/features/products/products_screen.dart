@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/access_menu.dart';
 import '../../models/product.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/product_service.dart';
 import 'product_form_screen.dart';
 
@@ -93,13 +95,31 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final canCreate = auth.can(kProductsForm, PermAction.create);
+    final canUpdate = auth.can(kProductsForm, PermAction.update);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Productos')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo'),
+      appBar: AppBar(
+        title: const Text('Productos'),
+        actions: [
+          if (!canUpdate && !canCreate)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Tooltip(
+                message: 'Solo lectura',
+                child: Icon(Icons.lock_outline, size: 20),
+              ),
+            ),
+        ],
       ),
+      floatingActionButton: canCreate
+          ? FloatingActionButton.extended(
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo'),
+            )
+          : null,
       body: Column(
         children: [
           Padding(

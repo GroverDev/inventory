@@ -9,7 +9,20 @@ public class LoginRequest
     public string Password { get; set; } = "";
     public string Device { get; set; } = "";
     //public bool WithEmail { get; set; }
+
+    /// <summary>
+    /// Origen declarado por el cliente. Sirve para la auditoría de accesos y
+    /// para saber cómo entregar el refresh token (cookie o cuerpo), pero es
+    /// dato no confiable: lo elige quien hace la petición. Las decisiones de
+    /// seguridad no se apoyan acá.
+    /// </summary>
     public Enums.InicioSesionDesde LoginFrom { get; set; } = Enums.InicioSesionDesde.Web;
+
+    /// <summary>
+    /// Token de Cloudflare Turnstile. Solo lo manda la web; el backend lo exige
+    /// según la cabecera Origin, no según <see cref="LoginFrom"/>.
+    /// </summary>
+    public string TurnstileToken { get; set; } = "";
     //public Accesos.InicioSesionCon LoginWith { get; set; }
 }
 

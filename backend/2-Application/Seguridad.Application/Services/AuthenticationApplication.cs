@@ -34,6 +34,23 @@ public class AuthenticationApplication(
         return resp;
     }
 
+    public async Task<int> RecentFailedAttempts(string email)
+    {
+        try
+        {
+            return await _authenticationRepository.RecentFailedAttempts(
+                email, _options.Value.LockoutMinutes);
+        }
+        catch
+        {
+            // Si la consulta falla, la base está caída y ningún login va a
+            // prosperar de todos modos: se devuelve 0 para que el error salga
+            // por el camino normal de Login(), con su mensaje y su log, en vez
+            // de convertirse en un 500 sin contexto.
+            return 0;
+        }
+    }
+
     public async Task<string> IssueRefreshToken(int userId, string device, string loginFrom, int days)
     {
         string raw = GenerateToken();

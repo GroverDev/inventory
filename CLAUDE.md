@@ -26,7 +26,16 @@ docker run -d --name punto-venta-web -p 8080:80 punto-venta-front
 The app requires `VITE_API_SERVICIOS` in a `.env` file pointing to the backend base URL:
 ```
 VITE_API_SERVICIOS=https://api.example.com/
+VITE_TURNSTILE_SITE_KEY=          # optional: Cloudflare Turnstile site key for the login captcha
 ```
+
+`VITE_TURNSTILE_SITE_KEY` is optional — when empty the captcha widget is not rendered and login behaves as before. Its counterpart is the API's `Turnstile` section (`Enabled`, `SecretKey` via the `Turnstile__SecretKey` env var, `ChallengeAfterFailedAttempts`, `OutageThreshold`, `OutageMinutes`).
+
+The captcha is enforced in two stages, both in `LoginController.Authenticate`:
+1. **Scope** — the request's `Origin` must match `Cors:AllowedOrigins`. Never the client-supplied `LoginFrom`, so the mobile app is unaffected and the web cannot opt out by editing its payload.
+2. **Suspicion** — the token is only verified once the account has recent failed attempts (same window as `LoginSettings.LockoutMinutes`). A clean login never calls Cloudflare, so a Cloudflare outage cannot lock anyone out on the happy path.
+
+Verification is fail-closed: a rejected token always blocks, and so does a one-off infrastructure failure. Only after `OutageThreshold` consecutive infrastructure failures does `TurnstileCircuitBreaker` declare an outage and let logins through for `OutageMinutes`, then retry on its own. `Enabled` is read through `IOptionsMonitor`, so it can be switched off without restarting when `appsettings.json` is a mounted volume.
 
 ## Architecture
 

@@ -5,6 +5,7 @@ import 'core/config/app_config.dart';
 import 'core/navigation/navigator_key.dart';
 import 'core/network/api_client.dart';
 import 'core/storage/auth_storage.dart';
+import 'core/storage/theme_storage.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/totp_setup_screen.dart';
@@ -12,6 +13,8 @@ import 'features/auth/totp_verify_screen.dart';
 import 'features/home/home_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
+import 'providers/theme_provider.dart';
+import 'services/access_menu_service.dart';
 import 'services/auth_service.dart';
 import 'services/catalog_service.dart';
 import 'services/discount_service.dart';
@@ -44,17 +47,25 @@ class InventoryApp extends StatelessWidget {
         Provider(create: (_) => DiscountService(api)),
         Provider(create: (_) => PurchaseService(api)),
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(AuthService(api), storage, api)..bootstrap(),
+          create: (_) =>
+              AuthProvider(AuthService(api), storage, api, AccessMenuService(api))
+                ..bootstrap(),
         ),
         ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(ThemeStorage())..load(),
+        ),
       ],
-      child: MaterialApp(
-        title: AppConfig.appName,
-        debugShowCheckedModeBanner: false,
-        navigatorKey: navigatorKey,
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        home: const _Root(),
+      child: Consumer<ThemeProvider>(
+        builder: (_, theme, __) => MaterialApp(
+          title: AppConfig.appName,
+          debugShowCheckedModeBanner: false,
+          navigatorKey: navigatorKey,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: theme.mode,
+          home: const _Root(),
+        ),
       ),
     );
   }

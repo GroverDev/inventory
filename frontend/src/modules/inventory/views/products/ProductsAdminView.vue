@@ -116,13 +116,13 @@
                       </td>
                       <td class="text-center text-nowrap">
                         <button
-                          v-if="canUpdate"
                           type="button"
-                          class="btn btn-outline-primary btn-sm me-1"
-                          title="Editar"
+                          class="btn btn-sm me-1"
+                          :class="canUpdate ? 'btn-outline-primary' : 'btn-outline-secondary'"
+                          :title="canUpdate ? 'Editar' : 'Ver detalle (solo lectura)'"
                           @click="editProduct(product)"
                         >
-                          <span class="fal fa-edit"></span>
+                          <span class="fal" :class="canUpdate ? 'fa-edit' : 'fa-eye'"></span>
                         </button>
                         <button
                           v-if="canDelete"
@@ -133,7 +133,6 @@
                         >
                           <span class="fal fa-trash-alt"></span>
                         </button>
-                        <span v-if="!canUpdate && !canDelete" class="text-muted small">Solo lectura</span>
                       </td>
                     </tr>
                   </tbody>
@@ -191,14 +190,15 @@
                         </div>
 
                         <!-- Fila 5: acciones -->
-                        <div v-if="canUpdate || canDelete" class="d-flex gap-2 mt-auto pt-1">
+                        <div class="d-flex gap-2 mt-auto pt-1">
                           <button
-                            v-if="canUpdate"
                             type="button"
-                            class="btn btn-sm btn-outline-primary flex-grow-1"
+                            class="btn btn-sm flex-grow-1"
+                            :class="canUpdate ? 'btn-outline-primary' : 'btn-outline-secondary'"
                             @click="editProduct(product)"
                           >
-                            <span class="fal fa-edit me-1"></span>Editar
+                            <span class="fal me-1" :class="canUpdate ? 'fa-edit' : 'fa-eye'"></span>
+                            {{ canUpdate ? 'Editar' : 'Ver detalle' }}
                           </button>
                           <button
                             v-if="canDelete"

@@ -38,6 +38,7 @@ class SaleCompletedScreen extends StatelessWidget {
         ),
         body: SafeArea(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: ListView(

@@ -42,6 +42,75 @@ class AppPalette {
   static const Color surface = Colors.white;
 }
 
+/// Paleta del modo oscuro, tomada tal cual de la web (SmartAdmin sobre
+/// Bootstrap 5.3, bloque `[data-bs-theme='dark']` de `smartapp.css`).
+///
+/// El comentario de cada color indica la variable CSS de origen, para poder
+/// mantener ambas apps sincronizadas.
+class AppDarkPalette {
+  AppDarkPalette._();
+
+  /// Lienzo detrás de los paneles: `--app-content-background`.
+  static const Color canvas = Color(0xFF363C41);
+
+  /// Paneles, tarjetas, app bar y hojas: `--app-panel-bg` / `--app-header-background`.
+  static const Color surface = Color(0xFF272B30);
+
+  /// Capa alterna, también fondo de inputs: `--bs-tertiary-bg` / `--bs-input-bg`.
+  static const Color surfaceAlt = Color(0xFF2B3035);
+
+  /// Capa destacada: `--bs-secondary-bg`.
+  static const Color surfaceHigh = Color(0xFF343A40);
+
+  /// Fondo base del documento: `--bs-body-bg`.
+  static const Color body = Color(0xFF212529);
+
+  /// Texto principal: `--bs-body-color`.
+  static const Color text = Color(0xFFDEE2E6);
+
+  /// Texto secundario: `--bs-secondary-color` (75% de opacidad, ya resuelto).
+  static const Color textMuted = Color(0xFFA8ADB2);
+
+  /// Bordes: `--bs-border-color`.
+  static const Color border = Color(0xFF495057);
+
+  /// Bordes sutiles: `--bs-border-color-translucent`.
+  static const Color borderSubtle = Color(0x26FFFFFF);
+
+  /// Acento de marca: `--bs-primary`.
+  static const Color primary = Color(0xFF886AB5);
+
+  /// Variante clara para texto y enlaces: `--bs-primary-text-emphasis` / `--bs-link-color`.
+  static const Color primarySoft = Color(0xFFB8A6D3);
+
+  /// Contenedor del acento: `--bs-primary-border-subtle`.
+  static const Color primaryContainer = Color(0xFF52406D);
+
+  /// `--bs-info`.
+  static const Color info = Color(0xFF2196F3);
+
+  /// `--bs-info-border-subtle`.
+  static const Color infoContainer = Color(0xFF145A92);
+
+  /// `--bs-success`.
+  static const Color success = Color(0xFF1DC9B7);
+
+  /// `--bs-success-border-subtle`.
+  static const Color successContainer = Color(0xFF11796E);
+
+  /// `--bs-warning`.
+  static const Color warning = Color(0xFFFFC241);
+
+  /// `--bs-danger`.
+  static const Color danger = Color(0xFFFD3995);
+
+  /// `--bs-danger-border-subtle`.
+  static const Color dangerContainer = Color(0xFF982259);
+
+  /// Borde de input con foco: `--bs-input-focus-border-color`.
+  static const Color inputFocus = Color(0xFF86B7FE);
+}
+
 class AppTheme {
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(seedColor: AppPalette.color1).copyWith(
@@ -71,39 +140,71 @@ class AppTheme {
       inversePrimary: AppPalette.color4,
       shadow: AppPalette.deep,
     );
-    return _base(scheme, scaffold: AppPalette.canvas);
+    return _base(
+      scheme,
+      scaffold: AppPalette.canvas,
+      textAccent: AppPalette.deep,
+    );
   }
 
+  /// Modo oscuro con los mismos colores que la web (ver [AppDarkPalette]).
   static ThemeData dark() {
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppPalette.color1,
+      seedColor: AppDarkPalette.primary,
       brightness: Brightness.dark,
     ).copyWith(
-      primary: AppPalette.color2,
-      onPrimary: const Color(0xFF06211D),
-      primaryContainer: AppPalette.deep,
-      onPrimaryContainer: AppPalette.color5,
-      secondary: AppPalette.color3,
-      onSecondary: const Color(0xFF06211D),
-      secondaryContainer: const Color(0xFF14524A),
-      onSecondaryContainer: AppPalette.color5,
-      tertiary: AppPalette.color4,
-      onTertiary: const Color(0xFF06211D),
-      surface: const Color(0xFF102723),
-      onSurface: const Color(0xFFDFF3EE),
-      onSurfaceVariant: const Color(0xFF9CC4BB),
-      surfaceContainerHighest: const Color(0xFF1B3A34),
-      surfaceContainerHigh: const Color(0xFF17332E),
-      surfaceContainer: const Color(0xFF132D28),
+      primary: AppDarkPalette.primary,
+      onPrimary: Colors.white,
+      primaryContainer: AppDarkPalette.primaryContainer,
+      onPrimaryContainer: const Color(0xFFECE5F5),
+      secondary: AppDarkPalette.info,
+      onSecondary: Colors.white,
+      secondaryContainer: AppDarkPalette.infoContainer,
+      onSecondaryContainer: const Color(0xFFDCEEFF),
+      tertiary: AppDarkPalette.success,
+      onTertiary: const Color(0xFF04302C),
+      tertiaryContainer: AppDarkPalette.successContainer,
+      onTertiaryContainer: const Color(0xFFD3F7F3),
+      error: AppDarkPalette.danger,
+      onError: Colors.white,
+      errorContainer: AppDarkPalette.dangerContainer,
+      onErrorContainer: const Color(0xFFFFE0EE),
+      surface: AppDarkPalette.surface,
+      onSurface: AppDarkPalette.text,
+      onSurfaceVariant: AppDarkPalette.textMuted,
+      surfaceContainerLowest: AppDarkPalette.body,
+      surfaceContainerLow: const Color(0xFF24282C),
+      surfaceContainer: AppDarkPalette.surfaceAlt,
+      surfaceContainerHigh: const Color(0xFF2F353A),
+      surfaceContainerHighest: AppDarkPalette.surfaceHigh,
       surfaceTint: Colors.transparent,
-      outline: const Color(0xFF3F6A61),
-      outlineVariant: const Color(0xFF23453F),
-      inversePrimary: AppPalette.color1,
+      outline: AppDarkPalette.border,
+      outlineVariant: AppDarkPalette.borderSubtle,
+      inverseSurface: AppDarkPalette.text,
+      onInverseSurface: AppDarkPalette.body,
+      inversePrimary: AppDarkPalette.primarySoft,
+      shadow: Colors.black,
     );
-    return _base(scheme, scaffold: const Color(0xFF0B1F1C));
+    return _base(
+      scheme,
+      scaffold: AppDarkPalette.canvas,
+      textAccent: AppDarkPalette.primarySoft,
+      inputFill: AppDarkPalette.surfaceAlt,
+      inputFocus: AppDarkPalette.inputFocus,
+    );
   }
 
-  static ThemeData _base(ColorScheme scheme, {required Color scaffold}) {
+  static ThemeData _base(
+    ColorScheme scheme, {
+    required Color scaffold,
+
+    /// Color de los elementos de acento sobre superficie (botones de texto,
+    /// bordes, pestañas). En oscuro es una variante más clara del primario
+    /// para no quedar por debajo del contraste AA.
+    required Color textAccent,
+    Color? inputFill,
+    Color? inputFocus,
+  }) {
     final isLight = scheme.brightness == Brightness.light;
 
     // Tipografía geométrica con jerarquía estricta y kerning ajustado.
@@ -174,7 +275,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         isDense: true,
         filled: true,
-        fillColor: scheme.surface,
+        fillColor: inputFill ?? scheme.surface,
         prefixIconColor: scheme.secondary,
         suffixIconColor: scheme.onSurfaceVariant,
         labelStyle: TextStyle(color: scheme.onSurfaceVariant),
@@ -190,7 +291,8 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: scheme.primary, width: 1.6),
+          borderSide:
+              BorderSide(color: inputFocus ?? scheme.primary, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -203,7 +305,12 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          // Ancho según el contenido (Material 3). Los botones que deben
+          // ocupar todo el ancho viven en columnas con
+          // `CrossAxisAlignment.stretch` o dentro de un ListView, que ya les
+          // dan restricciones de ancho ajustadas. 48 de alto = área táctil
+          // mínima recomendada.
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -212,7 +319,7 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isLight ? AppPalette.deep : scheme.primary,
+          foregroundColor: textAccent,
           side: BorderSide(color: scheme.outline),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -222,7 +329,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: isLight ? AppPalette.deep : scheme.primary,
+          foregroundColor: textAccent,
           textStyle: typography.labelLarge,
         ),
       ),
@@ -254,7 +361,8 @@ class AppTheme {
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 4,
-        shadowColor: AppPalette.deep.withValues(alpha: 0.25),
+        shadowColor: (isLight ? AppPalette.deep : Colors.black)
+            .withValues(alpha: isLight ? 0.25 : 0.45),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       dialogTheme: DialogThemeData(
@@ -272,9 +380,11 @@ class AppTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppPalette.ink,
-        contentTextStyle:
-            typography.bodyMedium?.copyWith(color: AppPalette.color5),
+        backgroundColor:
+            isLight ? AppPalette.ink : scheme.surfaceContainerHighest,
+        contentTextStyle: typography.bodyMedium?.copyWith(
+          color: isLight ? AppPalette.color5 : scheme.onSurface,
+        ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -282,10 +392,10 @@ class AppTheme {
         color: scheme.primary,
       ),
       tabBarTheme: TabBarThemeData(
-        labelColor: isLight ? Colors.white : scheme.primary,
+        labelColor: isLight ? Colors.white : textAccent,
         unselectedLabelColor:
             isLight ? AppPalette.color4 : scheme.onSurfaceVariant,
-        indicatorColor: isLight ? AppPalette.color4 : scheme.primary,
+        indicatorColor: isLight ? AppPalette.color4 : textAccent,
       ),
     );
   }

@@ -3,12 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/network/api_response.dart';
+import '../../core/ui/confirm_dialog.dart';
+import '../../models/access_menu.dart';
 import '../../models/catalog.dart';
 import '../../models/product.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/catalog_service.dart';
 import '../../services/product_service.dart';
 
-/// Crear o editar un producto. Si [product] es null, es alta.
+/// Crear, editar o consultar un producto. Si [product] es null, es alta.
+///
+/// El modo consulta (solo lectura) se decide con los permisos granulares del
+/// formulario `products-admin`: sin `create`/`update` el formulario se muestra
+/// deshabilitado y sin botón de guardar.
 class ProductFormScreen extends StatefulWidget {
   const ProductFormScreen({super.key, this.product});
   final Product? product;
@@ -21,6 +28,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final Product _model;
   bool get _isNew => widget.product == null;
+
+  /// Permiso para grabar: `create` en alta, `update` en edición.
+  bool get _canSave => context
+      .read<AuthProvider>()
+      .can(kProductsForm, _isNew ? PermAction.create : PermAction.update);
 
   late final TextEditingController _name;
   late final TextEditingController _code;
@@ -93,6 +105,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _save() async {
+    if (!_canSave) {
+      _snack('No tienes permiso para modificar productos.');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     if (_model.uomId.isEmpty) {
       _snack('Selecciona una unidad de medida.');
@@ -130,23 +146,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _confirmDelete() async {
+    if (!context.read<AuthProvider>().can(kProductsForm, PermAction.delete)) {
+      _snack('No tienes permiso para eliminar productos.');
+      return;
+    }
     final service = context.read<ProductService>();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar producto'),
-        content: Text('¿Eliminar "${_name.text}"?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Eliminar')),
-        ],
-      ),
+    final ok = await confirm(
+      context,
+      title: 'Eliminar producto',
+      message: '¿Eliminar "${_name.text}"? Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok || !mounted) return;
     setState(() => _saving = true);
     try {
       await service.delete(_model.id);
@@ -168,11 +180,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final canSave = auth.can(
+        kProductsForm, _isNew ? PermAction.create : PermAction.update);
+    final canDelete = !_isNew && auth.can(kProductsForm, PermAction.delete);
+    final readOnly = !canSave;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNew ? 'Nuevo producto' : 'Editar producto'),
+        title: Text(_isNew
+            ? 'Nuevo producto'
+            : readOnly
+                ? 'Detalle del producto'
+                : 'Editar producto'),
         actions: [
-          if (!_isNew)
+          if (canDelete)
             IconButton(
               tooltip: 'Eliminar',
               onPressed: _saving ? null : _confirmDelete,
@@ -203,18 +225,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      if (readOnly) const _ReadOnlyBanner(),
                       _field(_name, 'Nombre del producto',
+                          enabled: !readOnly,
                           validator: (v) => (v == null || v.trim().length < 5)
                               ? 'Mínimo 5 caracteres'
                               : null),
                       _field(_description, 'Descripción',
                           maxLines: 2,
+                          enabled: !readOnly,
                           validator: (v) => (v == null || v.trim().length < 5)
                               ? 'Mínimo 5 caracteres'
                               : null),
-                      _field(_code, 'Código (opcional)'),
-                      _field(_barCode, 'Código de barras (opcional)'),
+                      _field(_code, 'Código (opcional)', enabled: !readOnly),
+                      _field(_barCode, 'Código de barras (opcional)',
+                          enabled: !readOnly),
                       _field(_price, 'Precio de venta',
+                          enabled: !readOnly,
                           keyboardType:
                               const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
@@ -229,6 +256,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         children: [
                           Expanded(
                             child: _field(_stock, 'Stock actual',
+                                enabled: !readOnly,
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly
@@ -237,6 +265,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _field(_minReorder, 'Stock mínimo',
+                                enabled: !readOnly,
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly
@@ -248,6 +277,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         label: 'Categoría',
                         items: _categories,
                         value: _model.categoryId,
+                        enabled: !readOnly,
                         onChanged: (v) =>
                             setState(() => _model.categoryId = v ?? ''),
                       ),
@@ -255,6 +285,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         label: 'Laboratorio',
                         items: _labs,
                         value: _model.laboratoryId,
+                        enabled: !readOnly,
                         onChanged: (v) =>
                             setState(() => _model.laboratoryId = v ?? ''),
                       ),
@@ -262,33 +293,39 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         label: 'Unidad de medida',
                         items: _uoms,
                         value: _model.uomId,
+                        enabled: !readOnly,
                         onChanged: (v) => setState(() => _model.uomId = v ?? ''),
                       ),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Disponible en POS'),
                         value: _model.availableInPos,
-                        onChanged: (v) =>
-                            setState(() => _model.availableInPos = v),
+                        onChanged: readOnly
+                            ? null
+                            : (v) => setState(() => _model.availableInPos = v),
                       ),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Activo'),
                         value: _model.isActive,
-                        onChanged: (v) => setState(() => _model.isActive = v),
+                        onChanged: readOnly
+                            ? null
+                            : (v) => setState(() => _model.isActive = v),
                       ),
                       const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: _saving
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.save),
-                        label: Text(_isNew ? 'Crear producto' : 'Guardar cambios'),
-                      ),
+                      if (canSave)
+                        FilledButton.icon(
+                          onPressed: _saving ? null : _save,
+                          icon: _saving
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.save),
+                          label:
+                              Text(_isNew ? 'Crear producto' : 'Guardar cambios'),
+                        ),
                     ],
                   ),
                 ),
@@ -299,6 +336,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     TextEditingController c,
     String label, {
     int maxLines = 1,
+    bool enabled = true,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
@@ -307,6 +345,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: c,
+        enabled: enabled,
         maxLines: maxLines,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
@@ -321,6 +360,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     required List<NamedItem> items,
     required String value,
     required ValueChanged<String?> onChanged,
+    bool enabled = true,
   }) {
     final hasValue = items.any((e) => e.id == value);
     return Padding(
@@ -328,11 +368,42 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       child: DropdownButtonFormField<String>(
         initialValue: hasValue ? value : null,
         isExpanded: true,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(labelText: label, enabled: enabled),
         items: items
             .map((e) => DropdownMenuItem(value: e.id, child: Text(e.name)))
             .toList(),
-        onChanged: onChanged,
+        // Un onChanged nulo deshabilita el control (se ve atenuado).
+        onChanged: enabled ? onChanged : null,
+      ),
+    );
+  }
+}
+
+/// Aviso de modo consulta para usuarios sin permiso de escritura.
+class _ReadOnlyBanner extends StatelessWidget {
+  const _ReadOnlyBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, size: 20, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Solo lectura: no tienes permiso para modificar productos.',
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+            ),
+          ),
+        ],
       ),
     );
   }

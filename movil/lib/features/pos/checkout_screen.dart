@@ -290,12 +290,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ),
                       const SizedBox(width: 8),
                       FilledButton.tonal(
-                        // El tema global fuerza minimumSize con ancho infinito
-                        // (Size.fromHeight) para los botones de acción a ancho
-                        // completo; aquí es un botón en línea, así que acotamos
-                        // el ancho mínimo para que no reclame ancho infinito.
-                        style: FilledButton.styleFrom(
-                            minimumSize: const Size(64, 48)),
                         onPressed: addLine,
                         child: const Text('Agregar'),
                       ),
@@ -612,6 +606,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

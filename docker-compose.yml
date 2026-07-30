@@ -51,6 +51,12 @@ services:
       # todos los clientes compartirían un mismo cupo de peticiones.
       # Seguro aquí porque el puerto se publica solo en 127.0.0.1 (ver abajo).
       ForwardedHeaders__TrustAllProxies: "true"
+      # Cloudflare Turnstile (captcha del login web). Apagado mientras
+      # TURNSTILE_ENABLED no esté en el .env: sin clave secreta el backend no
+      # le pide token a nadie. Para encenderlo o apagarlo alcanza con cambiar
+      # el .env y hacer "docker compose up -d backend".
+      Turnstile__Enabled:   ${TURNSTILE_ENABLED:-false}
+      Turnstile__SecretKey: ${TURNSTILE_SECRET:-}
       # MFA / TOTP
       MfaSettings__EncryptionKeyHex:  ${MFA_ENCRYPTION_KEY}
       MfaSettings__MaxFailedAttempts: 5

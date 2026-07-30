@@ -28,6 +28,9 @@
               >
                 {{ product.IsActive ? 'Activo' : 'Inactivo' }}
               </span>
+              <span v-if="!canSave" class="badge bg-secondary ms-2">
+                <i class="fal fa-lock me-1"></i>Solo lectura
+              </span>
             </div>
             <div class="panel-container show">
 
@@ -35,7 +38,11 @@
               <div class="panel-content pt-0">
                 <div class="row align-items-center">
                   <div class="col-8 col-md-8">
-                    <div class="d-md-none">
+                    <div v-if="!canSave" class="text-muted small">
+                      <i class="fal fa-eye me-1"></i>
+                      Está viendo el producto en modo consulta. No tiene permiso para modificarlo.
+                    </div>
+                    <div v-if="canSave" class="d-md-none">
                       <div class="btn-group">
                         <button type="button" class="btn btn-primary dropdown-toggle"
                           data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
@@ -43,7 +50,7 @@
                         </button>
                         <div class="dropdown-menu dropdown-menu-lg-right">
                           <button v-if="canSave" type="button" class="dropdown-item border-bottom border-1"
-                            :disabled="isSaved" @click="saveProduct">
+                            :disabled="isReadOnly" @click="saveProduct">
                             <span class="fal fa-save me-1"></span>Grabar
                           </button>
                           <button type="button" class="dropdown-item border-bottom border-1"
@@ -53,9 +60,9 @@
                         </div>
                       </div>
                     </div>
-                    <div class="d-none d-md-flex gap-2">
+                    <div v-if="canSave" class="d-none d-md-flex gap-2">
                       <button v-if="canSave" type="button" class="btn btn-sm btn-primary"
-                        :disabled="isSaved" @click="saveProduct">
+                        :disabled="isReadOnly" @click="saveProduct">
                         <span class="fal fa-save me-1"></span>Grabar
                       </button>
                       <button type="button" class="btn btn-warning btn-sm"
@@ -92,7 +99,7 @@
                         class="form-control form-control-sm"
                         :class="{ 'is-invalid': v$.ProductCode.$dirty && v$.ProductCode.$invalid }"
                         placeholder="Ej: PROD-001"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         autocomplete="off"
                         v-model.trim="v$.ProductCode.$model"
                       />
@@ -113,7 +120,7 @@
                           class="form-control"
                           :class="{ 'is-invalid': v$.BarCode.$dirty && v$.BarCode.$invalid }"
                           placeholder="Código de barras"
-                          :disabled="isSaved"
+                          :disabled="isReadOnly"
                           autocomplete="off"
                           v-model.trim="v$.BarCode.$model"
                         />
@@ -131,7 +138,7 @@
                         class="form-control form-control-sm"
                         :class="{ 'is-invalid': v$.ProductName.$dirty && v$.ProductName.$invalid }"
                         placeholder="Nombre del Producto"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         autocomplete="off"
                         v-model.trim="v$.ProductName.$model"
                       />
@@ -148,7 +155,7 @@
                         class="form-control form-control-sm"
                         :class="{ 'is-invalid': v$.Description.$dirty && v$.Description.$invalid }"
                         placeholder="Descripción del producto"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         autocomplete="off"
                         v-model.trim="v$.Description.$model"
                       />
@@ -170,7 +177,7 @@
                         :class="{ 'is-invalid': v$.LaboratoryId.$dirty && v$.LaboratoryId.$invalid }"
                         id="laboratories"
                         name="laboratories"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         v-model.trim="v$.LaboratoryId.$model"
                       >
                         <option value="">— Seleccione un laboratorio —</option>
@@ -188,7 +195,7 @@
                         class="form-select form-select-sm"
                         id="categories"
                         name="categories"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         v-model.trim="product.CategoryId"
                       >
                         <option value="">— Seleccione una categoría —</option>
@@ -206,7 +213,7 @@
                         :class="{ 'is-invalid': v$.UomId.$dirty && v$.UomId.$invalid }"
                         id="units"
                         name="units"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         v-model.trim="v$.UomId.$model"
                       >
                         <option value="">— Seleccione una unidad —</option>
@@ -238,7 +245,7 @@
                           placeholder="0.00"
                           step="0.01"
                           min="0"
-                          :disabled="isSaved"
+                          :disabled="isReadOnly"
                           v-model.trim="v$.SalePrice.$model"
                         />
                         <div class="invalid-feedback"
@@ -286,7 +293,7 @@
                         :class="{ 'is-invalid': v$.MinReorderQuantity.$dirty && v$.MinReorderQuantity.$invalid }"
                         placeholder="0"
                         min="0"
-                        :disabled="isSaved"
+                        :disabled="isReadOnly"
                         v-model.trim="v$.MinReorderQuantity.$model"
                       />
                       <small class="invalid-feedback"
@@ -312,7 +319,7 @@
                           class="form-check-input"
                           id="AvailableInPos"
                           role="switch"
-                          :disabled="isSaved"
+                          :disabled="isReadOnly"
                           v-model="v$.AvailableInPos.$model"
                         />
                         <label class="form-check-label" for="AvailableInPos">
@@ -327,7 +334,7 @@
                           class="form-check-input"
                           id="IsActive"
                           role="switch"
-                          :disabled="isSaved"
+                          :disabled="isReadOnly"
                           v-model="product.IsActive"
                         />
                         <label class="form-check-label" for="IsActive">
@@ -419,6 +426,8 @@ const canSave = computed(() =>
     ? can('products-admin', 'create')
     : can('products-admin', 'update')
 );
+// El formulario queda bloqueado si ya se grabó o si el usuario no puede grabar.
+const isReadOnly = computed(() => isSaved.value || !canSave.value);
 
 // Clase dinámica para el campo Stock Actual según nivel vs mínimo
 const stockClass = computed((): string => {

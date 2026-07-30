@@ -8,6 +8,7 @@ using Seguridad.Application;
 using Seguridad.Domain;
 using Seguridad.Domain.Enums;
 using Services.Api.jwt;
+using Services.Api.Security;
 using Services.Api.Utils;
 
 namespace Services.Api.Controllers.Security;
@@ -16,7 +17,10 @@ namespace Services.Api.Controllers.Security;
 [Route("api/[controller]")]
 [EnableRateLimiting(RateLimitPolicies.Login)]
 [ApiController]
-public class LoginController(IAuthenticationApplication _authenticationApplication, IOptions<JwtSettings> jwtSettings) : ControllerBase
+public class LoginController(
+    IAuthenticationApplication _authenticationApplication,
+    IOptions<JwtSettings> jwtSettings,
+    ITurnstileValidator _turnstile) : ControllerBase
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
 
@@ -70,6 +74,40 @@ public class LoginController(IAuthenticationApplication _authenticationApplicati
     [HttpPost]
     public async Task<ActionResult<Response<LoginResponse>>> Authenticate([FromBody] LoginRequest login)
     {
+        // Captcha. Dos filtros, en este orden:
+        //
+        //  1. Alcance: se decide por la cabecera Origin, que pone el navegador y
+        //     la página no puede alterar. Así la web no puede saltearlo
+        //     cambiando el cuerpo del request, y el móvil (que no manda Origin)
+        //     queda fuera sin depender de lo que declare.
+        //  2. Sospecha: solo se verifica si la cuenta acumula intentos fallidos
+        //     recientes. El login limpio no consulta a Cloudflare, así que una
+        //     caída del servicio no puede dejar a nadie afuera en el camino
+        //     normal; y ante fuerza bruta la verificación es estricta.
+        if (_turnstile.AppliesTo(Request.Headers.Origin.ToString()))
+        {
+            int failedAttempts = await _authenticationApplication.RecentFailedAttempts(login.Email);
+
+            if (_turnstile.RequiresChallenge(failedAttempts))
+            {
+                string? remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+                var verdict = await _turnstile.VerifyAsync(login.TurnstileToken, remoteIp);
+
+                if (verdict == TurnstileResult.Rejected)
+                {
+                    return Ok(new Response<LoginResponse>
+                    {
+                        ok = false,
+                        Message = new Msg
+                        {
+                            MessageType = "warning",
+                            Description = "No pudimos completar la validación de seguridad. Vuelve a intentarlo."
+                        }
+                    });
+                }
+            }
+        }
+
         ValidationResult result = new LoginRequestValidator().Validate(login);
         if (!result.IsValid) return ErrorsValidation<LoginResponse>.GetResponse(result.Errors);
 

@@ -201,6 +201,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Row(
                               mainAxisAlignment:

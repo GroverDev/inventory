@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => isAuthenticated.value)
 
   // Actions
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, turnstileToken = '') => {
     try {
 
       const responseLogin = await post<ResponseObject<User>>(`Login`,
@@ -43,7 +43,10 @@ export const useAuthStore = defineStore('auth', () => {
           // InicioSesionDesde.Web — antes iba 5 (Postman), lo que falseaba la
           // auditoría de accesos en sec.users_login.
           LoginFrom: 1,
-          LoginWith: 1
+          LoginWith: 1,
+          // Captcha de Cloudflare. El backend lo exige según la cabecera
+          // Origin, no según este cuerpo; si no está configurado viaja vacío.
+          TurnstileToken: turnstileToken
         }
       );
 
