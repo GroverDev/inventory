@@ -21,6 +21,32 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+
+  # Poppins empaquetada. `google_fonts` busca primero en los assets y solo
+  # descarga de los servidores de Google si no encuentra la variante; con estos
+  # archivos presentes y `allowRuntimeFetching = false` (ver `app_theme.dart`)
+  # la app nunca sale a la red por tipografía.
+  #
+  # Los nombres de archivo `Poppins-<Variante>.ttf` son los que espera el
+  # paquete: cambiarlos rompe la resolución local.
+  assets:
+    - google_fonts/
+
+# Generación de los íconos de la app a partir de los maestros de `store/`.
+# Regenerar con:  dart run flutter_launcher_icons
+#
+# Los archivos de `store/` no se declaran como assets: son material de la ficha
+# de Play y de la generación de íconos, no se empaquetan dentro de la app.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "store/icon-pos-1024.png"
+  # Ícono adaptativo: el fondo lo pone Android y el dibujo va en la capa de
+  # primer plano, ya escalado para caer en la zona segura.
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "store/icon-pos-foreground-1024.png"
+  min_sdk_android: 24

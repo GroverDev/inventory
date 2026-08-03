@@ -14,7 +14,10 @@ build/
 android/.gradle/
 android/local.properties
 android/key.properties
+# La clave de subida nunca se versiona: quien la tenga puede publicar
+# actualizaciones de la app. Ver RELEASE.md.
 **/*.keystore
+**/*.jks
 
 # iOS
 ios/Pods/

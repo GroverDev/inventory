@@ -1,0 +1,70 @@
+<!--
+  Gráfico destacado de Google Play: 1024 x 500 px exactos.
+
+  Se renderiza con Chrome headless (ver README de esta carpeta). El fondo es
+  oscuro a propósito: el wordmark de `ideanueva-logo.png` es blanco con
+  contorno, así que sobre claro se pierde.
+
+  Del logo se recorta el triángulo de la izquierda y se conserva solo la
+  palabra "IdeaNueva": la marca gráfica de esta pieza es la caja registradora,
+  y dos símbolos juntos compiten entre sí.
+
+  Play recorta este gráfico en algunas superficies, por eso todo lo importante
+  queda centrado y lejos de los bordes.
+-->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #10201A;
+    background-image:
+      radial-gradient(900px 500px at 78% 18%, rgba(45, 185, 165, 0.28), transparent 62%),
+      radial-gradient(700px 420px at 12% 88%, rgba(20, 118, 106, 0.22), transparent 60%),
+      linear-gradient(135deg, #16281F 0%, #0C1713 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 54px;
+  }
+
+  .caja {
+    width: 260px;
+    height: 260px;
+    flex: none;
+    /* Halo suave para despegar el ícono del fondo oscuro. */
+    filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.45));
+  }
+
+  .texto { display: flex; flex-direction: column; gap: 18px; }
+
+  /* El logo original mide 740x177 e incluye el triángulo en los primeros
+     ~140 px. Se muestra a 0.7 de escala y se corre a la izquierda para dejar
+     fuera esa parte. */
+  .wordmark { width: 420px; height: 124px; overflow: hidden; }
+  .wordmark img { width: 518px; height: 124px; margin-left: -98px; display: block; }
+
+  .tagline {
+    color: #BFE3D6;
+    font-size: 25px;
+    font-weight: 500;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <img class="caja" src="icon-pos.svg" alt="">
+  <div class="texto">
+    <div class="wordmark"><img src="ideanueva-logo.png" alt="IdeaNueva"></div>
+    <div class="tagline">Punto de venta e inventario</div>
+  </div>
+</body>
+</html>

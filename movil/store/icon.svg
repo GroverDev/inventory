@@ -1,0 +1,28 @@
+<!--
+  Ícono de la app: la marca de IdeaNueva (triángulo "play") sobre fondo blanco.
+
+  Se recreó como vector a partir de `ideanueva-logo.png`, que es raster y no
+  daba resolución para 1024 px. Se simplificó el biselado del original: los
+  íconos de tienda actuales son planos, y un bisel se ve viejo a tamaño chico.
+
+  Geometría: el centroide del triángulo está en el centro exacto del lienzo
+  (512,512), que es lo que hace que un "play" se vea centrado. Las esquinas se
+  redondean con un trazo grueso del mismo color y `stroke-linejoin: round`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="verde" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8DCE45"/>
+      <stop offset="0.55" stop-color="#5CB63C"/>
+      <stop offset="1" stop-color="#2F9B37"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+
+  <path d="M352 232 L352 792 L832 512 Z"
+        fill="url(#verde)"
+        stroke="url(#verde)"
+        stroke-width="86"
+        stroke-linejoin="round"/>
+</svg>

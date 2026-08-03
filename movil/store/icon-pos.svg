@@ -1,0 +1,73 @@
+<!--
+  Ícono alternativo: caja registradora.
+
+  Original, dibujado desde cero. La referencia que se pasó (pos.png) es una
+  vista previa con marca de agua de Iconscout: la idea de "caja registradora"
+  no es apropiable, pero ese dibujo concreto sí, así que no se calca.
+
+  Criterio de diseño: pocas formas y muy contrastadas. Un ícono se ve a 48 px
+  en el cajón de aplicaciones, donde el detalle fino desaparece; por eso la
+  pantalla, el rollo de papel y el teclado son bloques grandes y no se intenta
+  el sombreado tridimensional del original.
+
+  Paleta: la de la app (teal de marca) con el ámbar de la paleta web como
+  acento.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="cuerpo" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#2FB9A5"/>
+      <stop offset="1" stop-color="#14766A"/>
+    </linearGradient>
+    <linearGradient id="tapa" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#4AC9B4"/>
+      <stop offset="1" stop-color="#1D9F8E"/>
+    </linearGradient>
+    <clipPath id="silueta">
+      <rect x="152" y="404" width="720" height="468" rx="52"/>
+    </clipPath>
+  </defs>
+
+  <!-- Sin fondo a propósito: el color lo ponen los envoltorios HTML, uno con
+       fondo blanco para el ícono clásico y otro transparente y escalado para
+       la capa adaptativa. Así el dibujo vive en un solo archivo. -->
+
+  <!-- Poste y pantalla del visor -->
+  <rect x="600" y="300" width="46" height="120" rx="16" fill="#14766A"/>
+  <rect x="486" y="150" width="330" height="196" rx="40" fill="#FFC241"/>
+  <rect x="528" y="192" width="246" height="112" rx="22" fill="#0B3D36"/>
+  <rect x="552" y="216" width="120" height="20" rx="10" fill="#4AC9B4"/>
+
+  <!-- Rollo de papel saliendo por arriba -->
+  <rect x="196" y="196" width="212" height="252" rx="30" fill="#FFFFFF"
+        stroke="#0B3D36" stroke-width="18"/>
+  <rect x="240" y="262" width="124" height="20" rx="10" fill="#0B3D36" opacity="0.35"/>
+  <rect x="240" y="314" width="124" height="20" rx="10" fill="#0B3D36" opacity="0.35"/>
+  <rect x="240" y="366" width="80"  height="20" rx="10" fill="#0B3D36" opacity="0.35"/>
+
+  <!-- Cuerpo de la caja.
+       Una sola silueta recortada: si se dibujan dos rectángulos redondeados
+       superpuestos queda una muesca en los costados donde se encuentran. -->
+  <g clip-path="url(#silueta)">
+    <rect x="152" y="404" width="720" height="468" fill="url(#cuerpo)"/>
+    <rect x="152" y="404" width="720" height="132" fill="url(#tapa)"/>
+  </g>
+
+  <!-- Teclado -->
+  <g fill="#FFFFFF" opacity="0.92">
+    <rect x="236" y="586" width="84" height="60" rx="18"/>
+    <rect x="348" y="586" width="84" height="60" rx="18"/>
+    <rect x="460" y="586" width="84" height="60" rx="18"/>
+    <rect x="236" y="672" width="84" height="60" rx="18"/>
+    <rect x="348" y="672" width="84" height="60" rx="18"/>
+    <rect x="460" y="672" width="84" height="60" rx="18"/>
+  </g>
+
+  <!-- Tecla de total, destacada -->
+  <rect x="596" y="586" width="192" height="146" rx="24" fill="#FFC241"/>
+  <rect x="636" y="640" width="112" height="24" rx="12" fill="#FFFFFF" opacity="0.85"/>
+
+  <!-- Cajón del dinero -->
+  <rect x="236" y="774" width="552" height="56" rx="24" fill="#0B3D36" opacity="0.30"/>
+  <circle cx="512" cy="802" r="20" fill="#FFC241"/>
+</svg>

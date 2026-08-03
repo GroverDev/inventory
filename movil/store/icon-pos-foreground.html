@@ -1,0 +1,24 @@
+<!--
+  Capa de primer plano del ícono adaptativo, a partir del mismo icon-pos.svg
+  pero sin fondo y ampliada.
+
+  El dibujo ocupa ~70% de su lienzo; se escala a 1.28 para llevarlo a ~90%.
+  `flutter_launcher_icons` le agrega después un margen del 16% por lado, con lo
+  que el tamaño final queda en ~61% del ícono, que es la zona segura de Android.
+  Si se cambia una de las dos escalas hay que recalcular la otra.
+
+  Render (el fondo transparente lo da --default-background-color=00000000):
+    chrome --headless --default-background-color=00000000 \
+           --screenshot=icon-pos-foreground-1024.png --window-size=1024,1024 \
+           icon-pos-foreground.html
+-->
+<!doctype html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; width: 1024px; height: 1024px; overflow: hidden; background: transparent; }
+  img { width: 1024px; height: 1024px; display: block; transform: scale(1.28); transform-origin: center center; }
+</style>
+</head>
+<body><img src="icon-pos.svg" alt=""></body>
+</html>

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'core/config/app_config.dart';
@@ -23,6 +24,14 @@ import 'services/purchase_service.dart';
 import 'services/sale_service.dart';
 
 void main() {
+  // Poppins viaja dentro del `.aab` (carpeta `google_fonts/`, declarada como
+  // asset). Cortar la descarga en tiempo de ejecución evita una conexión a los
+  // servidores de Google —que habría que declarar en el formulario de seguridad
+  // de los datos de Play— y que la app arranque con la tipografía por defecto
+  // donde la conexión es mala. En debug, una variante que falte revienta acá
+  // en lugar de disimularse bajando el archivo.
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   final storage = AuthStorage();
   final api = ApiClient(storage);
   // Se crea acá y no dentro del árbol de widgets porque el AuthProvider

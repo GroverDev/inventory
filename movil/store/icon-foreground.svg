@@ -1,0 +1,30 @@
+<!--
+  Capa de primer plano del ícono adaptativo de Android.
+
+  Android recorta este lienzo con formas distintas según el lanzador (círculo,
+  rombo, cuadrado redondeado) y lo desplaza en las animaciones, así que solo el
+  66% central está garantizado. El fondo queda transparente: el color lo pone la
+  capa de background.
+
+  El triángulo se agranda hasta ocupar ~90% de este lienzo a propósito.
+  `flutter_launcher_icons` le agrega después un margen del 16% por lado, con lo
+  que el tamaño final queda en ~61% del ícono: la zona segura que recomienda
+  Android. Si se cambia una de las dos escalas hay que recalcular la otra.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="verde" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8DCE45"/>
+      <stop offset="0.55" stop-color="#5CB63C"/>
+      <stop offset="1" stop-color="#2F9B37"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(512,512) scale(1.42) translate(-512,-512)">
+    <path d="M352 232 L352 792 L832 512 Z"
+          fill="url(#verde)"
+          stroke="url(#verde)"
+          stroke-width="86"
+          stroke-linejoin="round"/>
+  </g>
+</svg>
