@@ -3,7 +3,7 @@
     <nav class="app-breadcrumb" aria-label="breadcrumb">
       <ol class="breadcrumb ms-0 text-muted mb-2">
         <li class="breadcrumb-item">Administración</li>
-        <li class="breadcrumb-item active" aria-current="page">Resetear Empresa</li>
+        <li class="breadcrumb-item active" aria-current="page">Reiniciar Datos</li>
       </ol>
     </nav>
 
@@ -12,7 +12,7 @@
         <div class="panel-hdr bg-danger-50">
           <h2 class="text-danger">
             <i class="fal fa-exclamation-triangle me-2"></i>
-            Reiniciar base de datos <span class="fw-300"><i>(empresa nueva)</i></span>
+            Reiniciar datos <span class="fw-300"><i>(esta farmacia)</i></span>
           </h2>
         </div>
         <div class="panel-container show">
@@ -23,44 +23,33 @@
               <i class="fal fa-radiation-alt fa-2x me-3 mt-1"></i>
               <div>
                 <strong>Esta acción es irreversible.</strong>
-                Se eliminarán <u>todos los datos</u> de la empresa actual: productos, clientes,
-                proveedores, ventas, compras, inventario, caja, facturación y <u>usuarios</u>.
-                Se conservan únicamente la estructura de menús y permisos. Al finalizar,
-                deberá iniciar sesión con el nuevo administrador que defina aquí.
+                Se eliminarán <u>todos los datos de negocio de esta farmacia</u>: productos,
+                clientes, proveedores, ventas, compras, inventario y caja.
+                <br />
+                Se conservan los <u>usuarios, roles y permisos</u>, y no se toca ninguna
+                otra farmacia. Al terminar quedan sembrados los datos mínimos
+                (unidad de medida, laboratorio, categoría y métodos de pago) para poder
+                volver a operar, y su sesión sigue siendo válida.
               </div>
             </div>
 
             <form @submit.prevent="onSubmit" autocomplete="off">
               <div class="row g-4">
-                <!-- Nuevo administrador -->
+                <!-- Qué se conserva -->
                 <div class="col-12 col-lg-6">
                   <div class="card h-100">
                     <div class="card-header fw-semibold">
-                      <i class="fal fa-user-shield me-1"></i> Nuevo administrador
+                      <i class="fal fa-shield-alt me-1"></i> Qué se conserva
                     </div>
                     <div class="card-body">
-                      <div class="mb-3">
-                        <label class="form-label">Nombre completo</label>
-                        <input type="text" class="form-control" v-model.trim="form.NewAdminFullName"
-                               placeholder="Nombre del administrador" autocomplete="off" />
-                      </div>
-                      <div class="mb-3">
-                        <label class="form-label">Correo electrónico</label>
-                        <input type="email" class="form-control" v-model.trim="form.NewAdminEmail"
-                               placeholder="admin@empresa.com" autocomplete="off" />
-                      </div>
-                      <div class="mb-3">
-                        <label class="form-label">Contraseña</label>
-                        <input type="password" class="form-control" v-model="form.NewAdminPassword"
-                               placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
-                      </div>
-                      <div class="mb-0">
-                        <label class="form-label">Repetir contraseña</label>
-                        <input type="password" class="form-control" v-model="confirmPassword"
-                               placeholder="Repita la contraseña" autocomplete="new-password" />
-                        <small v-if="confirmPassword && confirmPassword !== form.NewAdminPassword"
-                               class="text-danger">Las contraseñas no coinciden.</small>
-                      </div>
+                      <ul class="mb-0 ps-3">
+                        <li class="mb-2">Los <strong>usuarios</strong> de la farmacia y sus contraseñas.</li>
+                        <li class="mb-2">Los <strong>roles y permisos</strong> configurados.</li>
+                        <li class="mb-2">Los <strong>datos de las demás farmacias</strong>, que no se tocan.</li>
+                        <li class="mb-0">
+                          Un <strong>respaldo</strong> de lo borrado, salvo que lo omita más abajo.
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
@@ -118,32 +107,22 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import useAdmin from '@/modules/user-account/composables/useAdmin';
-import { useAuthStore } from '@/modules/auth/stores/auth.store';
 import utils from '@/utils/msg';
 
 const router = useRouter();
-const authStore = useAuthStore();
 const { resetCompany } = useAdmin();
 
 const expectedPhrase = 'RESETEAR EMPRESA';
 
 const form = ref({
-  NewAdminFullName: '',
-  NewAdminEmail: '',
-  NewAdminPassword: '',
   CurrentPassword: '',
   ConfirmationPhrase: '',
 });
-const confirmPassword = ref('');
 const createBackup = ref(true);
 
 const phraseOk = computed(() => form.value.ConfirmationPhrase.trim() === expectedPhrase);
 
 const canSubmit = computed(() =>
-  form.value.NewAdminFullName.length > 0 &&
-  form.value.NewAdminEmail.length > 0 &&
-  form.value.NewAdminPassword.length >= 6 &&
-  confirmPassword.value === form.value.NewAdminPassword &&
   form.value.CurrentPassword.length > 0 &&
   phraseOk.value
 );
@@ -154,24 +133,21 @@ const onSubmit = async () => {
   if (!canSubmit.value) return;
 
   const confirmed = await utils.showMessageQuestion(
-    '¿Está TOTALMENTE seguro? Se eliminarán todos los datos de la empresa actual de forma irreversible.'
+    '¿Está TOTALMENTE seguro? Se eliminarán todos los datos de negocio de esta farmacia de forma irreversible.'
   );
   if (!confirmed) return;
 
   const { ok, Message } = await resetCompany({
     CurrentPassword: form.value.CurrentPassword,
     ConfirmationPhrase: form.value.ConfirmationPhrase.trim(),
-    NewAdminEmail: form.value.NewAdminEmail,
-    NewAdminFullName: form.value.NewAdminFullName,
-    NewAdminPassword: form.value.NewAdminPassword,
     SkipBackup: !createBackup.value,
   });
 
   if (ok) {
     await utils.showMessage(Message);
-    // El usuario actual fue eliminado: cerrar sesión y volver al login.
-    authStore.logout();
-    router.push({ name: 'login' });
+    // La sesión sigue siendo válida: el reinicio conserva los usuarios. Se vuelve
+    // al inicio porque las pantallas abiertas quedaron con datos que ya no existen.
+    router.push({ name: 'inventory' });
   }
 };
 </script>

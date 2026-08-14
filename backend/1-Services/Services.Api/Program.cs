@@ -22,6 +22,7 @@ using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using Services.Api.jwt;
+using Services.Api.Middleware;
 using Services.Api.Security;
 using Sqids;
 
@@ -105,6 +106,11 @@ builder.Services.AddSwaggerGen(
         });
     }
 );
+
+// Tenant del request. Scoped: una instancia por llamada, poblada por
+// TenantResolutionMiddleware a partir del claim del JWT.
+builder.Services.AddScoped<Common.Utilities.MultiTenancy.ITenantContext,
+                           Common.Utilities.MultiTenancy.TenantContext>();
 
 // Injeccion de dependencias Seguridad
 builder.Services.AddInjectionSecurityInfraestructure();
@@ -241,6 +247,9 @@ if (app.Environment.IsDevelopment())
 app.UseCors("MisCors");
 app.UseHttpsRedirection();
 app.UseAuthentication();
+// Después de UseAuthentication: necesita los claims ya resueltos para leer el
+// tenant. Antes de los controladores, que abren conexiones a la base.
+app.UseTenantResolution();
 app.UseAuthorization();
 // Después de UseCors para que la respuesta 429 lleve las cabeceras CORS y el
 // navegador pueda leer el mensaje en vez de reportar un error de red.

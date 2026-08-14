@@ -2,6 +2,7 @@ using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
 using Seguridad.Domain.Entities.requests;
+using Seguridad.Domain.Entities.responses;
 
 namespace Seguridad.Infrastructure;
 
@@ -11,20 +12,47 @@ public class AdminRepository(SeguridadDbContext _context) : IAdminRepository
     public const string SuperAdminRole = "SuperAdmin";
 
     /// <summary>
-    /// Tablas que NO se truncan: estructura de menús/permisos, lookups del sistema,
-    /// registro de auditoría y tablas generadoras de contadores.
+    /// Datos de negocio de una farmacia, <b>ordenados de tablas hijas a padres</b>.
     /// </summary>
-    private static readonly HashSet<string> PreservedTables =
+    /// <remarks>
+    /// El orden es obligatorio y no es cosmético. La versión anterior usaba
+    /// <c>TRUNCATE ... CASCADE</c>, que resolvía las dependencias por su cuenta pero
+    /// es justamente la sentencia que Row-Level Security <b>no</b> filtra: en
+    /// multi-tenant habría borrado los datos de todas las farmacias. Con
+    /// <c>DELETE</c> el aislamiento lo aplica la política, pero las claves foráneas
+    /// vuelven a importar.
+    /// <para>
+    /// Quedan deliberadamente fuera: <c>sec.forms</c>, <c>sec.modules</c> y
+    /// <c>public.purchases_status</c> (catálogos globales), <c>public.sequences_key</c>
+    /// (generador global de claves primarias), <c>public.zlogs_app</c> (auditoría),
+    /// el schema <c>siat</c> (sin tenant_id y fuera de alcance) y todo <c>sec</c>
+    /// relativo a usuarios, roles y permisos, que el reinicio conserva.
+    /// </para>
+    /// </remarks>
+    private static readonly (string Schema, string Table)[] TenantDataTables =
     [
-        "public.sequences_key",     // contadores (se reinician con UPDATE)
-        "public.zlogs_app",         // logs de auditoría (se conservan)
-        "public.purchases_status",  // lookup de estados de compra (referenciado por enum)
-        "sec.forms",                // estructura de formularios/menús
-        "sec.modules",              // módulos
-        "sec.roles",                // definición de roles/permisos
-        "sec.roles_forms",          // asignación de formularios a roles
-        "siat.llaves_primarias",    // generador de PKs SIAT (se reinicia con UPDATE)
-        "siat.secuencia_facturas"   // secuencia de facturas SIAT (se reinicia con UPDATE)
+        ("public", "cash_movements"),
+        ("public", "sale_detail_discounts"),
+        ("public", "sale_payments"),
+        ("public", "sale_return_detail"),
+        ("public", "sale_returns"),
+        ("public", "sales_detail"),
+        ("public", "sales"),
+        ("public", "cash_sessions"),
+        ("public", "stock_movements"),
+        ("public", "purchases_delivery_detail"),
+        ("public", "purchases_delivery"),
+        ("public", "purchases_detail"),
+        ("public", "purchases"),
+        ("public", "products_providers"),
+        ("public", "products"),
+        ("public", "discounts"),
+        ("public", "customers"),
+        ("public", "providers"),
+        ("public", "categories"),
+        ("public", "laboratories"),
+        ("public", "unit_of_measurement"),
+        ("public", "payment_methods")
     ];
 
     private static string Q(string ident) => "\"" + ident.Replace("\"", "\"\"") + "\"";
@@ -47,6 +75,66 @@ public class AdminRepository(SeguridadDbContext _context) : IAdminRepository
             return await db.ExecuteScalarAsync<bool>(query, new { UserId = userId, RoleName = roleName });
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<bool> UserIsPlatformAdmin(int userId)
+    {
+        using var db = _context.CreateConnection;
+        try
+        {
+            db.Open();
+            return await db.ExecuteScalarAsync<bool>(
+                "SELECT COALESCE(is_platform_admin, false) FROM sec.users WHERE id = @UserId AND is_active",
+                new { UserId = userId });
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<CreateTenantResponse> CreateTenant(CreateTenantRequest request)
+    {
+        using var db = _context.CreateConnection;
+        try
+        {
+            db.Open();
+
+            // El hash se calcula acá y no en SQL: replicar PBKDF2-SHA512 en la base
+            // sería una fuente de divergencia silenciosa el día que cambien las
+            // iteraciones o el formato.
+            string hash = Common.Utilities.Cryptography.Hash.HashPassword(request.AdminPassword);
+
+            // La función es SECURITY DEFINER: crear una farmacia cruza tenants por
+            // definición, y con RLS activo cada INSERT para la farmacia nueva
+            // rebotaría contra WITH CHECK si se hiciera desde la sesión del que llama.
+            // Valida slug y correo duplicados por su cuenta, y es transaccional.
+            int tenantId = await db.ExecuteScalarAsync<int>(
+                "SELECT sec.fn_provision_tenant(@Name, @Slug, @Email, @FullName, @Password)",
+                new
+                {
+                    Name = request.Name.Trim(),
+                    Slug = request.Slug.Trim().ToLowerInvariant(),
+                    Email = request.AdminEmail.Trim().ToLowerInvariant(),
+                    FullName = request.AdminFullName.Trim(),
+                    Password = hash
+                });
+
+            return new CreateTenantResponse
+            {
+                TenantId = tenantId,
+                Name = request.Name.Trim(),
+                Slug = request.Slug.Trim().ToLowerInvariant(),
+                AdminEmail = request.AdminEmail.Trim().ToLowerInvariant()
+            };
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+        {
+            // RAISE EXCEPTION de fn_provision_tenant: slug repetido, correo ya usado
+            // en otra farmacia o nombre vacío. Son mensajes pensados para el usuario.
+            throw new CustomException(ex.MessageText);
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<CreateTenantResponse>(ex); }
         finally { db.Close(); }
     }
 
@@ -80,108 +168,68 @@ public class AdminRepository(SeguridadDbContext _context) : IAdminRepository
                 if (!Common.Utilities.Cryptography.Hash.VerifyPassword((string)me.password, request.CurrentPassword))
                     throw new CustomException("La contraseña actual es incorrecta.");
 
-                // 2) Determinar dinámicamente las tablas a truncar (todo public/sec/siat menos las preservadas).
-                var rows = await db.QueryAsync(
-                    "SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public','sec','siat')",
-                    transaction: transaction);
+                // 2) Tenant sobre el que se opera. No hace falta filtrar por él en cada
+                //    sentencia: con RLS activo, un DELETE sin WHERE ya alcanza solo las
+                //    filas de esta farmacia. Se lee únicamente para nombrar el respaldo.
+                int tenantId = await db.ExecuteScalarAsync<int>(
+                    "SELECT public.current_tenant()", transaction: transaction);
 
-                var toProcess = new List<(string Schema, string Table)>();
-                foreach (var r in rows)
-                {
-                    string schema = (string)r.schemaname;
-                    string table = (string)r.tablename;
-                    if (!PreservedTables.Contains($"{schema}.{table}"))
-                        toProcess.Add((schema, table));
-                }
+                if (tenantId <= 0)
+                    throw new CustomException("No se pudo determinar la farmacia de la sesión.");
 
-                // 3) Respaldo previo: copia de los datos a un esquema backup_<timestamp> (misma BD).
-                string backupSchema = "";
+                // 3) Respaldo previo en el schema 'backup'. El SELECT que lo alimenta
+                //    también está filtrado por RLS, así que la copia contiene solo las
+                //    filas de esta farmacia.
+                string backupPrefix = "";
                 if (!request.SkipBackup)
                 {
-                    backupSchema = "backup_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    await db.ExecuteAsync($"CREATE SCHEMA {Q(backupSchema)}", transaction: transaction);
-                    foreach (var (schema, table) in toProcess)
+                    backupPrefix = $"t{tenantId}_{DateTime.Now:yyyyMMdd_HHmmss}";
+                    foreach (var (schema, table) in TenantDataTables)
                     {
-                        string dest = $"{Q(backupSchema)}.{Q($"{schema}__{table}")}";
+                        string dest = $"backup.{Q($"{backupPrefix}__{schema}__{table}")}";
                         string src = $"{Q(schema)}.{Q(table)}";
                         await db.ExecuteAsync($"CREATE TABLE {dest} AS TABLE {src}", transaction: transaction);
                     }
                 }
 
-                // 4) Truncar todas las tablas de datos (reinicia identity/serial y respeta FKs con CASCADE).
-                if (toProcess.Count > 0)
-                {
-                    string list = string.Join(", ", toProcess.Select(t => $"{Q(t.Schema)}.{Q(t.Table)}"));
-                    await db.ExecuteAsync($"TRUNCATE TABLE {list} RESTART IDENTITY CASCADE", transaction: transaction);
-                }
+                // 4) Borrar los datos de negocio de ESTA farmacia.
+                //
+                //    Antes esto era un TRUNCATE ... CASCADE. En multi-tenant eso es
+                //    catastrófico: TRUNCATE es la única sentencia de datos que RLS NO
+                //    filtra, así que habría borrado las filas de todas las farmacias.
+                //
+                //    DELETE sí pasa por la política, de modo que cada sentencia alcanza
+                //    solo lo propio. A cambio hay que respetar el orden de las claves
+                //    foráneas, que CASCADE resolvía solo: por eso TenantDataTables está
+                //    ordenada de hijas a padres.
+                foreach (var (schema, table) in TenantDataTables)
+                    await db.ExecuteAsync($"DELETE FROM {Q(schema)}.{Q(table)}", transaction: transaction);
 
-                // 5) Reiniciar contadores manuales (no cubiertos por RESTART IDENTITY).
-                await db.ExecuteAsync(
-                    @"UPDATE public.sequences_key SET sequence_id = 0
-                       WHERE table_name IN ('sec.users','sec.users_login','sec.users_resetpass')",
-                    transaction: transaction);
-                await db.ExecuteAsync("UPDATE siat.llaves_primarias SET secuencia = 0", transaction: transaction);
-                await db.ExecuteAsync("UPDATE siat.secuencia_facturas SET secuencia = 0", transaction: transaction);
+                // 5) public.sequences_key NO se reinicia: es un generador GLOBAL de
+                //    claves primarias compartido por todas las farmacias. Reiniciarlo
+                //    haría que la siguiente farmacia en crear un usuario colisionara
+                //    contra pk_user.
+                //
+                //    Las tablas de siat quedan fuera por partida doble: no tienen
+                //    tenant_id y la facturación electrónica está fuera de alcance.
 
-                // 6) Garantizar el rol SuperAdmin y que tenga acceso a todos los formularios/menús.
-                int? rolId = await db.ExecuteScalarAsync<int?>(
-                    "SELECT id FROM sec.roles WHERE LOWER(name_rol) = LOWER(@N) AND state LIMIT 1",
-                    new { N = SuperAdminRole }, transaction);
+                // 6) Dejar la farmacia operativa: sin unidad de medida ni laboratorio no
+                //    se puede registrar un producto, y sin método de pago no se puede
+                //    vender. Es la misma siembra que usa el alta de una farmacia nueva.
+                await db.ExecuteAsync("SELECT sec.fn_seed_tenant_master_data(@T)",
+                    new { T = tenantId }, transaction);
 
-                if (rolId is null or 0)
-                {
-                    int newRolId = await db.ExecuteScalarAsync<int>(
-                        "SELECT set_sequences_key(@T)", new { T = "sec.roles" }, transaction);
-                    await db.ExecuteAsync(
-                        @"INSERT INTO sec.roles (id, name_rol, description, state, created_by, created, modified_by, modified)
-                          VALUES (@Id, @N, 'Super administrador del sistema', true, 1, now(), 1, now())",
-                        new { Id = newRolId, N = SuperAdminRole }, transaction);
-                    rolId = newRolId;
-                }
-
-                await db.ExecuteAsync(
-                    @"INSERT INTO sec.roles_forms
-                          (rol_id, form_id, can_create, can_read, can_update, can_delete, state, created_by, created, modified_by, modified)
-                      SELECT @RolId, f.id, true, true, true, true, true, 1, now(), 1, now()
-                        FROM sec.forms f
-                       WHERE f.state
-                         AND NOT EXISTS (SELECT 1 FROM sec.roles_forms rf WHERE rf.rol_id = @RolId AND rf.form_id = f.id)",
-                    new { RolId = rolId }, transaction);
-
-                await db.ExecuteAsync(
-                    @"UPDATE sec.roles_forms
-                         SET state = true, can_create = true, can_read = true, can_update = true, can_delete = true, modified = now()
-                       WHERE rol_id = @RolId",
-                    new { RolId = rolId }, transaction);
-
-                // 7) Crear el nuevo administrador de la empresa nueva y asignarle el rol SuperAdmin.
-                int newUserId = await db.ExecuteScalarAsync<int>(
-                    "SELECT set_sequences_key(@T)", new { T = "sec.users" }, transaction);
-                string hash = Common.Utilities.Cryptography.Hash.HashPassword(request.NewAdminPassword);
-
-                await db.ExecuteAsync(
-                    @"INSERT INTO sec.users
-                          (id, user_name, password, email, full_name, last_access, change_password, is_active, created_by, created, modified_by, modified, uuid)
-                      VALUES
-                          (@Id, @UserName, @Password, @Email, @FullName, now(), false, true, @Cb, now(), @Cb, now(), @Uuid)",
-                    new
-                    {
-                        Id = newUserId,
-                        UserName = request.NewAdminEmail,
-                        Password = hash,
-                        Email = request.NewAdminEmail,
-                        FullName = request.NewAdminFullName,
-                        Cb = newUserId,
-                        Uuid = Guid.NewGuid()
-                    }, transaction);
-
-                await db.ExecuteAsync(
-                    @"INSERT INTO sec.users_roles (user_id, rol_id, state, created_by, created, modified_by, modified)
-                      VALUES (@UserId, @RolId, true, @UserId, now(), @UserId, now())",
-                    new { UserId = newUserId, RolId = rolId }, transaction);
+                // 7) Los usuarios, roles y permisos de la farmacia NO se tocan.
+                //
+                //    En la versión de un solo cliente, reiniciar borraba también los
+                //    usuarios y creaba un administrador nuevo, porque "reiniciar" era
+                //    literalmente empezar de cero con otra empresa. En multi-tenant eso
+                //    dejaría a la farmacia sin acceso a su propia cuenta: quien ejecuta
+                //    el reinicio se borraría a sí mismo. Acá reiniciar significa vaciar
+                //    los datos de negocio, no rehacer la organización.
 
                 transaction.Commit();
-                return backupSchema;
+                return backupPrefix;
             }
             catch (CustomException ex) { transaction.Rollback(); throw new CustomException(ex.Message, ex); }
             catch (Exception ex) { transaction.Rollback(); throw new Exception(ex.Message, ex); }

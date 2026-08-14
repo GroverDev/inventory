@@ -31,10 +31,16 @@ services:
     restart: always
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      # Cadenas de conexión — apuntan al servicio "db" de esta red interna
-      ConnectionStrings__InventoryConnection:   "Server=db;Database=punto_venta_pg;User Id=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
-      ConnectionStrings__SeguridadConnection:   "Host=db;Database=punto_venta_pg;Username=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
-      ConnectionStrings__FacturacionConnection: "Server=db;Database=punto_venta_pg;User Id=${DB_USER};Password=${DB_PASSWORD};Port=5432;"
+      # Cadena de conexión única — apunta al servicio "db" de esta red interna.
+      #
+      # Usa APP_DB_USER, no DB_USER. Son roles distintos a propósito:
+      #   DB_USER      superusuario del contenedor; crea la base y corre migraciones.
+      #   APP_DB_USER  rol de la aplicación (app_pos), sin superusuario ni BYPASSRLS.
+      #
+      # Row-Level Security NO se aplica a superusuarios. Si la API se conecta con
+      # DB_USER, las políticas de aislamiento entre farmacias quedan inertes y
+      # cada cliente vería los datos de los demás, sin ningún error visible.
+      ConnectionStrings__DefaultConnection: "Host=db;Database=punto_venta_pg;Username=${APP_DB_USER};Password=${APP_DB_PASSWORD};Port=5432;"
       # JWT
       JwtSettings__Secret:    ${JWT_SECRET}
       JwtSettings__Issuer:    ${JWT_ISSUER}

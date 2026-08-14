@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,7 +38,7 @@ public class SalesController(
 
         bool supervisorApproved = ValidateSupervisorToken(saleRequest.SupervisorAuthToken);
 
-        var respuesta = await _salesApplication.CreateSale(saleRequest, datos.UserId, datos.Rol, supervisorApproved);
+        var respuesta = await _salesApplication.CreateSale(saleRequest, datos.UserId, datos.Roles, supervisorApproved);
         return respuesta;
     }
 
@@ -73,7 +73,7 @@ public class SalesController(
         var datos = TokenData.GetData(HttpContext);
         if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
 
-        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Rol, page, pageSize, sellerName);
+        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Roles, page, pageSize, sellerName);
     }
 
     // GET api/Sales/GUID

@@ -4,9 +4,6 @@ import type { ResponseObject } from '@/modules/common/models';
 export interface ResetCompanyPayload {
   CurrentPassword: string;
   ConfirmationPhrase: string;
-  NewAdminEmail: string;
-  NewAdminFullName: string;
-  NewAdminPassword: string;
   SkipBackup: boolean;
 }
 

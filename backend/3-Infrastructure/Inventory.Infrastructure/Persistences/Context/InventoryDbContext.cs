@@ -1,19 +1,24 @@
-﻿using System.Data;
+using System.Data;
+using Common.Utilities.MultiTenancy;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 
 namespace Inventory.Infrastructure;
 
 public class InventoryDbContext
 {
-    private readonly IConfiguration _configuration;
     private readonly string _connectionString;
+    private readonly ITenantContext _tenant;
 
-    public InventoryDbContext(IConfiguration configuration)
+    public InventoryDbContext(IConfiguration configuration, ITenantContext tenant)
     {
-        _configuration = configuration;
-        _connectionString = _configuration.GetConnectionString("InventoryConnection")!;
+        _tenant = tenant;
+        _connectionString = ConnectionStringResolver.Resolve(configuration);
     }
 
-    public IDbConnection CreateConnection => new NpgsqlConnection(_connectionString);
+    /// <summary>
+    /// Conexión a los datos de negocio. Exige tenant resuelto: acá no hay ningún
+    /// caso legítimo sin él.
+    /// </summary>
+    public IDbConnection CreateConnection =>
+        TenantConnectionFactory.Create(_connectionString, _tenant, requiereTenant: true);
 }

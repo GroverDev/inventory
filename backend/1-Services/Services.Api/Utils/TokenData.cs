@@ -35,9 +35,25 @@ public class TokenData
         {
             datos.Rol = currentUser.Claims.FirstOrDefault(c => c.Type == CONST.ROL)!.Value;
         }
+        if (currentUser.HasClaim(c => c.Type == CONST.ROLES))
+        {
+            datos.Roles = currentUser.Claims.FirstOrDefault(c => c.Type == CONST.ROLES)!.Value;
+        }
+        else
+        {
+            // Token emitido antes de existir el claim Roles: el rol efectivo es lo
+            // único disponible, y como lista de un elemento produce el mismo
+            // resultado que antes. Evita invalidar las sesiones vigentes.
+            datos.Roles = datos.Rol;
+        }
         if (currentUser.HasClaim(c => c.Type == CONST.EMAIL))
         {
             datos.Email = currentUser.Claims.FirstOrDefault(c => c.Type == CONST.EMAIL)!.Value;
+        }
+        if (currentUser.HasClaim(c => c.Type == CONST.TENANT_ID))
+        {
+            _ = int.TryParse(currentUser.Claims.FirstOrDefault(c => c.Type == CONST.TENANT_ID)!.Value, out int tenantId);
+            datos.TenantId = tenantId;
         }
             
 

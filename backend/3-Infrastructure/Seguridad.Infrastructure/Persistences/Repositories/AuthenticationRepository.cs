@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -11,29 +11,18 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
     public async Task<LoginResponse> Login(LoginRequest login)
     {
         var usuario = new LoginResponse();
-        using var db = _context.CreateConnection;
+        // Única consulta del sistema que corre sin tenant: todavía no sabemos a
+        // qué farmacia pertenece quien está intentando entrar.
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();
             var dtDatos = new DataTable();
-            const string query = @"
-                SELECT u.id    as user_id,
-                       u.user_name,
-                       u.change_password,
-                       u.is_active,
-                       u.email,
-                       u.full_name,
-                       u.uuid,
-                       u.password,
-                       COALESCE(m.is_enabled,  false) AS mfa_enabled,
-                       COALESCE(m.is_required, false) AS mfa_required,
-                       COALESCE(r.id,       0)        AS rol_id,
-                       COALESCE(r.name_rol, '')       AS rol_name
-                FROM sec.users u
-                LEFT JOIN sec.user_mfa    m  ON m.user_id = u.id AND m.mfa_type = 'totp'
-                LEFT JOIN sec.users_roles ur ON ur.user_id = u.id AND ur.state
-                LEFT JOIN sec.roles       r  ON r.id = ur.rol_id  AND r.state
-                WHERE u.email = @email AND u.is_active";
+            // No consulta sec.users directamente: esa tabla está bajo RLS y acá
+            // todavía no se sabe el tenant. La función es la única excepción
+            // declarada del sistema, y además deja app.tenant_id fijado en esta
+            // conexión para todo lo que siga.
+            const string query = "SELECT * FROM sec.fn_auth_lookup(@email, NULL)";
 
             var reader = await db.ExecuteReaderAsync(query, new { email = login.Email });
             dtDatos.Load(reader);
@@ -59,8 +48,10 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             usuario.FullName = fila["full_name"].ToString() ?? "";
             int userId = fila["user_id"].ToString() != "" ? Convert.ToInt32(fila["user_id"].ToString()) : 0;
             usuario.UserId = userId;
+            usuario.TenantId = fila["tenant_id"].ToString() != "" ? Convert.ToInt32(fila["tenant_id"].ToString()) : 0;
             usuario.RolId = fila["rol_id"].ToString() != "" ? Convert.ToInt32(fila["rol_id"].ToString()) : 0;
             usuario.RolName = fila["rol_name"].ToString() ?? "";
+            usuario.Roles = fila["roles"].ToString() ?? "";
 
             bool mfaEnabled = Convert.ToBoolean(fila["mfa_enabled"].ToString());
             bool mfaRequired = Convert.ToBoolean(fila["mfa_required"].ToString());
@@ -102,7 +93,8 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
 
     public async Task<int> RecentFailedAttempts(string email, int withinMinutes)
     {
-        using var db = _context.CreateConnection;
+        // Sin tenant: corre antes de autenticar, para decidir si exigir captcha.
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();
@@ -130,20 +122,16 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
     public async Task<LoginResponse> CompleteLoginWithTotp(int userId, TotpVerifyRequest request)
     {
         var usuario = new LoginResponse();
-        using var db = _context.CreateConnection;
+        // Sin tenant: la verificación del TOTP ocurre con el token intermedio de
+        // 2FA, que todavía no lleva el claim de tenant.
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();
             var dt = new DataTable();
-            const string query = @"
-                SELECT u.id as user_id, u.user_name, u.change_password, u.email, u.full_name, u.uuid,
-                       COALESCE(r.id,       0)  AS rol_id,
-                       COALESCE(r.name_rol, '') AS rol_name
-                FROM sec.users u
-                JOIN sec.user_mfa    m  ON m.user_id = u.id AND m.mfa_type = 'totp'
-                LEFT JOIN sec.users_roles ur ON ur.user_id = u.id AND ur.state
-                LEFT JOIN sec.roles       r  ON r.id = ur.rol_id  AND r.state
-                WHERE u.id = @user_id AND u.is_active AND m.is_enabled = true";
+            // Igual que en Login: sec.users está bajo RLS y el token intermedio
+            // de 2FA todavía no trae tenant. La función lo resuelve y lo fija.
+            const string query = "SELECT * FROM sec.fn_auth_lookup(NULL, @user_id)";
 
             var reader = await db.ExecuteReaderAsync(query, new { user_id = userId });
             dt.Load(reader);
@@ -151,8 +139,13 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             if (dt.Rows.Count == 0)
                 throw new CustomException("Usuario no encontrado o TOTP no habilitado.");
 
+            // La función no filtra por TOTP habilitado: se valida acá.
+            if (!Convert.ToBoolean(dt.Rows[0]["mfa_enabled"]))
+                throw new CustomException("Usuario no encontrado o TOTP no habilitado.");
+
             var fila = dt.Rows[0];
             usuario.UserId = userId;
+            usuario.TenantId = fila["tenant_id"].ToString() != "" ? Convert.ToInt32(fila["tenant_id"].ToString()) : 0;
             usuario.Email = fila["email"].ToString() ?? "";
             usuario.UserName = fila["user_name"].ToString() ?? "";
             usuario.Uuid = fila["uuid"].ToString() ?? Guid.Empty.ToString();
@@ -160,6 +153,7 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             usuario.FullName = fila["full_name"].ToString() ?? "";
             usuario.RolId = fila["rol_id"].ToString() != "" ? Convert.ToInt32(fila["rol_id"].ToString()) : 0;
             usuario.RolName = fila["rol_name"].ToString() ?? "";
+            usuario.Roles = fila["roles"].ToString() ?? "";
 
             var loginRequest = new LoginRequest
             {
@@ -223,7 +217,9 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
 
     protected async Task<int> GetSessionId(LoginRequest login, int userId, bool loginSuccess)
     {
-        using var db = _context.CreateConnection;
+        // Sin tenant: registra el intento fallido, incluido el de correos que no
+        // existen en ninguna farmacia.
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();

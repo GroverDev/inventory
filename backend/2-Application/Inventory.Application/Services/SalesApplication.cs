@@ -48,8 +48,10 @@ public class SalesApplication(
                         : Math.Min(headerDiscount.Value, subtotalAfterLineDiscounts);
                 }
 
-                // Enforce manual discount limits for cashiers (omitir si un supervisor ya autorizó)
-                if (userRole == "Cajero" && !supervisorApproved)
+                // Enforce manual discount limits for cashiers (omitir si un supervisor ya autorizó).
+                // `userRole` llega con todos los roles: quien además de Cajero tiene un
+                // rol administrativo no necesita autorización de supervisor.
+                if (Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(userRole) && !supervisorApproved)
                 {
                     var cfg = _posSettings.Value;
                     foreach (var line in saleRequest.Detail)
@@ -205,8 +207,12 @@ public class SalesApplication(
             if (Convert.ToDateTime(saleDateInitial) > Convert.ToDateTime(saleDateEnd))
                 throw new CustomException("Fecha desde, no puede ser mayor a la Fecha hasta.", MessageTypes.Warning);
 
-            int? filterUserId   = rol == "Cajero" ? userId : null;
-            string? filterSeller = rol == "Cajero" ? null  : sellerName;
+            // `rol` llega con todos los roles del usuario separados por coma. La
+            // regla —restringido solo si Cajero es su único rol— vive en RolePolicy.
+            bool soloLoPropio = Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(rol);
+
+            int? filterUserId    = soloLoPropio ? userId : null;
+            string? filterSeller = soloLoPropio ? null   : sellerName;
 
             response.Data = await _salesRepository.GetSales(
                 Convert.ToDateTime(saleDateInitial),

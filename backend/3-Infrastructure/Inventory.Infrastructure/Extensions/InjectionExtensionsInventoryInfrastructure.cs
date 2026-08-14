@@ -8,7 +8,10 @@ public static class InjectionExtensionsInventoryInfraestructure
 {
     public static IServiceCollection AddInjectionInventoryInfraestructure(this IServiceCollection services)
     {
-        services.AddSingleton<InventoryDbContext>();
+        // Scoped, no Singleton: el contexto depende del tenant del request, que
+        // cambia en cada llamada. Como Singleton quedaría fijado al primer tenant
+        // que entre y todos los demás leerían sus datos.
+        services.AddScoped<InventoryDbContext>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ICustomersRepository, CustomersRepository>();
         services.AddScoped<ILaboratoryRepository, LaboratoryRepository>();

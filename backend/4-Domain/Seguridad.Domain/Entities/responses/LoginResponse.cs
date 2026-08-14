@@ -3,6 +3,10 @@
 public class LoginResponse
 {
         public int UserId { get; set; }
+
+        /// <summary>Tenant al que pertenece el usuario. Viaja en el JWT.</summary>
+        public int TenantId { get; set; }
+
         public string Uuid { get; set; } = Guid.Empty.ToString();
         public int SesionId { get; set; }
         public string FullName { get; set; }="";
@@ -20,6 +24,12 @@ public class LoginResponse
         public bool RequireTotp { get; set; }
         public bool TotpSetupRequired { get; set; }
         public string TotpSessionToken { get; set; }="";
+        /// <summary>Rol efectivo. Vale 'Cajero' solo si es el único rol del usuario.</summary>
         public int RolId { get; set; }
+
+        /// <inheritdoc cref="RolId"/>
         public string RolName { get; set; } = "";
+
+        /// <summary>Todos los roles activos, separados por coma.</summary>
+        public string Roles { get; set; } = "";
 }

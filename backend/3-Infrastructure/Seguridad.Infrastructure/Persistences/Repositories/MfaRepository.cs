@@ -10,9 +10,12 @@ public class MfaRepository(SeguridadDbContext _context, IOptions<MfaSettings> _o
 {
     private static readonly char[] RecoveryCodeChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".ToCharArray();
 
+    // Los cuatro métodos siguientes son alcanzables desde /Mfa/verify y
+    // /Mfa/verify-recovery, que son anónimos: el usuario ya probó su contraseña
+    // pero todavía no tiene JWT completo, así que no hay claim de tenant.
     public async Task<MfaInfo?> GetTotpMfa(int userId)
     {
-        using var db = _context.CreateConnection;
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();
@@ -149,7 +152,7 @@ public class MfaRepository(SeguridadDbContext _context, IOptions<MfaSettings> _o
 
     public async Task RecordFailure(int mfaId, int maxAttempts, int lockoutMinutes)
     {
-        using var db = _context.CreateConnection;
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();
@@ -170,7 +173,7 @@ public class MfaRepository(SeguridadDbContext _context, IOptions<MfaSettings> _o
 
     public async Task ResetAttempts(int mfaId)
     {
-        using var db = _context.CreateConnection;
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();
@@ -185,7 +188,7 @@ public class MfaRepository(SeguridadDbContext _context, IOptions<MfaSettings> _o
 
     public async Task<bool> UseRecoveryCode(int userId, string normalizedCode)
     {
-        using var db = _context.CreateConnection;
+        using var db = _context.CreateAuthConnection;
         try
         {
             db.Open();

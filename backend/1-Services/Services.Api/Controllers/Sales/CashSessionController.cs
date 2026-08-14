@@ -1,4 +1,4 @@
-using Common.Utilities;
+﻿using Common.Utilities;
 using Inventory.Application;
 using Inventory.Domain;
 using Microsoft.AspNetCore.Authorization;
@@ -40,7 +40,7 @@ public class CashSessionController(
     {
         var datos = TokenData.GetData(HttpContext);
         if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
-        return await _cashSessionApplication.GetSessions(dateFrom, dateTo, datos.UserId, datos.Rol);
+        return await _cashSessionApplication.GetSessions(dateFrom, dateTo, datos.UserId, datos.Roles);
     }
 
     // POST api/CashSession/open

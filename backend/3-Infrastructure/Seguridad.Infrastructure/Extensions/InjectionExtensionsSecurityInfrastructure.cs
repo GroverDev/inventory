@@ -6,7 +6,8 @@ public static class InjectionExtensionsSecurityInfrastructure
 {
     public static IServiceCollection AddInjectionSecurityInfraestructure(this IServiceCollection services)
     {
-        services.AddSingleton<SeguridadDbContext>();
+        // Scoped, no Singleton: ver la nota en el equivalente de Inventory.
+        services.AddScoped<SeguridadDbContext>();
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();

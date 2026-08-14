@@ -48,8 +48,7 @@ antes de publicar: las capturas de la ficha son públicas e indexables.
 # 1. API contra la base de demostración
 cd backend/1-Services/Services.Api
 ASPNETCORE_ENVIRONMENT=Development \
-ConnectionStrings__InventoryConnection="Server=localhost;Database=punto_venta_demo;User Id=postgres;Password=***;Port=5432;" \
-ConnectionStrings__SeguridadConnection="Host=localhost;Database=punto_venta_demo;Username=postgres;Password=***;Port=5432;" \
+ConnectionStrings__DefaultConnection="Host=localhost;Database=punto_venta_demo;Username=postgres;Password=***;Port=5432;" \
 dotnet run --no-launch-profile
 
 # 2. App en debug apuntando al host desde el emulador

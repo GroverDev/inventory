@@ -9,7 +9,6 @@ public class CashSessionApplication(
     ICashSessionRepository _cashSessionRepository,
     ICashMovementRepository _cashMovementRepository) : ICashSessionApplication
 {
-    private const string ROL_CAJERO = "Cajero";
 
     public async Task<Response<string>> OpenSession(OpenCashSessionRequest request, int userId)
     {
@@ -123,8 +122,8 @@ public class CashSessionApplication(
             if (from > to)
                 throw new CustomException("La fecha desde no puede ser mayor a la fecha hasta.", MessageTypes.Warning);
 
-            // Cajero solo ve sus propias sesiones
-            int? filterUserId = rol == ROL_CAJERO ? userId : null;
+            // Cajero solo ve sus propias sesiones, y solo si Cajero es su único rol.
+            int? filterUserId = Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(rol) ? userId : null;
 
             resp.Data = await _cashSessionRepository.GetSessions(from, to, filterUserId);
             resp.ok = true;
