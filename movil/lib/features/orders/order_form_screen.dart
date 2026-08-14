@@ -19,6 +19,10 @@ class OrderFormScreen extends StatefulWidget {
 }
 
 class _OrderFormScreenState extends State<OrderFormScreen> {
+  /// Un pedido nuevo siempre nace en Solicitado; el servidor lo impone al
+  /// insertar, sin importar lo que se le mande.
+  static const int _requestedStatusId = PurchaseStatusIds.requested;
+
   List<NamedItem> _providers = [];
   List<PurchaseStatus> _statuses = [];
   NamedItem? _provider;
@@ -48,7 +52,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
       setState(() {
         _providers = results[0] as List<NamedItem>;
         _statuses = results[1] as List<PurchaseStatus>;
-        _status = _statuses.isNotEmpty ? _statuses.first : null;
+        _status =
+            _statuses.where((s) => s.id == _requestedStatusId).firstOrNull;
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -94,7 +99,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
     final req = PurchaseRequest(
       providerId: _provider!.id,
       providerName: _provider!.name,
-      purchaseStatusId: _status?.id ?? 0,
+      purchaseStatusId: _requestedStatusId,
       estimatedDeliveryDate: _estimatedDate,
       detail: _lines,
     );
@@ -119,13 +124,21 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // El formulario solo está operable con los catálogos ya cargados: sin
+    // ellos no hay proveedor que elegir ni pedido que guardar.
+    final ready = !_loading && _error == null;
     return Scaffold(
       appBar: AppBar(title: const Text('Nuevo pedido')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addProduct,
-        icon: const Icon(Icons.add_shopping_cart),
-        label: const Text('Producto'),
-      ),
+      floatingActionButton: ready
+          ? FloatingActionButton.extended(
+              onPressed: _addProduct,
+              icon: const Icon(Icons.add_shopping_cart),
+              label: const Text('Producto'),
+            )
+          : null,
+      // El total y Guardar van en la barra inferior para que el FAB quede
+      // encima de ella y no tape el botón.
+      bottomNavigationBar: ready ? _buildBottomBar() : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -140,99 +153,106 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                     ],
                   ),
                 )
-              : Column(
+              : ListView(
+                  // El hueco de abajo deja que el último producto se pueda
+                  // leer entero con el FAB flotando encima.
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
                   children: [
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          DropdownButtonFormField<String>(
-                            initialValue: _provider?.id,
-                            isExpanded: true,
-                            decoration:
-                                const InputDecoration(labelText: 'Proveedor'),
-                            items: _providers
-                                .map((p) => DropdownMenuItem(
-                                    value: p.id, child: Text(p.name)))
-                                .toList(),
-                            onChanged: (v) => setState(() => _provider =
-                                _providers.firstWhere((p) => p.id == v)),
-                          ),
-                          const SizedBox(height: 12),
-                          if (_statuses.isNotEmpty)
-                            DropdownButtonFormField<int>(
-                              initialValue: _status?.id,
-                              isExpanded: true,
-                              decoration:
-                                  const InputDecoration(labelText: 'Estado'),
-                              items: _statuses
-                                  .map((s) => DropdownMenuItem(
-                                      value: s.id, child: Text(s.name)))
-                                  .toList(),
-                              onChanged: (v) => setState(() => _status =
-                                  _statuses.firstWhere((s) => s.id == v)),
-                            ),
-                          const SizedBox(height: 12),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.event),
-                            title: const Text('Entrega estimada'),
-                            subtitle: Text(
-                                '${_estimatedDate.day.toString().padLeft(2, '0')}/${_estimatedDate.month.toString().padLeft(2, '0')}/${_estimatedDate.year}'),
-                            trailing: TextButton(
-                                onPressed: _pickDate,
-                                child: const Text('Cambiar')),
-                          ),
-                          const Divider(),
-                          Text('Productos (${_lines.length})',
-                              style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 8),
-                          if (_lines.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(
-                                  child: Text('Aún no agregas productos.')),
-                            ),
-                          ..._lines.map(_buildLine),
-                        ],
-                      ),
+                    DropdownButtonFormField<String>(
+                      initialValue: _provider?.id,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Proveedor'),
+                      items: _providers
+                          .map((p) => DropdownMenuItem(
+                              value: p.id, child: Text(p.name)))
+                          .toList(),
+                      onChanged: (v) => setState(() =>
+                          _provider = _providers.firstWhere((p) => p.id == v)),
                     ),
-                    SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Total',
-                                    style: TextStyle(fontSize: 18)),
-                                Text(currency(_total),
-                                    style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.icon(
-                              onPressed: _saving ? null : _save,
-                              icon: _saving
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2))
-                                  : const Icon(Icons.save),
-                              label: const Text('Guardar pedido'),
-                            ),
-                          ],
+                    const SizedBox(height: 12),
+                    // El estado no se elige: el servidor siempre crea el
+                    // pedido como Solicitado y lo avanza al recibirlo.
+                    if (_status != null)
+                      InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Estado',
+                          enabled: false,
                         ),
+                        child: Text(_status!.name),
                       ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event),
+                      title: const Text('Entrega estimada'),
+                      subtitle: Text(
+                          '${_estimatedDate.day.toString().padLeft(2, '0')}/${_estimatedDate.month.toString().padLeft(2, '0')}/${_estimatedDate.year}'),
+                      trailing: TextButton(
+                          onPressed: _pickDate, child: const Text('Cambiar')),
                     ),
+                    const Divider(),
+                    Text('Productos (${_lines.length})',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    if (_lines.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: Text('Aún no agregas productos.')),
+                      ),
+                    ..._lines.map(_buildLine),
                   ],
                 ),
+    );
+  }
+
+  /// Barra inferior con el total y Guardar. No usa `BottomAppBar`: ese widget
+  /// impone 80px de alto y el contenido no entra, menos aún con el texto
+  /// ampliado por accesibilidad. Este `Material` se mide por su contenido.
+  Widget _buildBottomBar() {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainer,
+      elevation: 3,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total', style: TextStyle(fontSize: 18)),
+                  // El monto se encoge antes que empujar a "Total" fuera de
+                  // la fila cuando el total tiene muchos dígitos.
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(currency(_total),
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save),
+                label: const Text('Guardar pedido'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -274,8 +294,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration:
                         const InputDecoration(labelText: 'Precio unit.'),
-                    onChanged: (v) => setState(() =>
-                        line.orderUnitPrice = double.tryParse(v) ?? 0),
+                    onChanged: (v) => setState(
+                        () => line.orderUnitPrice = double.tryParse(v) ?? 0),
                   ),
                 ),
                 const SizedBox(width: 12),

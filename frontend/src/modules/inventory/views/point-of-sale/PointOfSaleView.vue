@@ -900,7 +900,7 @@
         </div>
 
         <!-- Grid de productos -->
-        <div v-else class="row g-2">
+        <div v-else class="row g-2 pt-2">
           <div
             class="col-6 col-sm-4 col-lg-3"
             v-for="prod in filteredProducts" :key="prod.Id"

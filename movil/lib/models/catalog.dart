@@ -77,6 +77,10 @@ class PurchaseStatus {
 
   factory PurchaseStatus.fromJson(Map<String, dynamic> j) => PurchaseStatus(
         id: j['Id'] ?? 0,
-        name: j['Name'] ?? j['StatusName'] ?? j['PurchaseStatusName'] ?? '',
+        name: j['Description'] ??
+            j['Name'] ??
+            j['StatusName'] ??
+            j['PurchaseStatusName'] ??
+            '',
       );
 }

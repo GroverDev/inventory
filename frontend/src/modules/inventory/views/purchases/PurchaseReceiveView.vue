@@ -194,12 +194,22 @@ const formatDate = (val: string | Date): string => {
 const formatCurrency = (val: number): string =>
   (val ?? 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Mismo criterio que en `PurchasesAdminView`: las variantes `subtle` +
+ * `emphasis` son las únicas que el bloque `[data-bs-theme='dark']` redefine,
+ * así que el texto conserva contraste en ambos temas.
+ */
 const statusBadge = (id: number) => {
-  if (id === PURCHASE_STATUS.TOTALLY_RECEIVED) return 'badge bg-success';
-  if (id === PURCHASE_STATUS.PARTIALLY_RECEIVED) return 'badge bg-warning text-dark';
-  if (id === PURCHASE_STATUS.CANCELLED) return 'badge bg-danger';
-  if (id === PURCHASE_STATUS.CLOSED) return 'badge bg-secondary';
-  return 'badge bg-info text-dark';
+  const base = 'badge border';
+  if (id === PURCHASE_STATUS.TOTALLY_RECEIVED)
+    return `${base} bg-success-subtle text-success-emphasis border-success-subtle`;
+  if (id === PURCHASE_STATUS.PARTIALLY_RECEIVED)
+    return `${base} bg-warning-subtle text-warning-emphasis border-warning-subtle`;
+  if (id === PURCHASE_STATUS.CANCELLED)
+    return `${base} bg-danger-subtle text-danger-emphasis border-danger-subtle`;
+  if (id === PURCHASE_STATUS.CLOSED)
+    return `${base} bg-secondary-subtle text-secondary-emphasis border-secondary-subtle`;
+  return `${base} bg-info-subtle text-info-emphasis border-info-subtle`;
 };
 
 const statusLabel = (id: number) => {

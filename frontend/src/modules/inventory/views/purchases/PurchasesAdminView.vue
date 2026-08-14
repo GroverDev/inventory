@@ -230,12 +230,26 @@ const formatDate = (val: string | Date): string => {
 const formatCurrency = (val: number): string =>
   val?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' }) ?? 'Bs. 0.00';
 
+/**
+ * Color del estado en variantes `subtle` + `emphasis`.
+ *
+ * Es el único trío que el bloque `[data-bs-theme='dark']` redefine, así que el
+ * par fondo/texto se recalcula solo al cambiar de tema. Las clases sólidas
+ * (`bg-success`, `bg-danger`) no: `--bs-success` y `--bs-badge-color` viven en
+ * `:root` y pintan igual en claro que en oscuro, con texto blanco fijo sobre
+ * los colores de SmartAdmin — `bg-success` daba 2.1:1 y `bg-danger` 3.4:1.
+ */
 const statusBadge = (statusId: number): string => {
-  if (statusId === PURCHASE_STATUS.TOTALLY_RECEIVED) return 'badge bg-success';
-  if (statusId === PURCHASE_STATUS.PARTIALLY_RECEIVED) return 'badge bg-warning text-dark';
-  if (statusId === PURCHASE_STATUS.CANCELLED) return 'badge bg-danger';
-  if (statusId === PURCHASE_STATUS.CLOSED) return 'badge bg-secondary';
-  return 'badge bg-info text-dark';
+  const base = 'badge border';
+  if (statusId === PURCHASE_STATUS.TOTALLY_RECEIVED)
+    return `${base} bg-success-subtle text-success-emphasis border-success-subtle`;
+  if (statusId === PURCHASE_STATUS.PARTIALLY_RECEIVED)
+    return `${base} bg-warning-subtle text-warning-emphasis border-warning-subtle`;
+  if (statusId === PURCHASE_STATUS.CANCELLED)
+    return `${base} bg-danger-subtle text-danger-emphasis border-danger-subtle`;
+  if (statusId === PURCHASE_STATUS.CLOSED)
+    return `${base} bg-secondary-subtle text-secondary-emphasis border-secondary-subtle`;
+  return `${base} bg-info-subtle text-info-emphasis border-info-subtle`;
 };
 
 const statusLabel = (statusId: number): string => {
