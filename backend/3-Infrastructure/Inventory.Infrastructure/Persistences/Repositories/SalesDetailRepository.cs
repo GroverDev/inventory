@@ -14,11 +14,23 @@ public class SalesDetailRepository : ISalesDetailRepository
         try
         {
             detail.Id = Guid.NewGuid();
+
+            // Mover el stock va primero: sales_detail.stock_item_id es NOT NULL, así
+            // que la línea no se puede grabar sin saber de qué existencia sale.
+            // Un solo lugar mueve el stock: actualiza la existencia y la caché de
+            // products a la vez, y devuelve el saldo antes y después.
+            var mov = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
+                new { detail.ProductId, Delta = -(decimal)detail.Quantity, UserId = detail.CreatedBy },
+                transaction);
+
+            detail.StockItemId = mov.StockItemId;
+
             string sqlQuery = @"
                     INSERT INTO sales_detail
-                               (id,   sale_id, product_id, quantity, unit_price, line_subtotal, line_total_discounts, line_total, discount_id, state, created_by, created, modified_by, modified)
+                               (id,   sale_id, product_id, stock_item_id, quantity, unit_price, line_subtotal, line_total_discounts, line_total, discount_id, state, created_by, created, modified_by, modified)
                     VALUES
-                            (@Id, @SaleId, @ProductId, @Quantity, @UnitPrice, @LineSubtotal, @LineTotalDiscounts, @LineTotal, @DiscountId, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
+                            (@Id, @SaleId, @ProductId, @StockItemId, @Quantity, @UnitPrice, @LineSubtotal, @LineTotalDiscounts, @LineTotal, @DiscountId, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                 ";
             var result = await db.ExecuteAsync(sqlQuery, detail, transaction: transaction);
 
@@ -40,27 +52,15 @@ public class SalesDetailRepository : ISalesDetailRepository
                 }, transaction);
             }
 
-            int stockBefore = await db.ExecuteScalarAsync<int>(
-                "SELECT current_stock FROM products WHERE id = @Id",
-                new { Id = detail.ProductId }, transaction);
-
-            sqlQuery = @"
-                        UPDATE products
-                           SET current_stock = (current_stock - @Quantity)
-                         WHERE id = @ProductId;
-                    ";
-            await db.ExecuteAsync(sqlQuery, new { detail.Quantity, detail.ProductId }, transaction);
-
-            int stockAfter = stockBefore - detail.Quantity;
-
             var movement = new StockMovement
             {
                 Id = Guid.NewGuid(),
                 ProductId = detail.ProductId,
+                StockItemId = mov.StockItemId,
                 MovementType = "VENTA",
                 Quantity = -detail.Quantity,
-                StockBefore = stockBefore,
-                StockAfter = stockAfter,
+                StockBefore = (int)mov.StockBefore,
+                StockAfter = (int)mov.StockAfter,
                 ReferenceId = detail.SaleId,
                 ReferenceType = "SALE",
                 State = true,
@@ -72,10 +72,10 @@ public class SalesDetailRepository : ISalesDetailRepository
 
             string movSql = @"
                 INSERT INTO stock_movements
-                       (id, product_id, movement_type, quantity, stock_before, stock_after,
+                       (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
                         reason, observation, reference_id, reference_type,
                         state, created_by, created, modified_by, modified)
-                VALUES (@Id, @ProductId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+                VALUES (@Id, @ProductId, @StockItemId, @MovementType, @Quantity, @StockBefore, @StockAfter,
                         @Reason, @Observation, @ReferenceId, @ReferenceType,
                         @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
             ";

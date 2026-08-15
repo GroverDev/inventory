@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -46,27 +46,23 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                     ";
                     await db.ExecuteAsync(sqlDetail, det, transaction);
 
-                    // Leer stock actual
-                    int stockBefore = await db.ExecuteScalarAsync<int>(
-                        "SELECT current_stock FROM products WHERE id = @Id",
-                        new { Id = det.ProductId }, transaction);
-
-                    int stockAfter = stockBefore + det.QuantityReturned;
-
-                    // Restaurar stock
-                    await db.ExecuteAsync(
-                        "UPDATE products SET current_stock = @StockAfter, modified_by = @UserId, modified = NOW() WHERE id = @ProductId",
-                        new { StockAfter = stockAfter, UserId = saleReturn.CreatedBy, ProductId = det.ProductId }, transaction);
+                    // Restaurar stock. Lo devuelto vuelve a la misma existencia de la
+                    // que salió, que con lotes será la del lote vendido.
+                    var stock = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                        "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
+                        new { det.ProductId, Delta = (decimal)det.QuantityReturned, UserId = saleReturn.CreatedBy },
+                        transaction);
 
                     // Registrar movimiento de stock
                     var movement = new StockMovement
                     {
                         Id = Guid.NewGuid(),
                         ProductId = det.ProductId,
+                        StockItemId = stock.StockItemId,
                         MovementType = "DEVOLUCION",
                         Quantity = det.QuantityReturned,
-                        StockBefore = stockBefore,
-                        StockAfter = stockAfter,
+                        StockBefore = (int)stock.StockBefore,
+                        StockAfter = (int)stock.StockAfter,
                         ReferenceId = saleReturn.Id,
                         ReferenceType = "RETURN",
                         Reason = saleReturn.Reason,
@@ -79,10 +75,10 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
 
                     string movSql = @"
                         INSERT INTO stock_movements
-                               (id, product_id, movement_type, quantity, stock_before, stock_after,
+                               (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
                                 reason, observation, reference_id, reference_type,
                                 state, created_by, created, modified_by, modified)
-                        VALUES (@Id, @ProductId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+                        VALUES (@Id, @ProductId, @StockItemId, @MovementType, @Quantity, @StockBefore, @StockAfter,
                                 @Reason, @Observation, @ReferenceId, @ReferenceType,
                                 @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                     ";

@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -8,13 +8,6 @@ namespace Inventory.Infrastructure;
 
 public class PurchaseDetailRepository : IPurchaseDetailRepository
 {
-    /// <summary>Saldos de stock devueltos por el UPDATE ... RETURNING.</summary>
-    private sealed class StockChange
-    {
-        public int StockBefore { get; set; }
-        public int StockAfter { get; set; }
-    }
-
     public async Task<bool> CreatePurchaseDetail(PurchaseDetail detail, IDbConnection db, IDbTransaction transaction)
     {
         bool ok;
@@ -84,22 +77,23 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
             // Mueve el stock y obtiene ambos saldos en una sola sentencia. Con un
             // SELECT y un UPDATE separados, otra transacción puede intercalarse
             // entre los dos y dejar registrado un stock_after que nunca existió.
-            var stock = await db.QuerySingleAsync<StockChange>(@"
-                    UPDATE products
-                       SET current_stock = current_stock + @DeliveryQuantity
-                     WHERE id = @ProductId
-                 RETURNING current_stock - @DeliveryQuantity AS stock_before,
-                           current_stock                     AS stock_after;
-                ", new { detail.DeliveryQuantity, detail.ProductId }, transaction);
+            //
+            // Cuando se active el modo 'lot', es acá donde se capturarán el lote y
+            // el vencimiento: la recepción es el momento en que entran a la farmacia.
+            var stock = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
+                new { detail.ProductId, Delta = (decimal)detail.DeliveryQuantity, UserId = detail.CreatedBy },
+                transaction);
 
             var movement = new StockMovement
             {
                 Id = Guid.NewGuid(),
                 ProductId = detail.ProductId,
+                StockItemId = stock.StockItemId,
                 MovementType = "COMPRA",
                 Quantity = detail.DeliveryQuantity,
-                StockBefore = stock.StockBefore,
-                StockAfter = stock.StockAfter,
+                StockBefore = (int)stock.StockBefore,
+                StockAfter = (int)stock.StockAfter,
                 ReferenceId = detail.PurchaseDeliveryId,
                 ReferenceType = "PURCHASE",
                 State = true,
@@ -111,10 +105,10 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
 
             string movSql = @"
                 INSERT INTO stock_movements
-                       (id, product_id, movement_type, quantity, stock_before, stock_after,
+                       (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
                         reason, observation, reference_id, reference_type,
                         state, created_by, created, modified_by, modified)
-                VALUES (@Id, @ProductId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+                VALUES (@Id, @ProductId, @StockItemId, @MovementType, @Quantity, @StockBefore, @StockAfter,
                         @Reason, @Observation, @ReferenceId, @ReferenceType,
                         @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
             ";

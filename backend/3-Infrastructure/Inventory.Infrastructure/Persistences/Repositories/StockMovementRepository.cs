@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -52,21 +52,22 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
             using var transaction = db.BeginTransaction();
             try
             {
-                int stockBefore = await db.ExecuteScalarAsync<int>(
-                    "SELECT current_stock FROM products WHERE id = @Id AND state",
-                    new { Id = movement.ProductId }, transaction);
+                // El ajuste sí valida que no quede negativo: es una corrección
+                // manual, y dejar el inventario en negativo a propósito no tiene
+                // sentido. Los otros caminos (venta, compra, devolución) responden
+                // a hechos ya ocurridos y no se bloquean.
+                var saldo = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                    "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
+                    new { movement.ProductId, Delta = (decimal)movement.Quantity, UserId = userId },
+                    transaction);
 
-                int stockAfter = stockBefore + movement.Quantity;
-                if (stockAfter < 0)
+                if (saldo.StockAfter < 0)
                     throw new CustomException("El stock resultante no puede ser negativo.");
 
-                await db.ExecuteAsync(
-                    "UPDATE products SET current_stock = @StockAfter, modified_by = @UserId, modified = NOW() WHERE id = @ProductId",
-                    new { StockAfter = stockAfter, UserId = userId, ProductId = movement.ProductId }, transaction);
-
                 movement.Id = Guid.NewGuid();
-                movement.StockBefore = stockBefore;
-                movement.StockAfter = stockAfter;
+                movement.StockItemId = saldo.StockItemId;
+                movement.StockBefore = (int)saldo.StockBefore;
+                movement.StockAfter = (int)saldo.StockAfter;
                 movement.MovementType = "AJUSTE";
                 movement.State = true;
                 movement.CreatedBy = movement.ModifiedBy = userId;
@@ -88,10 +89,10 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
     {
         string sql = @"
             INSERT INTO stock_movements
-                   (id, product_id, movement_type, quantity, stock_before, stock_after,
+                   (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
                     reason, observation, reference_id, reference_type,
                     state, created_by, created, modified_by, modified)
-            VALUES (@Id, @ProductId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+            VALUES (@Id, @ProductId, @StockItemId, @MovementType, @Quantity, @StockBefore, @StockAfter,
                     @Reason, @Observation, @ReferenceId, @ReferenceType,
                     @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
         ";
