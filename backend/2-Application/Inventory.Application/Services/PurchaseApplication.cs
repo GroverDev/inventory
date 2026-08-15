@@ -149,11 +149,22 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
                 if (!Guid.TryParse(line.ProductId, out var productId) || productId == Guid.Empty)
                     throw new CustomException("Uno de los productos de la recepción no es válido.", MessageTypes.Warning);
 
+                DateTime? vencimiento = null;
+                if (!string.IsNullOrWhiteSpace(line.ExpiryDate))
+                {
+                    if (!DateTime.TryParse(line.ExpiryDate, out var parsed))
+                        throw new CustomException(
+                            $"La fecha de vencimiento «{line.ExpiryDate}» no es válida.", MessageTypes.Warning);
+                    vencimiento = parsed.Date;
+                }
+
                 purchaseDelivery.Detail.Add(new PurchaseDeliveryDetail
                 {
                     ProductId = productId,
                     DeliveryQuantity = line.DeliveryQuantity,
                     UnitPrice = line.UnitPrice,
+                    LotCode = string.IsNullOrWhiteSpace(line.LotCode) ? null : line.LotCode.Trim(),
+                    ExpiryDate = vencimiento,
                     DeliveryDate = deliveryDate,
                     State = true,
                     CreatedBy = modifiedBy,

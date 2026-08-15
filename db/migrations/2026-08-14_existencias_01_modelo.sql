@@ -267,7 +267,12 @@ COMMENT ON FUNCTION public.fn_mover_stock(uuid, numeric, integer, uuid) IS
 GRANT EXECUTE ON FUNCTION public.fn_mover_stock(uuid, numeric, integer, uuid) TO app_pos;
 
 -- Discrepancias entre la caché y el saldo real. Debe devolver cero filas.
-CREATE OR REPLACE VIEW public.v_stock_descuadrado AS
+-- security_invoker es obligatorio: sin él la vista corre con los privilegios de
+-- su dueño (postgres, superusuario) y RLS no se aplica adentro, de modo que
+-- cualquier farmacia vería las filas de todas. Es el mismo agujero que tendría
+-- una función SECURITY DEFINER puesta por descuido.
+CREATE OR REPLACE VIEW public.v_stock_descuadrado
+    WITH (security_invoker = true) AS
 SELECT p.tenant_id,
        p.id AS product_id,
        p.product_name,

@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -8,85 +8,163 @@ namespace Inventory.Infrastructure;
 
 public class SalesDetailRepository : ISalesDetailRepository
 {
+    /// <summary>Una porción de la línea vendida, salida de una existencia concreta.</summary>
+    private readonly record struct Asignacion(Guid StockItemId, decimal Cantidad);
+
+    /// <summary>
+    /// Graba una línea de venta y descuenta el stock del que sale.
+    /// </summary>
+    /// <remarks>
+    /// El reparto lo decide <c>fn_asignar_fefo</c>, que ordena por vencimiento más
+    /// próximo. Un producto sin seguimiento devuelve una sola asignación —su
+    /// existencia implícita—, así que no hay dos caminos: el caso simple es el caso
+    /// general con una sola porción.
+    /// <para>
+    /// Cuando la cantidad abarca varios lotes se graba una línea por lote. En una
+    /// farmacia eso es deseable: es lo que permite saber a quién se le vendió cuál
+    /// ante un retiro del laboratorio. Los importes se prorratean por cantidad, y
+    /// el redondeo sobrante va a la última porción para que la suma de las líneas
+    /// coincida exactamente con el total que envió el punto de venta.
+    /// </para>
+    /// </remarks>
     public async Task<bool> CreateSaleDetail(SaleDetail detail, IDbConnection db, IDbTransaction transaction)
     {
-        bool ok;
         try
         {
-            detail.Id = Guid.NewGuid();
+            var asignaciones = (await db.QueryAsync<Asignacion>(
+                "SELECT stock_item_id AS StockItemId, cantidad AS Cantidad FROM fn_asignar_fefo(@ProductId, @Cantidad)",
+                new { detail.ProductId, Cantidad = (decimal)detail.Quantity },
+                transaction)).ToList();
 
-            // Mover el stock va primero: sales_detail.stock_item_id es NOT NULL, así
-            // que la línea no se puede grabar sin saber de qué existencia sale.
-            // Un solo lugar mueve el stock: actualiza la existencia y la caché de
-            // products a la vez, y devuelve el saldo antes y después.
-            var mov = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
-                "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
-                new { detail.ProductId, Delta = -(decimal)detail.Quantity, UserId = detail.CreatedBy },
-                transaction);
+            if (asignaciones.Count == 0)
+                throw new CustomException("No se pudo determinar de qué existencia sale la venta.");
 
-            detail.StockItemId = mov.StockItemId;
+            decimal subtotalPendiente  = detail.LineSubtotal;
+            decimal descuentoPendiente = detail.LineTotalDiscounts;
+            decimal totalPendiente     = detail.LineTotal;
+            int     cantidadPendiente  = detail.Quantity;
 
-            string sqlQuery = @"
-                    INSERT INTO sales_detail
-                               (id,   sale_id, product_id, stock_item_id, quantity, unit_price, line_subtotal, line_total_discounts, line_total, discount_id, state, created_by, created, modified_by, modified)
-                    VALUES
-                            (@Id, @SaleId, @ProductId, @StockItemId, @Quantity, @UnitPrice, @LineSubtotal, @LineTotalDiscounts, @LineTotal, @DiscountId, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
-                ";
-            var result = await db.ExecuteAsync(sqlQuery, detail, transaction: transaction);
-
-            if (detail.DiscountId.HasValue && detail.DiscountId != Guid.Empty)
+            for (int i = 0; i < asignaciones.Count; i++)
             {
-                string discountTrackSql = @"
-                    INSERT INTO sale_detail_discounts
-                                (id, sale_detail_id, discount_id, applied_amount, state, created_by, created, modified_by, modified)
-                    VALUES      (@Id, @SaleDetailId, @DiscountId, @AppliedAmount, true, @CreatedBy, @Created, @CreatedBy, @Created);
-                ";
-                await db.ExecuteAsync(discountTrackSql, new
+                bool esUltima = i == asignaciones.Count - 1;
+                int  cantidad = esUltima ? cantidadPendiente : (int)asignaciones[i].Cantidad;
+
+                // La última porción se lleva lo que quede, así se evita que el
+                // redondeo haga que las líneas no sumen el total de la venta.
+                decimal subtotal  = esUltima ? subtotalPendiente  : Prorratear(detail.LineSubtotal, cantidad, detail.Quantity);
+                decimal descuento = esUltima ? descuentoPendiente : Prorratear(detail.LineTotalDiscounts, cantidad, detail.Quantity);
+                decimal total     = esUltima ? totalPendiente     : Prorratear(detail.LineTotal, cantidad, detail.Quantity);
+
+                subtotalPendiente  -= subtotal;
+                descuentoPendiente -= descuento;
+                totalPendiente     -= total;
+                cantidadPendiente  -= cantidad;
+
+                var porcion = new SaleDetail
                 {
-                    Id           = Guid.NewGuid(),
-                    SaleDetailId = detail.Id,
-                    detail.DiscountId,
-                    AppliedAmount = detail.LineTotalDiscounts,
-                    detail.CreatedBy,
-                    Created = DateTime.Now
-                }, transaction);
+                    Id                 = Guid.NewGuid(),
+                    SaleId             = detail.SaleId,
+                    ProductId          = detail.ProductId,
+                    StockItemId        = asignaciones[i].StockItemId,
+                    Quantity           = cantidad,
+                    UnitPrice          = detail.UnitPrice,
+                    LineSubtotal       = subtotal,
+                    LineTotalDiscounts = descuento,
+                    LineTotal          = total,
+                    DiscountId         = detail.DiscountId,
+                    State              = detail.State,
+                    CreatedBy          = detail.CreatedBy,
+                    ModifiedBy         = detail.ModifiedBy,
+                    Created            = detail.Created,
+                    Modified           = detail.Modified,
+                };
+
+                await GrabarPorcion(porcion, db, transaction);
             }
 
-            var movement = new StockMovement
-            {
-                Id = Guid.NewGuid(),
-                ProductId = detail.ProductId,
-                StockItemId = mov.StockItemId,
-                MovementType = "VENTA",
-                Quantity = -detail.Quantity,
-                StockBefore = (int)mov.StockBefore,
-                StockAfter = (int)mov.StockAfter,
-                ReferenceId = detail.SaleId,
-                ReferenceType = "SALE",
-                State = true,
-                CreatedBy = detail.CreatedBy,
-                ModifiedBy = detail.CreatedBy,
-                Created = DateTime.Now,
-                Modified = DateTime.Now,
-            };
-
-            string movSql = @"
-                INSERT INTO stock_movements
-                       (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
-                        reason, observation, reference_id, reference_type,
-                        state, created_by, created, modified_by, modified)
-                VALUES (@Id, @ProductId, @StockItemId, @MovementType, @Quantity, @StockBefore, @StockAfter,
-                        @Reason, @Observation, @ReferenceId, @ReferenceType,
-                        @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
-            ";
-            await db.ExecuteAsync(movSql, movement, transaction);
-            ok = true;
-
-
+            return true;
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
-        return ok;
+    }
+
+    /// <summary>Reparte un importe en proporción a la cantidad, a dos decimales.</summary>
+    private static decimal Prorratear(decimal importe, int parte, int total)
+        => total == 0 ? 0 : Math.Round(importe * parte / total, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// Graba una porción: la línea, su descuento si lo tiene, el descuento de stock
+    /// sobre la existencia concreta y el movimiento que lo documenta.
+    /// </summary>
+    private static async Task GrabarPorcion(SaleDetail porcion, IDbConnection db, IDbTransaction transaction)
+    {
+        // Mover el stock va primero: sales_detail.stock_item_id es NOT NULL, así
+        // que la línea no se puede grabar sin saber de qué existencia sale.
+        var mov = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+            "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId, @Item)",
+            new
+            {
+                porcion.ProductId,
+                Delta = -(decimal)porcion.Quantity,
+                UserId = porcion.CreatedBy,
+                Item = porcion.StockItemId
+            },
+            transaction);
+
+        await db.ExecuteAsync(@"
+            INSERT INTO sales_detail
+                   (id, sale_id, product_id, stock_item_id, quantity, unit_price,
+                    line_subtotal, line_total_discounts, line_total, discount_id,
+                    state, created_by, created, modified_by, modified)
+            VALUES (@Id, @SaleId, @ProductId, @StockItemId, @Quantity, @UnitPrice,
+                    @LineSubtotal, @LineTotalDiscounts, @LineTotal, @DiscountId,
+                    @State, @CreatedBy, @Created, @ModifiedBy, @Modified);",
+            porcion, transaction);
+
+        if (porcion.DiscountId.HasValue && porcion.DiscountId != Guid.Empty)
+        {
+            await db.ExecuteAsync(@"
+                INSERT INTO sale_detail_discounts
+                       (id, sale_detail_id, discount_id, applied_amount,
+                        state, created_by, created, modified_by, modified)
+                VALUES (@Id, @SaleDetailId, @DiscountId, @AppliedAmount,
+                        true, @CreatedBy, @Created, @CreatedBy, @Created);",
+                new
+                {
+                    Id = Guid.NewGuid(),
+                    SaleDetailId = porcion.Id,
+                    porcion.DiscountId,
+                    AppliedAmount = porcion.LineTotalDiscounts,
+                    porcion.CreatedBy,
+                    Created = DateTime.Now
+                }, transaction);
+        }
+
+        await db.ExecuteAsync(@"
+            INSERT INTO stock_movements
+                   (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
+                    reason, observation, reference_id, reference_type,
+                    state, created_by, created, modified_by, modified)
+            VALUES (@Id, @ProductId, @StockItemId, @MovementType, @Quantity, @StockBefore, @StockAfter,
+                    @Reason, @Observation, @ReferenceId, @ReferenceType,
+                    @State, @CreatedBy, @Created, @ModifiedBy, @Modified);",
+            new StockMovement
+            {
+                Id            = Guid.NewGuid(),
+                ProductId     = porcion.ProductId,
+                StockItemId   = mov.StockItemId,
+                MovementType  = "VENTA",
+                Quantity      = -porcion.Quantity,
+                StockBefore   = (int)mov.StockBefore,
+                StockAfter    = (int)mov.StockAfter,
+                ReferenceId   = porcion.SaleId,
+                ReferenceType = "SALE",
+                State         = true,
+                CreatedBy     = porcion.CreatedBy,
+                ModifiedBy    = porcion.CreatedBy,
+                Created       = DateTime.Now,
+                Modified      = DateTime.Now,
+            }, transaction);
     }
 
     public async Task<List<SaleProductDetailResponse>> GetSalesProductDetail(Guid idSale, IDbConnection db)
@@ -94,24 +172,25 @@ public class SalesDetailRepository : ISalesDetailRepository
         List<SaleProductDetailResponse> listDetails = [];
         try
         {
-
+            // Se incluyen lote y vencimiento: con varias porciones de un mismo
+            // producto es lo único que distingue una línea de otra en el detalle.
             string sqlQuery = @" SELECT sd.id,
                                         sd.sale_id,
                                         sd.product_id,
                                         p.product_name,
+                                        si.lot_code,
+                                        si.expiry_date,
                                         sd.quantity,
                                         sd.unit_price,
                                         sd.line_subtotal,
                                         sd.line_total_discounts,
                                         sd.line_total
                                     FROM sales_detail sd
-                                         INNER JOIN products p
-                                         ON p.id = sd.product_id
+                                         INNER JOIN products p ON p.id = sd.product_id
+                                         LEFT  JOIN stock_items si ON si.id = sd.stock_item_id
                                    WHERE sd.sale_id = @sale_id";
             var result = await db.QueryAsync<SaleProductDetailResponse>(sqlQuery, new { sale_id = idSale });
             listDetails = result.ToList();
-
-
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }

@@ -15,6 +15,19 @@ namespace Services.Api.Controllers.Inventory;
 [ApiController]
 public class StockMovementController(IStockMovementApplication _stockMovementApplication) : ControllerBase
 {
+    // GET api/StockMovement/expiring?dias=90
+    // Existencias por vencer, de la más urgente a la menos.
+    //
+    // Va antes de la ruta {productId} a propósito: si estuviera después, "expiring"
+    // entraría por esa ruta y fallaría como identificador inválido.
+    [HttpGet("expiring")]
+    public async Task<ActionResult<Response<List<StockExpiryResponse>>>> GetExpiring([FromQuery] int dias = 90)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+
+        return await _stockMovementApplication.GetExpiring(dias);
+    }
+
     // GET api/StockMovement/{productId}
     [HttpGet("{productId}")]
     public async Task<ActionResult<Response<List<StockMovementResponse>>>> GetMovements(string productId)

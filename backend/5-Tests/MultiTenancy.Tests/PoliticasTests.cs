@@ -106,6 +106,32 @@ public class PoliticasTests(TenantDatabaseFixture db)
     }
 
     [Fact]
+    public void Toda_vista_propia_corre_con_los_permisos_de_quien_consulta()
+    {
+        // Una vista corre con los privilegios de su DUEÑO salvo que se declare
+        // security_invoker. Como las vistas las crea postgres —superusuario—, sin
+        // esa opción RLS no se aplica adentro y la vista expone las filas de todas
+        // las farmacias, aunque sus tablas base estén perfectamente aisladas.
+        //
+        // Es exactamente el agujero que tenía v_stock_por_vencer hasta que una
+        // prueba de aislamiento lo detectó.
+        using var cn = db.AbrirComoAdmin();
+
+        var sinInvoker = cn.Query<string>(@"
+            SELECT n.nspname || '.' || c.relname
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE c.relkind = 'v'
+               AND n.nspname IN ('public','sec')
+               AND NOT COALESCE(c.reloptions::text[] @> ARRAY['security_invoker=true'], false)
+             ORDER BY 1").ToList();
+
+        Assert.True(sinInvoker.Count == 0,
+            "Estas vistas no declaran security_invoker, así que se saltan RLS y exponen " +
+            "datos de todas las farmacias:\n  " + string.Join("\n  ", sinInvoker));
+    }
+
+    [Fact]
     public void El_rol_de_la_aplicacion_no_puede_saltarse_RLS()
     {
         // RLS no se aplica a superusuarios ni a roles con BYPASSRLS. Si el rol de la

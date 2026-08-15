@@ -43,6 +43,31 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
         finally { db.Close(); }
     }
 
+    public async Task<List<StockExpiryResponse>> GetExpiring(int dias)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            // La vista ya clasifica y calcula el valor en riesgo. El orden es por
+            // fecha: lo primero de la lista es lo que hay que rotar hoy.
+            string sql = @"
+                SELECT stock_item_id, product_id, product_code, product_name,
+                       lot_code, expiry_date, quantity,
+                       dias_restantes AS DiasRestantes,
+                       estado         AS Estado,
+                       valor_en_riesgo AS ValorEnRiesgo
+                  FROM v_stock_por_vencer
+                 WHERE @Dias <= 0 OR expiry_date <= CURRENT_DATE + @Dias
+                 ORDER BY expiry_date;
+            ";
+            var result = await db.QueryAsync<StockExpiryResponse>(sql, new { Dias = dias });
+            return [.. result];
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<List<StockExpiryResponse>>(ex); }
+        finally { db.Close(); }
+    }
+
     public async Task CreateAdjustment(StockMovement movement, int userId)
     {
         using var db = _DbContext.CreateConnection;

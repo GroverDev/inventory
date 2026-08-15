@@ -74,16 +74,35 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
 
             await db.ExecuteAsync(sqlQuery, detail, transaction);
 
-            // Mueve el stock y obtiene ambos saldos en una sola sentencia. Con un
-            // SELECT y un UPDATE separados, otra transacción puede intercalarse
-            // entre los dos y dejar registrado un stock_after que nunca existió.
-            //
-            // Cuando se active el modo 'lot', es acá donde se capturarán el lote y
-            // el vencimiento: la recepción es el momento en que entran a la farmacia.
-            var stock = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
-                "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
-                new { detail.ProductId, Delta = (decimal)detail.DeliveryQuantity, UserId = detail.CreatedBy },
-                transaction);
+            // La recepción es el único momento en que un lote entra al sistema: es
+            // cuando la caja física llega con su etiqueta. Después ya no hay forma
+            // de saber de qué lote era.
+            bool usaLotes = await db.ExecuteScalarAsync<bool>(
+                "SELECT tracking_mode = 'lot' FROM products WHERE id = @ProductId",
+                new { detail.ProductId }, transaction);
+
+            if (usaLotes && string.IsNullOrWhiteSpace(detail.LotCode))
+                throw new CustomException(
+                    "El producto usa seguimiento por lotes: hay que indicar el lote recibido.");
+
+            // Con lotes se busca o crea la existencia del lote; sin lotes se usa la
+            // implícita. Los dos caminos terminan en fn_mover_stock, así que el
+            // movimiento y la caché se actualizan igual en ambos casos.
+            var stock = usaLotes
+                ? await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                    "SELECT stock_item_id, stock_before, stock_after FROM fn_recibir_lote(@ProductId, @Cantidad, @Lote, @Vence, @UserId)",
+                    new
+                    {
+                        detail.ProductId,
+                        Cantidad = (decimal)detail.DeliveryQuantity,
+                        Lote = detail.LotCode,
+                        Vence = detail.ExpiryDate,
+                        UserId = detail.CreatedBy
+                    }, transaction)
+                : await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                    "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
+                    new { detail.ProductId, Delta = (decimal)detail.DeliveryQuantity, UserId = detail.CreatedBy },
+                    transaction);
 
             var movement = new StockMovement
             {

@@ -11,5 +11,10 @@ public class SaleProductDetailResponse
     public decimal LineTotalDiscounts { get; set; }
     public decimal LineTotal { get; set; }
     public string ProductName { get; set; } = "";
-    
+
+    /// <summary>Lote del que salió la línea. Vacío si el producto no usa lotes.</summary>
+    public string? LotCode { get; set; }
+
+    /// <summary>Vencimiento del lote vendido.</summary>
+    public DateTime? ExpiryDate { get; set; }
 }

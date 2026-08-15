@@ -22,6 +22,28 @@ public class StockMovementApplication(IStockMovementRepository _stockMovementRep
         return resp;
     }
 
+    public async Task<Response<List<StockExpiryResponse>>> GetExpiring(int dias)
+    {
+        var resp = new Response<List<StockExpiryResponse>>() { Data = [] };
+        try
+        {
+            resp.Data = await _stockMovementRepository.GetExpiring(dias);
+            resp.ok = true;
+
+            int vencidos = resp.Data.Count(x => x.Estado == "VENCIDO");
+            int criticos = resp.Data.Count(x => x.Estado == "CRITICO");
+
+            // Un mensaje solo cuando hay algo que hacer. Un listado vacío no
+            // necesita explicación.
+            if (vencidos > 0 || criticos > 0)
+                resp.SetMessage(MessageTypes.Warning,
+                    $"Hay {vencidos} existencia(s) vencida(s) y {criticos} que vencen en menos de 30 días.");
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
     public async Task<Response<bool>> CreateAdjustment(StockAdjustmentRequest request, int userId)
     {
         var resp = new Response<bool>();
