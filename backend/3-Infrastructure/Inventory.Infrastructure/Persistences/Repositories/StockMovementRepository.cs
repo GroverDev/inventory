@@ -68,6 +68,39 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
         finally { db.Close(); }
     }
 
+    public async Task<List<LotTraceabilityResponse>> GetTraceability(string lotCode)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            // El lote se compara sin distinguir mayúsculas ni espacios: en un
+            // retiro de mercado el código llega dictado por teléfono o copiado
+            // de un correo, no elegido de una lista.
+            // Un mismo buscador para lote y serie: quien investiga un retiro o una
+            // garantía tiene un código en la mano y no tiene por qué saber con
+            // qué modo se registró ese producto.
+            string sql = @"
+                SELECT lot_code, '' AS serial_number, expiry_date, product_code, product_name,
+                       sale_id, sale_date, quantity,
+                       cliente, document_number, cellphone
+                  FROM v_trazabilidad_lote
+                 WHERE upper(trim(lot_code)) = upper(trim(@LotCode))
+                UNION ALL
+                SELECT '' AS lot_code, serial_number, expiry_date, product_code, product_name,
+                       sale_id, sale_date, 1 AS quantity,
+                       cliente, document_number, cellphone
+                  FROM v_trazabilidad_serie
+                 WHERE upper(trim(serial_number)) = upper(trim(@LotCode))
+                 ORDER BY sale_date DESC;
+            ";
+            var result = await db.QueryAsync<LotTraceabilityResponse>(sql, new { LotCode = lotCode });
+            return [.. result];
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<List<LotTraceabilityResponse>>(ex); }
+        finally { db.Close(); }
+    }
+
     public async Task CreateAdjustment(StockMovement movement, int userId)
     {
         using var db = _DbContext.CreateConnection;

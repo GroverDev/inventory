@@ -59,7 +59,64 @@ class ApiResponse<T> {
 /// Excepción de dominio para errores de API ya formateados para el usuario.
 class ApiException implements Exception {
   final String message;
-  ApiException(this.message);
+
+  /// `error`, `warning`, `info`… tal como lo mandó el backend. Sirve para que
+  /// un servicio distinga un caso previsto (por ejemplo, una operación
+  /// idempotente que ya se había aplicado) de una falla real.
+  final String messageType;
+
+  ApiException(this.message, {this.messageType = 'error'});
+
+  bool get isInfo => messageType.toLowerCase() == 'info';
+
   @override
   String toString() => message;
+}
+
+/// Saca un texto presentable de un cuerpo de error.
+///
+/// Contempla el sobre del backend y también las respuestas que NO vienen
+/// envueltas: la validación de modelo de ASP.NET responde un ProblemDetails con
+/// el detalle en `errors`, y sin leerlo el usuario solo veía "error inesperado".
+String extractApiError(dynamic data) {
+  if (data is Map) {
+    if (data['Message'] is Map) {
+      final d = data['Message']['Description'];
+      if (d is String && d.isNotEmpty) return d;
+    }
+
+    final errors = data['errors'];
+    if (errors is Map && errors.isNotEmpty) {
+      final primero = errors.values.first;
+      if (primero is List && primero.isNotEmpty) return primero.first.toString();
+      if (primero is String && primero.isNotEmpty) return primero;
+    }
+
+    final title = data['title'];
+    if (title is String && title.isNotEmpty) return title;
+  }
+  if (data is String && data.isNotEmpty) return data;
+  return 'Ocurrió un error inesperado.';
+}
+
+/// Traduce una respuesta del backend en excepción cuando la operación no
+/// prosperó. Devuelve `null` si salió bien.
+///
+/// **Cualquier** `ok:false` es un rechazo, no solo los de `MessageType: error`.
+/// Antes se lanzaba únicamente ante `error`, así que los rechazos de regla de
+/// negocio —que el backend responde como `warning`— volvían como si todo
+/// hubiera salido bien: la pantalla se quedaba muda y el usuario creía que su
+/// acción se había guardado.
+///
+/// Vive suelta y no dentro del cliente para poder probar la regla sin levantar
+/// HTTP: es la que decide si el usuario se entera o no de lo que pasó.
+ApiException? apiFailure(bool ok, ApiMessage message, dynamic rawBody) {
+  if (ok) return null;
+
+  return ApiException(
+    message.description.isNotEmpty
+        ? message.description
+        : extractApiError(rawBody),
+    messageType: message.messageType,
+  );
 }

@@ -197,6 +197,13 @@ export default {
       meta: { requiresAuth: true, title: 'PV - Vencimientos', titleForm: 'Vencimientos' },
     },
     {
+      path: 'stock-traceability',
+      name: 'stock-traceability',
+      component: () => import(/* webpackChunkName: "stock-traceability" */ '@/modules/inventory/views/stock-inventory/StockTraceabilityView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Trazabilidad de Lote', titleForm: 'Trazabilidad de Lote' },
+    },
+    {
       path: 'stock-history/:id',
       name: 'stock-history',
       component: () => import(/* webpackChunkName: "stock-history" */ '@/modules/inventory/views/stock-inventory/StockHistoryView.vue'),

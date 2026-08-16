@@ -106,6 +106,17 @@ export default {
       },
     },
     {
+      path: 'company-create',
+      name: 'company-create',
+      component: () => import(/* webpackChunkName: "company-create" */ '@/modules/user-account/views/admin/CompanyCreateView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Nueva Empresa',
+        titleForm: 'Nueva Empresa'
+      },
+    },
+    {
       path: 'company-reset',
       name: 'company-reset',
       component: () => import(/* webpackChunkName: "company-reset" */ '@/modules/user-account/views/admin/CompanyResetView.vue'),

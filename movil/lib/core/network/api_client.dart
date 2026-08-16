@@ -102,19 +102,20 @@ class ApiClient {
       final body = res.data;
       if (body is Map<String, dynamic>) {
         final parsed = ApiResponse<T>.fromJson(body, parse);
-        if (!parsed.ok && parsed.message.isError) {
-          throw ApiException(
-            parsed.message.description.isNotEmpty
-                ? parsed.message.description
-                : 'Ocurrió un error en el servidor.',
-          );
-        }
+
+        // Cualquier ok:false corta acá, no solo los MessageType `error`. Un
+        // servicio que necesite distinguir un caso previsto (una operación
+        // idempotente ya aplicada, por ejemplo) atrapa la excepción y mira su
+        // messageType; lo que no puede pasar es que nadie se entere.
+        final falla = apiFailure(parsed.ok, parsed.message, body);
+        if (falla != null) throw falla;
+
         return parsed;
       }
 
       // Respuestas que no envuelven en Response<T> (texto plano, etc.)
       if (res.statusCode != null && res.statusCode! >= 400) {
-        throw ApiException(_extractError(body));
+        throw ApiException(extractApiError(body));
       }
       throw ApiException('Respuesta inesperada del servidor.');
     } on DioException catch (e) {
@@ -123,7 +124,7 @@ class ApiClient {
           e.type == DioExceptionType.connectionError) {
         throw ApiException('No se pudo conectar con el servidor.');
       }
-      throw ApiException(_extractError(e.response?.data));
+      throw ApiException(extractApiError(e.response?.data));
     }
   }
 
@@ -161,12 +162,4 @@ class ApiClient {
     }
   }
 
-  String _extractError(dynamic data) {
-    if (data is Map && data['Message'] is Map) {
-      final d = data['Message']['Description'];
-      if (d is String && d.isNotEmpty) return d;
-    }
-    if (data is String && data.isNotEmpty) return data;
-    return 'Ocurrió un error inesperado.';
-  }
 }

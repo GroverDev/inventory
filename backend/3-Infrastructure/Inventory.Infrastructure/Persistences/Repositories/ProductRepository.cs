@@ -160,7 +160,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.uom_id,
                               uom.unit_name
                          FROM products p
-                              INNER JOIN laboratories l ON p.laboratory_id = l.id
+                              LEFT  JOIN laboratories l ON p.laboratory_id = l.id
                               LEFT JOIN categories c ON p.category_id = c.id
                               INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
                         WHERE p.state
@@ -208,7 +208,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                        p.uom_id,
                        uom.unit_name
                   FROM products p
-                       INNER JOIN laboratories l   ON l.id  = p.laboratory_id
+                       LEFT  JOIN laboratories l   ON l.id  = p.laboratory_id
                        LEFT  JOIN categories c     ON c.id  = p.category_id
                        INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
                  WHERE p.state
@@ -253,7 +253,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.tracking_mode,
                               uom.unit_name
                          FROM products p
-                              INNER JOIN laboratories l ON p.laboratory_id = l.id
+                              LEFT  JOIN laboratories l ON p.laboratory_id = l.id
                               LEFT JOIN categories c ON p.category_id = c.id
                               INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
                         WHERE p.state
@@ -362,25 +362,26 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
     }
 
     /// <summary>
-    /// Pasa el producto a seguimiento por lotes. La decisión de qué hacer con el
-    /// stock que ya tenía vive en <c>fn_activar_lotes</c>, no acá: queda como una
-    /// existencia sin lote que FEFO consume primero.
+    /// Pasa el producto a seguimiento por lotes o por números de serie. La
+    /// decisión de qué hacer con el stock que ya tenía vive en la función de
+    /// base: queda como existencia sin identificar, que FEFO consume primero.
     /// </summary>
-    public async Task ActivateLotTracking(Guid id)
+    /// <param name="modo">'lot' o 'serial'.</param>
+    public async Task ActivateTracking(Guid id, string modo)
     {
+        // El nombre de función no puede ir como parámetro, y esto NO se arma con
+        // el texto que llegó del cliente: se elige entre dos constantes.
+        var funcion = modo == "serial" ? "fn_activar_series" : "fn_activar_lotes";
+
         using var db = _DbContext.CreateConnection;
         try
         {
             db.Open();
-            await db.ExecuteAsync("SELECT fn_activar_lotes(@Id);", new { Id = id });
+            await db.ExecuteAsync($"SELECT {funcion}(@Id);", new { Id = id });
         }
-        // La función se defiende con RAISE EXCEPTION (producto inexistente, o ya
-        // con series). Ese caso llega como P0001 y su texto es para el usuario;
-        // ExceptionHandler lo traduciría a "no se puede conectar a la base".
-        catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
-        {
-            throw new CustomException(ex.MessageText, MessageTypes.Warning);
-        }
+        // El RAISE EXCEPTION de la función (producto inexistente, o ya con el
+        // otro modo) lo traduce ExceptionHandler: su texto ya está escrito para
+        // el usuario, así que no hace falta interceptarlo acá.
         catch (CustomException ex) { throw new CustomException(ex.Message, ex, ex.messageType); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
         finally { db.Close(); }

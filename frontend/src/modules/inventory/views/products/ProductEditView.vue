@@ -170,22 +170,21 @@
                   <div class="row">
                     <div class="col-md-4 mb-3">
                       <label class="form-label" for="laboratories">
-                        Laboratorio / Proveedor <span class="text-danger">*</span>
+                        Laboratorio / Proveedor
                       </label>
                       <select
                         class="form-select form-select-sm"
-                        :class="{ 'is-invalid': v$.LaboratoryId.$dirty && v$.LaboratoryId.$invalid }"
                         id="laboratories"
                         name="laboratories"
                         :disabled="isReadOnly"
-                        v-model.trim="v$.LaboratoryId.$model"
+                        v-model.trim="product.LaboratoryId"
                       >
-                        <option value="">— Seleccione un laboratorio —</option>
+                        <option value="">— Sin laboratorio —</option>
                         <option v-for="lab in laboratories" :value="lab.Id" :key="lab.Id">
                           {{ lab.LaboratoryName }}
                         </option>
                       </select>
-                      <small class="invalid-feedback">Debe seleccionar un Laboratorio.</small>
+                      <small class="text-muted">Opcional: no toda la mercadería tiene laboratorio.</small>
                     </div>
                     <div class="col-md-4 mb-3">
                       <label class="form-label" for="categories">
@@ -360,19 +359,34 @@
                       </div>
                       <div class="col-12 col-md-8 mb-3">
                         <template v-if="product.TrackingMode === 'none'">
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-outline-primary"
-                            :disabled="isReadOnly"
-                            @click="activateLots"
-                          >
-                            <i class="fal fa-layer-group me-1"></i>Activar control por lotes
-                          </button>
+                          <div class="d-flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-primary"
+                              :disabled="isReadOnly"
+                              @click="activateTrackingMode('lot')"
+                            >
+                              <i class="fal fa-layer-group me-1"></i>Activar control por lotes
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-primary"
+                              :disabled="isReadOnly"
+                              @click="activateTrackingMode('serial')"
+                            >
+                              <i class="fal fa-barcode me-1"></i>Activar control por series
+                            </button>
+                          </div>
                           <small class="d-block text-muted mt-2">
-                            A partir de la activación, cada recepción de este producto pedirá el
-                            lote y su vencimiento, y las ventas saldrán del lote que vence antes.
+                            <strong>Lotes</strong> para lo que llega en cajas con un mismo código y
+                            vencimiento: medicamentos. <strong>Series</strong> para lo que se
+                            identifica unidad por unidad: tensiómetros, nebulizadores y todo lo que
+                            lleva garantía.
+                          </small>
+                          <small class="d-block text-muted mt-1">
                             Las {{ product.CurrentStock }} unidades que hay hoy quedan como
-                            existencia sin lote y se venden primero. <strong>No se puede deshacer.</strong>
+                            existencia sin identificar y se venden primero.
+                            <strong>No se puede deshacer.</strong>
                           </small>
                         </template>
                         <small v-else-if="product.TrackingMode === 'lot'" class="text-muted">
@@ -381,7 +395,9 @@
                           lo que vence antes.
                         </small>
                         <small v-else class="text-muted">
-                          Este producto se identifica por número de serie.
+                          <i class="fal fa-check-circle text-success me-1"></i>
+                          Cada recepción registra un número de serie por unidad, y la venta deja
+                          asentado cuál se entregó.
                         </small>
                       </div>
                     </div>
@@ -418,7 +434,7 @@ import usePermissions from '@/modules/common/composables/usePermissions';
 
 const router = useRouter();
 
-const { getProductById, updateProduct, createProduct, activateLotTracking } = useProduct();
+const { getProductById, updateProduct, createProduct, activateTracking } = useProduct();
 const { getLaboratories: fetchLaboratories } = useLaboratory();
 const { getCategories: fetchCategories } = useCategory();
 const { getUnitsOfMeasurement: fetchUnitsOfMeasurement } = useUnitOfMeasurement();
@@ -445,7 +461,6 @@ const rules = {
     required: helpers.withMessage('Debe ingresar la cantidad mínima de reposición.', required),
     greaterThanZero: helpers.withMessage('El valor debe ser mayor a cero', greaterThanZero),
   },
-  LaboratoryId: { required },
   UomId: { required },
   AvailableInPos: { required },
 };
@@ -493,19 +508,25 @@ const trackingBadge = computed(() => {
  * La activación es irreversible, así que se confirma con las consecuencias a la
  * vista y se recarga la ficha desde el servidor: el modo lo decide él.
  */
-const activateLots = async () => {
+const activateTrackingMode = async (modo: 'lot' | 'serial') => {
+  const porLotes = modo === 'lot';
+  const que = porLotes ? 'el lote' : 'un número de serie por unidad';
+
   const confirmado = await utils.showMessageQuestion(
-    `¿Activar el control por lotes en "${product.value.ProductName}"? ` +
-    'Desde ahora cada recepción pedirá el lote. Esta acción no se puede deshacer.'
+    `¿Activar el control por ${porLotes ? 'lotes' : 'números de serie'} en ` +
+    `"${product.value.ProductName}"? Desde ahora cada recepción pedirá ${que}. ` +
+    'Esta acción no se puede deshacer.'
   );
   if (!confirmado) return;
 
-  const { ok } = await activateLotTracking(product.value.Id);
+  const { ok } = await activateTracking(product.value.Id, modo);
   if (!ok) return;
 
   await getProductXId(product.value.Id);
   await utils.showMessageModal({
-    Description: 'El producto ahora se controla por lotes.',
+    Description: porLotes
+      ? 'El producto ahora se controla por lotes.'
+      : 'El producto ahora se controla por números de serie.',
     MessageType: 'success',
   });
 };
@@ -530,7 +551,15 @@ onMounted(async () => {
 
 const getProductXId = async (productId: string) => {
   const { ok, Data: productResp } = await getProductById(productId);
-  if (ok) product.value = productResp;
+  if (!ok) return;
+
+  product.value = productResp;
+  // Laboratorio y categoría son opcionales y llegan con null. El `<select>`
+  // compara contra el value="" de su opción «sin asignar»: sin esto no quedaría
+  // ninguna seleccionada y el campo se vería vacío en vez de explícitamente
+  // sin asignar.
+  product.value.LaboratoryId = productResp.LaboratoryId ?? '';
+  product.value.CategoryId = productResp.CategoryId ?? '';
 };
 
 const getLaboratories = async () => {

@@ -17,6 +17,8 @@ export class SaleDetail {
    */
   public LotCode: string | null = null;
   public ExpiryDate: string | null = null;
+  /** Número de serie de la unidad entregada. Responde un reclamo de garantía. */
+  public SerialNumber: string | null = null;
   public isSelected: boolean = false;
   // Discount tracking (DiscountId is sent to the API)
   public DiscountId: string = '';

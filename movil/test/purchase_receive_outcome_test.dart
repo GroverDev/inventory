@@ -22,9 +22,16 @@ class _StubApiClient extends ApiClient {
   }) async {
     this.path = path;
     this.body = body;
+
+    // Se aplica la MISMA regla que el cliente real: cualquier ok:false sale
+    // como excepción. Si el stub devolviera el rechazo como valor, las pruebas
+    // pasarían verificando un contrato que ya no existe.
+    final falla = apiFailure(_response.ok, _response.message, null);
+    if (falla != null) throw falla;
+
     return ApiResponse<T>(
-      ok: _response.ok,
-      data: _response.ok ? parse(_response.data) : null,
+      ok: true,
+      data: parse(_response.data),
       message: _response.message,
     );
   }
@@ -60,9 +67,9 @@ void main() {
 
   test('el reintento ya aplicado no se trata como error', () async {
     // El uid chocó contra el índice único: la mercadería ya entró. El backend
-    // lo responde con ok:false y MessageType `info`, que el ApiClient no
-    // convierte en excepción — sin este manejo, la pantalla se quedaba muda
-    // justo en el caso que el uid existe para cubrir.
+    // lo responde con ok:false y MessageType `info`; el cliente lo convierte en
+    // excepción como a cualquier rechazo, y el servicio la atrapa porque este
+    // caso NO es un fallo: es justamente lo que el uid existe para cubrir.
     final api = _StubApiClient(ApiResponse<dynamic>(
       ok: false,
       data: null,
@@ -79,9 +86,9 @@ void main() {
   });
 
   test('un rechazo de negocio llega al usuario con su motivo', () async {
-    // PurchaseReceiptPolicy responde con MessageType `warning`, que tampoco
-    // dispara excepción en el ApiClient: rescatarlo acá es lo que evita que un
-    // "no puede recibir más de X" se vea como si todo hubiera salido bien.
+    // PurchaseReceiptPolicy responde con MessageType `warning`. Ese rechazo
+    // tiene que llegar al usuario con su motivo: es lo que evita que un "no
+    // puede recibir más de X" se vea como si todo hubiera salido bien.
     final api = _StubApiClient(ApiResponse<dynamic>(
       ok: false,
       data: null,

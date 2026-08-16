@@ -114,10 +114,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _snack('Selecciona una unidad de medida.');
       return;
     }
-    if (_model.laboratoryId.isEmpty) {
-      _snack('Selecciona un laboratorio.');
-      return;
-    }
 
     _model.productName = _name.text.trim();
     _model.productCode = _code.text.trim();

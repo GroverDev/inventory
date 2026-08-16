@@ -23,8 +23,15 @@ public class PurchaseDeliveryDetail:Audit
     /// </summary>
     public string? LotCode { get; set; }
 
-    /// <summary>Vencimiento del lote. Opcional: no todo lote lo lleva.</summary>
+    /// <summary>Vencimiento del lote o de la unidad. Opcional.</summary>
     public DateTime? ExpiryDate { get; set; }
+
+    /// <summary>
+    /// Números de serie recibidos, uno por unidad. Obligatorio —y de la misma
+    /// cantidad que <see cref="DeliveryQuantity"/>— si el producto usa
+    /// seguimiento por series. Vacío en cualquier otro modo.
+    /// </summary>
+    public List<string> SerialNumbers { get; set; } = [];
 
     public decimal FinalPrice => DeliveryQuantity * UnitPrice;
 }

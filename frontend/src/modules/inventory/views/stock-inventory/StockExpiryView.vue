@@ -149,11 +149,20 @@
                       <td class="text-center text-nowrap">
                         <button
                           type="button"
-                          class="btn btn-outline-info btn-sm"
+                          class="btn btn-outline-info btn-sm me-1"
                           title="Ver historial de movimientos"
                           @click="goHistory(item)"
                         >
                           <span class="fal fa-history me-1"></span>Historial
+                        </button>
+                        <button
+                          v-if="item.LotCode"
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm"
+                          title="A quién se le vendió este lote"
+                          @click="goTraceability(item)"
+                        >
+                          <span class="fal fa-route"></span>
                         </button>
                       </td>
                     </tr>
@@ -309,6 +318,10 @@ async function loadExpiring() {
 
 const goHistory = (item: StockExpiryResponse) =>
   router.push({ name: 'stock-history', params: { id: item.ProductId } });
+
+/** Desde acá se llega con el lote ya cargado; la pantalla también acepta buscarlo. */
+const goTraceability = (item: StockExpiryResponse) =>
+  router.push({ name: 'stock-traceability', query: { lote: item.LotCode } });
 
 /** Se exporta lo que el usuario está viendo, con los encabezados de la pantalla. */
 const exportList = () => {

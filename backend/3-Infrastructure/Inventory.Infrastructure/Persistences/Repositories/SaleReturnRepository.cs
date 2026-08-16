@@ -46,11 +46,29 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                     ";
                     await db.ExecuteAsync(sqlDetail, det, transaction);
 
-                    // Restaurar stock. Lo devuelto vuelve a la misma existencia de la
-                    // que salió, que con lotes será la del lote vendido.
+                    // Restaurar stock en la MISMA existencia de la que salió: con
+                    // lotes, la del lote vendido. Hay que pasarla explícitamente
+                    // porque fn_mover_stock, sin existencia indicada, usa la que no
+                    // tiene lote; el producto devuelto perdía su lote y su
+                    // vencimiento, que es justo lo que los lotes vienen a resolver.
+                    // El dato siempre está: sales_detail.stock_item_id es NOT NULL.
+                    var stockItemId = await db.QueryFirstOrDefaultAsync<Guid?>(
+                        "SELECT stock_item_id FROM sales_detail WHERE id = @SaleDetailId AND state",
+                        new { det.SaleDetailId }, transaction);
+
+                    if (stockItemId is null || stockItemId == Guid.Empty)
+                        throw new CustomException(
+                            "No se pudo identificar de qué existencia salió la línea que se devuelve.");
+
                     var stock = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
-                        "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
-                        new { det.ProductId, Delta = (decimal)det.QuantityReturned, UserId = saleReturn.CreatedBy },
+                        "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId, @Item)",
+                        new
+                        {
+                            det.ProductId,
+                            Delta = (decimal)det.QuantityReturned,
+                            UserId = saleReturn.CreatedBy,
+                            Item = stockItemId
+                        },
                         transaction);
 
                     // Registrar movimiento de stock

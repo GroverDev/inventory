@@ -34,6 +34,25 @@ export class StockExpiryResponse {
   ValorEnRiesgo: number = 0
 }
 
+/**
+ * Una venta de un lote concreto, con el cliente que se la llevó. Es la consulta
+ * de un retiro de mercado: sin los datos de contacto no sirve de nada.
+ */
+export class LotTraceabilityResponse {
+  LotCode: string = ''
+  /** Número de serie, cuando la existencia se identifica unidad por unidad. */
+  SerialNumber: string = ''
+  ExpiryDate: string | null = null
+  ProductCode: string = ''
+  ProductName: string = ''
+  SaleId: string = ''
+  SaleDate: string = ''
+  Quantity: number = 0
+  Cliente: string = ''
+  DocumentNumber: string | null = null
+  Cellphone: string | null = null
+}
+
 export class StockAdjustmentRequest {
   ProductId: string = ''
   Quantity: number = 0

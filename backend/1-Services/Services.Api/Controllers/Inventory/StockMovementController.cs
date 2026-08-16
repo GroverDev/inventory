@@ -28,6 +28,19 @@ public class StockMovementController(IStockMovementApplication _stockMovementApp
         return await _stockMovementApplication.GetExpiring(dias);
     }
 
+    // GET api/StockMovement/traceability?lote=ABC-123
+    // A quién se le vendió un lote. Es la consulta de un retiro de mercado.
+    //
+    // Va antes de la ruta {productId} por lo mismo que "expiring": si estuviera
+    // después, entraría por esa ruta y fallaría como identificador inválido.
+    [HttpGet("traceability")]
+    public async Task<ActionResult<Response<List<LotTraceabilityResponse>>>> GetTraceability([FromQuery] string lote = "")
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+
+        return await _stockMovementApplication.GetTraceability(lote);
+    }
+
     // GET api/StockMovement/{productId}
     [HttpGet("{productId}")]
     public async Task<ActionResult<Response<List<StockMovementResponse>>>> GetMovements(string productId)

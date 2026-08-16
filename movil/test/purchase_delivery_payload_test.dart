@@ -195,6 +195,74 @@ void main() {
     });
   });
 
+  group('series', () {
+    PurchaseOrderLine conSeries({int ordered = 3}) => PurchaseOrderLine(
+          productId: 'x9',
+          productName: 'Tensiómetro digital',
+          orderedQuantity: ordered,
+          receivedQuantity: 0,
+          pendingQuantity: ordered,
+          orderUnitPrice: 250,
+          trackingMode: 'serial',
+        );
+
+    PurchaseDelivery build(List<PurchaseDeliveryLine> lines) =>
+        PurchaseDelivery(
+          purchaseId: 'ord-9',
+          deliveryDate: DateTime(2026, 8, 16),
+          detail: lines,
+          operationUid: newUid(),
+        );
+
+    test('las series viajan en la línea que las usa', () {
+      final line = PurchaseDeliveryLine(conSeries())
+        ..serialNumbers = ['SN-1', 'SN-2', 'SN-3'];
+
+      final detalle = (build([line]).toJson()['Detail'] as List).single
+          as Map<String, dynamic>;
+
+      expect(detalle['SerialNumbers'], ['SN-1', 'SN-2', 'SN-3']);
+      // El lote no aplica a un producto identificado por serie.
+      expect(detalle, isNot(contains('LotCode')));
+    });
+
+    test('un producto sin series no las manda', () {
+      final json = build([PurchaseDeliveryLine(_line())]).toJson();
+      expect((json['Detail'] as List).single, isNot(contains('SerialNumbers')));
+    });
+
+    test('se detecta cuando faltan o sobran números', () {
+      // Una unidad, un número: el servidor rechaza la entrega completa si no
+      // coinciden, así que hay que cortar antes de enviar.
+      final faltan = PurchaseDeliveryLine(conSeries())..serialNumbers = ['SN-1'];
+      final sobran = PurchaseDeliveryLine(conSeries())
+        ..serialNumbers = ['A', 'B', 'C', 'D'];
+      final justas = PurchaseDeliveryLine(conSeries())
+        ..serialNumbers = ['A', 'B', 'C'];
+
+      expect(build([faltan]).linesWithSerialMismatch, hasLength(1));
+      expect(build([sobran]).linesWithSerialMismatch, hasLength(1));
+      expect(build([justas]).linesWithSerialMismatch, isEmpty);
+    });
+
+    test('una línea que no se recibe no exige series', () {
+      final line = PurchaseDeliveryLine(conSeries())..deliveryQuantity = 0;
+      expect(build([line]).linesWithSerialMismatch, isEmpty);
+    });
+
+    test('el modo serial se lee del detalle del pedido', () {
+      final line = PurchaseOrderLine.fromJson({
+        'ProductId': 'x9',
+        'ProductName': 'Tensiómetro',
+        'OrderedQuantity': 2,
+        'TrackingMode': 'serial',
+      });
+
+      expect(line.usesSerial, isTrue);
+      expect(line.usesLot, isFalse);
+    });
+  });
+
   test('el pendiente se deriva si el API no lo manda', () {
     // Defensa: una línea con saldo real no puede presentarse como completa,
     // porque la pantalla desactivaría sus campos.

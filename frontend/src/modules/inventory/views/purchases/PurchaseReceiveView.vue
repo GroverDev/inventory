@@ -118,6 +118,9 @@
                         <span v-if="usesLot(line)" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">
                           <i class="fal fa-layer-group me-1"></i>Lote
                         </span>
+                        <span v-else-if="usesSerial(line)" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">
+                          <i class="fal fa-barcode me-1"></i>Series
+                        </span>
                       </td>
                       <td class="text-center">{{ line.OrderedQuantity }}</td>
                       <td class="text-center">{{ line.ReceivedQuantity }}</td>
@@ -157,6 +160,56 @@
                       sumarlas a una tabla de siete columnas la vuelve ilegible
                       para todos los demás.
                     -->
+                    <!--
+                      Series: una por unidad. Va en un textarea y no en N campos
+                      porque estos códigos se leen con lector, y un lector emite
+                      Enter al final de cada lectura: así se cargan de corrido
+                      sin tocar el teclado.
+                    -->
+                    <tr v-if="usesSerial(line) && line.PendingQuantity > 0" class="lot-row">
+                      <td class="border-0"></td>
+                      <td colspan="6" class="border-0 pt-0">
+                        <div class="row g-2">
+                          <div class="col-12 col-md-5">
+                            <label class="form-label small text-muted mb-1">
+                              Números de serie <span class="text-danger">*</span>
+                              <span :class="serialCountClass(line)">
+                                {{ serialCount(line) }} de {{ line.DeliveryQuantity }}
+                              </span>
+                            </label>
+                            <textarea
+                              class="form-control form-control-sm font-monospace"
+                              :class="{ 'is-invalid': serialErrors[i] }"
+                              rows="3"
+                              placeholder="Uno por línea, o léalos con el lector"
+                              :value="line.SerialNumbers.join('\n')"
+                              :disabled="isSaved"
+                              @input="onSerialsInput(line, i, $event)"
+                            ></textarea>
+                          </div>
+                          <div class="col-12 col-md-3">
+                            <label class="form-label small text-muted mb-1">Vencimiento</label>
+                            <input
+                              type="date"
+                              class="form-control form-control-sm"
+                              v-model="line.ExpiryDate"
+                              :disabled="isSaved"
+                            />
+                            <small v-if="isExpired(line)" class="text-danger">
+                              <i class="fal fa-exclamation-triangle me-1"></i>Ya vencido
+                            </small>
+                          </div>
+                          <div class="col-12 col-md-4 d-flex align-items-end">
+                            <small class="text-muted">
+                              <i class="fal fa-info-circle me-1"></i>
+                              Un número por unidad. Si la cantidad cambia, la lista tiene que
+                              acompañarla.
+                            </small>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+
                     <tr v-if="usesLot(line) && line.PendingQuantity > 0" class="lot-row">
                       <td class="border-0"></td>
                       <td colspan="6" class="border-0 pt-0">
@@ -239,6 +292,7 @@ const delivery = ref(new PurchaseDelivery());
 const isSaved = ref(false);
 const lineErrors = ref<boolean[]>([]);
 const lotErrors = ref<boolean[]>([]);
+const serialErrors = ref<boolean[]>([]);
 
 /**
  * En horario LOCAL: con UTC, a partir de las 20:00 el servidor rechazaba la
@@ -286,6 +340,21 @@ const statusLabel = (id: number) => {
  * esta pantalla: se trata como los demás hasta que exista su propia captura.
  */
 const usesLot = (line: PurchaseDeliveryDetail) => line.TrackingMode === 'lot';
+
+/** Una unidad, un número de serie: la lista tiene que igualar a la cantidad. */
+const usesSerial = (line: PurchaseDeliveryDetail) => line.TrackingMode === 'serial';
+
+const serialCount = (line: PurchaseDeliveryDetail) => line.SerialNumbers.length;
+
+const serialCountClass = (line: PurchaseDeliveryDetail) =>
+  serialCount(line) === line.DeliveryQuantity ? 'badge bg-success ms-1' : 'badge bg-secondary ms-1';
+
+/** Una serie por línea; los vacíos se descartan al escribir. */
+const onSerialsInput = (line: PurchaseDeliveryDetail, index: number, event: Event) => {
+  const texto = (event.target as HTMLTextAreaElement).value;
+  line.SerialNumbers = texto.split('\n').map(x => x.trim()).filter(x => x.length > 0);
+  serialErrors.value[index] = false;
+};
 
 /** Un vencimiento ya cumplido no bloquea, pero sí se advierte antes de confirmar. */
 const isExpired = (line: PurchaseDeliveryDetail) =>
@@ -354,6 +423,7 @@ const loadPurchase = async (id: string) => {
 
   lineErrors.value = delivery.value.Detail.map(() => false);
   lotErrors.value = delivery.value.Detail.map(() => false);
+  serialErrors.value = delivery.value.Detail.map(() => false);
 };
 
 /** Recorta la cantidad al pendiente disponible mientras el usuario tipea. */
@@ -407,6 +477,37 @@ const saveReceive = async () => {
     lotErrors.value[sinLote] = true;
     utils.showMessageModal({
       Description: `"${delivery.value.Detail[sinLote].ProductName}" se maneja por lotes: indique el lote recibido.`,
+      MessageType: 'warning',
+    });
+    return;
+  }
+
+  // La cantidad de series tiene que coincidir con las unidades: el servidor lo
+  // rechaza y se perdería toda la recepción, no solo esa fila.
+  const seriesMal = delivery.value.Detail.findIndex(
+    d => d.DeliveryQuantity > 0 && usesSerial(d) && d.SerialNumbers.length !== d.DeliveryQuantity
+  );
+  if (seriesMal >= 0) {
+    const linea = delivery.value.Detail[seriesMal];
+    serialErrors.value[seriesMal] = true;
+    utils.showMessageModal({
+      Description: `"${linea.ProductName}" se identifica por número de serie: indique ` +
+        `${linea.DeliveryQuantity} número(s), hay ${linea.SerialNumbers.length}.`,
+      MessageType: 'warning',
+    });
+    return;
+  }
+
+  // Un mismo número dos veces sería la misma unidad física repetida.
+  const seriesRepetidas = delivery.value.Detail.findIndex(d => {
+    if (!usesSerial(d) || d.DeliveryQuantity === 0) return false;
+    const normalizadas = d.SerialNumbers.map(x => x.toUpperCase());
+    return new Set(normalizadas).size !== normalizadas.length;
+  });
+  if (seriesRepetidas >= 0) {
+    serialErrors.value[seriesRepetidas] = true;
+    utils.showMessageModal({
+      Description: `Hay números de serie repetidos en "${delivery.value.Detail[seriesRepetidas].ProductName}".`,
       MessageType: 'warning',
     });
     return;

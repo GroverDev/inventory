@@ -50,14 +50,18 @@ const useProduct = () => {
   }
 
   /**
-   * Activa el seguimiento por lotes. Es una acción aparte del guardado de la
-   * ficha porque no tiene vuelta atrás: el stock actual queda como existencia
-   * sin lote y desde entonces cada recepción exige su código.
+   * Activa el seguimiento del producto, por lotes o por números de serie. Es
+   * una acción aparte del guardado de la ficha porque no tiene vuelta atrás: el
+   * stock actual queda como existencia sin identificar y desde entonces cada
+   * recepción exige el código de lo que entra.
    */
-  const activateLotTracking = async (productId: string): Promise<ResponseObject<boolean>> => {
-    return await post<ResponseObject<boolean>>(`Product/${productId}/lot-tracking`, {});
+  const activateTracking = async (
+    productId: string,
+    modo: 'lot' | 'serial',
+  ): Promise<ResponseObject<boolean>> => {
+    return await post<ResponseObject<boolean>>(`Product/${productId}/tracking?modo=${modo}`, {});
   }
 
-  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts, activateLotTracking }
+  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts, activateTracking }
 }
 export default useProduct;

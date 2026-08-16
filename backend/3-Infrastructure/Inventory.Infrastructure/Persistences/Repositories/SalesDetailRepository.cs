@@ -180,6 +180,7 @@ public class SalesDetailRepository : ISalesDetailRepository
                                         p.product_name,
                                         si.lot_code,
                                         si.expiry_date,
+                                        si.serial_number,
                                         sd.quantity,
                                         sd.unit_price,
                                         sd.line_subtotal,

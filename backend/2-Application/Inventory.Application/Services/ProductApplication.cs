@@ -19,7 +19,10 @@ public class ProductApplication(
         Response<string> respuesta = new() { Data = "" };
         try
         {
-            var respLab = await _laboratoryRepository.GetLaboratory(Guid.Parse(productRequest.LaboratoryId));
+            // Solo se verifica que exista cuando el producto declara uno: es
+            // opcional, y `GetLaboratory` lanza si no lo encuentra.
+            if (!string.IsNullOrWhiteSpace(productRequest.LaboratoryId))
+                await _laboratoryRepository.GetLaboratory(Guid.Parse(productRequest.LaboratoryId));
             var respUnit = await _unitsOfMeasurementRepository.GetUnitOfMeasurement(Guid.Parse(productRequest.UomId));
 
             productRequest.ProductName = productRequest.ProductName.Trim().ToUpper();
@@ -43,7 +46,10 @@ public class ProductApplication(
         Response<bool> respuesta = new();
         try
         {
-            var respLab = await _laboratoryRepository.GetLaboratory(Guid.Parse(productRequest.LaboratoryId));
+            // Solo se verifica que exista cuando el producto declara uno: es
+            // opcional, y `GetLaboratory` lanza si no lo encuentra.
+            if (!string.IsNullOrWhiteSpace(productRequest.LaboratoryId))
+                await _laboratoryRepository.GetLaboratory(Guid.Parse(productRequest.LaboratoryId));
             var respUnit = await _unitsOfMeasurementRepository.GetUnitOfMeasurement(Guid.Parse(productRequest.UomId));
 
             var product = productRequest.Adapt<Product>();
@@ -151,11 +157,11 @@ public class ProductApplication(
     }
 
     /// <summary>
-    /// Activa el seguimiento por lotes de un producto. No tiene vuelta atrás por
-    /// diseño: una vez que hay existencias con lote, volver a 'none' dejaría stock
-    /// identificado que nadie podría consumir.
+    /// Activa el seguimiento de un producto, por lotes o por números de serie.
+    /// No tiene vuelta atrás por diseño: una vez que hay existencias
+    /// identificadas, volver a 'none' dejaría stock que nadie podría consumir.
     /// </summary>
-    public async Task<Response<bool>> ActivateLotTracking(string id)
+    public async Task<Response<bool>> ActivateTracking(string id, string modo)
     {
         Response<bool> respuesta = new();
         try
@@ -163,7 +169,15 @@ public class ProductApplication(
             if (!Guid.TryParse(id, out var productId) || productId == Guid.Empty)
                 throw new CustomException("El identificador del producto no es válido.", MessageTypes.Warning);
 
-            await _productRepository.ActivateLotTracking(productId);
+            // Se valida contra la lista cerrada antes de tocar la base: 'none' no
+            // se activa (es el estado inicial) y cualquier otro valor es un error
+            // del cliente, no algo que deba llegar a PostgreSQL.
+            if (modo != "lot" && modo != "serial")
+                throw new CustomException(
+                    "El seguimiento solo puede activarse por lotes o por números de serie.",
+                    MessageTypes.Warning);
+
+            await _productRepository.ActivateTracking(productId, modo);
             respuesta.Data = respuesta.ok = true;
         }
         catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }

@@ -17,4 +17,10 @@ public class SaleProductDetailResponse
 
     /// <summary>Vencimiento del lote vendido.</summary>
     public DateTime? ExpiryDate { get; set; }
+
+    /// <summary>
+    /// Número de serie de la unidad entregada. Es lo que responde un reclamo de
+    /// garantía: identifica exactamente cuál se vendió y a quién.
+    /// </summary>
+    public string? SerialNumber { get; set; }
 }

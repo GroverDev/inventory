@@ -15,5 +15,5 @@ public interface IProductApplication
 
     public Task<Response<ProductStockPriceResponse>> GetProductStockPrice(string id);
     public Task<Response<int>> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy);
-    public Task<Response<bool>> ActivateLotTracking(string id);
+    public Task<Response<bool>> ActivateTracking(string id, string modo);
 }

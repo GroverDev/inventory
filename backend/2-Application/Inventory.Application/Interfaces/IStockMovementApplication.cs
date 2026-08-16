@@ -9,5 +9,6 @@ public interface IStockMovementApplication
     Task<Response<List<StockMovementResponse>>> GetMovementsByProduct(string productId);
 
     Task<Response<List<StockExpiryResponse>>> GetExpiring(int dias);
+    Task<Response<List<LotTraceabilityResponse>>> GetTraceability(string lotCode);
     Task<Response<bool>> CreateAdjustment(StockAdjustmentRequest request, int userId);
 }

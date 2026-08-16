@@ -165,6 +165,14 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
                     UnitPrice = line.UnitPrice,
                     LotCode = string.IsNullOrWhiteSpace(line.LotCode) ? null : line.LotCode.Trim(),
                     ExpiryDate = vencimiento,
+                    // Se limpian acá y no en el repositorio: los vacíos que deja
+                    // un formulario no son números de serie, y si llegaran a la
+                    // validación de cantidad la harían fallar por algo que el
+                    // usuario no escribió.
+                    SerialNumbers = (line.SerialNumbers ?? [])
+                        .Select(s => (s ?? "").Trim())
+                        .Where(s => s.Length > 0)
+                        .ToList(),
                     DeliveryDate = deliveryDate,
                     State = true,
                     CreatedBy = modifiedBy,

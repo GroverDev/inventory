@@ -179,6 +179,10 @@ class PurchaseOrderLine {
   /// lote, y con ella se cae la entrega entera, no solo esta línea.
   bool get usesLot => trackingMode == 'lot';
 
+  /// Una unidad, un número de serie: el servidor exige tantos números como
+  /// unidades se reciban.
+  bool get usesSerial => trackingMode == 'serial';
+
   factory PurchaseOrderLine.fromJson(Map<String, dynamic> j) {
     final ordered = (j['OrderedQuantity'] ?? 0) as int;
     final received = (j['ReceivedQuantity'] ?? 0) as int;
@@ -244,20 +248,31 @@ class PurchaseDeliveryLine {
   /// producto usa lotes; ignorado por el servidor si no.
   String lotCode;
 
-  /// Vencimiento del lote. Opcional incluso con lotes: hay mercadería sin
-  /// fecha impresa, y negarse a recibirla no la hace aparecer.
+  /// Vencimiento del lote o de la unidad. Opcional.
   DateTime? expiryDate;
+
+  /// Números de serie recibidos, uno por unidad. Solo se usa cuando el producto
+  /// se identifica por serie.
+  List<String> serialNumbers;
 
   PurchaseDeliveryLine(this.source)
       // Se propone recibir el saldo pendiente al precio pactado; ambos se
       // corrigen si el proveedor entregó o facturó otra cosa.
       : deliveryQuantity = source.pendingQuantity,
         unitPrice = source.orderUnitPrice,
-        lotCode = '';
+        lotCode = '',
+        serialNumbers = [];
 
   double get subtotal => deliveryQuantity * unitPrice;
 
   bool get usesLot => source.usesLot;
+
+  bool get usesSerial => source.usesSerial;
+
+  /// Línea con series que no declaró tantas como unidades va a recibir. El
+  /// servidor la rechaza y se cae la entrega completa.
+  bool get serialsMismatch =>
+      deliveryQuantity > 0 && usesSerial && serialNumbers.length != deliveryQuantity;
 
   /// Línea que se va a recibir y todavía no declaró su lote: el servidor la
   /// rechazaría y se perdería la entrega completa.
@@ -271,8 +286,9 @@ class PurchaseDeliveryLine {
         // Solo viajan en las líneas con lote: en el resto no hay nada que
         // declarar, y el servidor trata la ausencia igual que el vacío.
         if (usesLot) 'LotCode': lotCode.trim(),
-        if (usesLot && expiryDate != null)
+        if ((usesLot || usesSerial) && expiryDate != null)
           'ExpiryDate': apiDateFormat.format(expiryDate!),
+        if (usesSerial) 'SerialNumbers': serialNumbers,
       };
 }
 
@@ -308,6 +324,10 @@ class PurchaseDelivery {
   /// al usuario a recargar la pantalla y recargar todo lo que ya había puesto.
   List<PurchaseDeliveryLine> get linesMissingLot =>
       receivedLines.where((l) => l.missingLot).toList();
+
+  /// Líneas con series cuya lista no coincide con la cantidad recibida.
+  List<PurchaseDeliveryLine> get linesWithSerialMismatch =>
+      receivedLines.where((l) => l.serialsMismatch).toList();
 
   /// La entrega es parcial si alguna línea deja saldo sin recibir.
   bool get isPartial =>

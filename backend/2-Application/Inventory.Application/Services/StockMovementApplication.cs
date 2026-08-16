@@ -22,6 +22,29 @@ public class StockMovementApplication(IStockMovementRepository _stockMovementRep
         return resp;
     }
 
+    public async Task<Response<List<LotTraceabilityResponse>>> GetTraceability(string lotCode)
+    {
+        var resp = new Response<List<LotTraceabilityResponse>>() { Data = [] };
+        try
+        {
+            if (string.IsNullOrWhiteSpace(lotCode))
+                throw new CustomException("Indique el lote que quiere rastrear.", MessageTypes.Warning);
+
+            resp.Data = await _stockMovementRepository.GetTraceability(lotCode);
+            resp.ok = true;
+
+            // Que no haya ventas es un resultado legítimo —el lote sigue en el
+            // estante—, pero se dice, porque desde una pantalla vacía no se
+            // distingue de un lote mal tecleado.
+            if (resp.Data.Count == 0)
+                resp.SetMessage(MessageTypes.Info,
+                    $"No hay ventas registradas del lote «{lotCode.Trim()}».");
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
     public async Task<Response<List<StockExpiryResponse>>> GetExpiring(int dias)
     {
         var resp = new Response<List<StockExpiryResponse>>() { Data = [] };

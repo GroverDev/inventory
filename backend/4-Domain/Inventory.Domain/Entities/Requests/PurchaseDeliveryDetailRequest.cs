@@ -22,4 +22,10 @@ public class PurchaseDeliveryDetailRequest
     /// que el web manda ISO (yyyy-MM-dd), que toda cultura interpreta igual.
     /// </summary>
     public string? ExpiryDate { get; set; }
+
+    /// <summary>
+    /// Números de serie recibidos, uno por unidad. El servidor exige que sean
+    /// tantos como unidades cuando el producto se identifica por serie.
+    /// </summary>
+    public List<string>? SerialNumbers { get; set; }
 }

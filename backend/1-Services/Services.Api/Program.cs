@@ -28,7 +28,8 @@ using Sqids;
 
 
 
-DefaultTypeMap.MatchNamesWithUnderscores = true;
+// La configuración de mapeo de Dapper vive en Common.Utilities.DapperConfig:
+// acá solo se aplicaba si el proceso era la API.
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((ctx, lc) =>

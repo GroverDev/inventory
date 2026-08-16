@@ -66,6 +66,11 @@ export class PurchaseDeliveryDetail {
   public ExpiryDate: string = '';
   /** Solo para la UI: decide si la fila muestra y exige los campos de lote. */
   public TrackingMode: TrackingMode = 'none';
+  /**
+   * Números de serie recibidos, uno por unidad. El servidor exige que sean
+   * tantos como unidades cuando el producto se identifica por serie.
+   */
+  public SerialNumbers: string[] = [];
 }
 
 export class PurchaseDelivery {

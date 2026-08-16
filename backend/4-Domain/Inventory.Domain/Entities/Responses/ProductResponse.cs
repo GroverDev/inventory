@@ -16,9 +16,9 @@ public class ProductResponse
     public bool AvailableInPos { get; set; }
     public Guid UomId { get; set; }= Guid.Empty;
     public string UnitName { get; set; }="";
-    public Guid LaboratoryId { get; set; }= Guid.Empty;
+    public Guid? LaboratoryId { get; set; }
     public string LaboratoryName { get; set; }="";
-    public Guid CategoryId { get; set; }= Guid.Empty;
+    public Guid? CategoryId { get; set; }
     public string CategoryName { get; set; }="";
  
     public bool IsActive { get; set; }

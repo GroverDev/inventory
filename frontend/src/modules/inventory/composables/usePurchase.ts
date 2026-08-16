@@ -83,6 +83,7 @@ const usePurchase = () => {
           // silencio por más que el modelo y la pantalla lo tengan.
           lotCode: d.LotCode || null,
           expiryDate: d.ExpiryDate || null,
+          serialNumbers: d.SerialNumbers.length > 0 ? d.SerialNumbers : null,
         })),
     });
   }

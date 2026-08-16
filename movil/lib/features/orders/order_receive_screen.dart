@@ -130,6 +130,16 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
       return;
     }
 
+    // Una unidad, un número: el servidor rechaza la entrega completa si no
+    // coinciden, así que se corta acá.
+    final seriesMal = delivery.linesWithSerialMismatch;
+    if (seriesMal.isNotEmpty) {
+      final l = seriesMal.first;
+      _snack('"${l.source.productName}" se identifica por número de serie: '
+          'indica ${l.deliveryQuantity} número(s), hay ${l.serialNumbers.length}.');
+      return;
+    }
+
     // Recibir mercadería vencida casi siempre es un error de tipeo, pero a
     // veces es real. Se advierte, no se prohíbe.
     final vencidas = delivery.receivedLines
@@ -417,9 +427,9 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
                     child: Text(line.source.productName,
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                  if (line.usesLot) ...[
+                  if (line.usesLot || line.usesSerial) ...[
                     const SizedBox(width: 8),
-                    _lotChip(theme),
+                    _trackingChip(theme, line.usesLot ? 'Lote' : 'Series'),
                   ],
                 ],
               ),
@@ -469,6 +479,10 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
                 const SizedBox(height: 12),
                 _buildLotFields(line, editors, theme),
               ],
+              if (line.usesSerial && !complete) ...[
+                const SizedBox(height: 12),
+                _buildSerialFields(line, editors, theme),
+              ],
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
@@ -482,14 +496,14 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
     );
   }
 
-  Widget _lotChip(ThemeData theme) => Container(
+  Widget _trackingChip(ThemeData theme, String texto) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           color: theme.colorScheme.tertiaryContainer,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
-          'Lote',
+          texto,
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onTertiaryContainer,
             fontWeight: FontWeight.w600,
@@ -555,6 +569,77 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
         Text(
           'Un lote por recepción. Si llegaron varios, registra este y repite '
           'la recepción con el saldo.',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  /// Números de serie: uno por línea, en un campo multilínea.
+  ///
+  /// Un lector de códigos emite Enter al final de cada lectura, así que este
+  /// campo se llena de corrido sin tocar el teclado. Por eso multilínea y no N
+  /// campos separados: con N campos habría que ir dando foco a cada uno.
+  Widget _buildSerialFields(
+    PurchaseDeliveryLine line,
+    _LineEditors editors,
+    ThemeData theme,
+  ) {
+    final faltan = line.deliveryQuantity - line.serialNumbers.length;
+    final expiry = line.expiryDate;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: editors.serials,
+          enabled: !_saving,
+          maxLines: 4,
+          minLines: 2,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            labelText: 'Números de serie *',
+            helperText: 'Uno por línea, o léelos con el lector',
+            counterText:
+                '${line.serialNumbers.length} de ${line.deliveryQuantity}',
+            errorText: faltan == 0
+                ? null
+                : (faltan > 0 ? 'Faltan $faltan' : 'Sobran ${-faltan}'),
+          ),
+          onChanged: (v) => setState(() {
+            line.serialNumbers = v
+                .split('\n')
+                .map((x) => x.trim())
+                .where((x) => x.isNotEmpty)
+                .toList();
+          }),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _saving ? null : () => _pickExpiry(line),
+                icon: const Icon(Icons.event_outlined, size: 18),
+                label: Text(
+                  expiry == null
+                      ? 'Vencimiento (opcional)'
+                      : 'Vence: ${_display.format(expiry)}',
+                ),
+              ),
+            ),
+            if (expiry != null)
+              IconButton(
+                tooltip: 'Quitar vencimiento',
+                onPressed:
+                    _saving ? null : () => setState(() => line.expiryDate = null),
+                icon: const Icon(Icons.close),
+              ),
+          ],
+        ),
+        Text(
+          'Un número por unidad: identifica cuál se entregó ante una garantía.',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
@@ -630,15 +715,18 @@ class _LineEditors {
       : quantity = TextEditingController(text: line.deliveryQuantity.toString()),
         price = TextEditingController(
             text: line.unitPrice.toStringAsFixed(2)),
-        lot = TextEditingController(text: line.lotCode);
+        lot = TextEditingController(text: line.lotCode),
+        serials = TextEditingController(text: line.serialNumbers.join('\n'));
 
   final TextEditingController quantity;
   final TextEditingController price;
   final TextEditingController lot;
+  final TextEditingController serials;
 
   void dispose() {
     quantity.dispose();
     price.dispose();
     lot.dispose();
+    serials.dispose();
   }
 }

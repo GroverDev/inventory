@@ -166,6 +166,9 @@
                           <i class="fal fa-layer-group me-1"></i>Lote {{ line.LotCode }}
                           <span v-if="line.ExpiryDate"> · vence {{ formatDate(line.ExpiryDate) }}</span>
                         </small>
+                        <small v-else-if="line.SerialNumber" class="d-block text-muted" style="font-size:.72rem">
+                          <i class="fal fa-barcode me-1"></i>Serie {{ line.SerialNumber }}
+                        </small>
                       </td>
                       <td class="text-end text-muted small">{{ formatCurrency(line.UnitPrice) }}</td>
                       <td class="text-center">{{ line.Quantity }}</td>
@@ -240,6 +243,9 @@
                         <small v-if="line.LotCode" class="d-block text-muted" style="font-size:.72rem">
                           <i class="fal fa-layer-group me-1"></i>Lote {{ line.LotCode }}
                           <span v-if="line.ExpiryDate"> · vence {{ formatDate(line.ExpiryDate) }}</span>
+                        </small>
+                        <small v-else-if="line.SerialNumber" class="d-block text-muted" style="font-size:.72rem">
+                          <i class="fal fa-barcode me-1"></i>Serie {{ line.SerialNumber }}
                         </small>
                         <div v-if="line.LineTotalDiscounts > 0" class="d-flex justify-content-between mt-1">
                           <small class="text-muted">Subtotal</small>

@@ -1,6 +1,6 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseArray, ResponseObject } from '@/modules/common/models/response.model';
-import type { StockMovementResponse, StockAdjustmentRequest, StockExpiryResponse } from '@/modules/inventory/models/stockMovement.model';
+import type { StockMovementResponse, StockAdjustmentRequest, StockExpiryResponse, LotTraceabilityResponse } from '@/modules/inventory/models/stockMovement.model';
 
 const { get, post } = useApi();
 
@@ -22,7 +22,16 @@ const useStockMovement = () => {
     return await get<ResponseArray<StockExpiryResponse>>(`StockMovement/expiring?dias=${dias}`);
   };
 
-  return { getMovementsByProduct, createAdjustment, getExpiring };
+  /**
+   * A quién se le vendió un lote. El servidor compara sin distinguir mayúsculas
+   * ni espacios: en un retiro el código llega dictado o copiado de un correo.
+   */
+  const getTraceability = async (lote: string): Promise<ResponseArray<LotTraceabilityResponse>> => {
+    return await get<ResponseArray<LotTraceabilityResponse>>(
+      `StockMovement/traceability?lote=${encodeURIComponent(lote)}`);
+  };
+
+  return { getMovementsByProduct, createAdjustment, getExpiring, getTraceability };
 };
 
 export default useStockMovement;

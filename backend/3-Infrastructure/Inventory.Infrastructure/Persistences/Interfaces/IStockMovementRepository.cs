@@ -14,6 +14,11 @@ public interface IStockMovementRepository
     /// </summary>
     /// <param name="dias">Ventana en días. 0 o menos devuelve todas.</param>
     Task<List<StockExpiryResponse>> GetExpiring(int dias);
+    /// <summary>
+    /// A quién se le vendió un lote. Vacío si no se vendió nada de él todavía.
+    /// </summary>
+    Task<List<LotTraceabilityResponse>> GetTraceability(string lotCode);
+
     Task CreateAdjustment(StockMovement movement, int userId);
     Task InsertMovement(StockMovement movement, IDbConnection db, IDbTransaction transaction);
 }

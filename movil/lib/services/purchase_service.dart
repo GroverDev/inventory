@@ -86,32 +86,30 @@ class PurchaseService {
   /// El servidor revalida todo contra los saldos reales dentro de la
   /// transacción, así que un rechazo acá es la última palabra.
   Future<PurchaseReceiptResult> receive(PurchaseDelivery delivery) async {
-    final res = await _api.put<bool>(
-      'api/Purchases/reciveOrders/${delivery.purchaseId}',
-      (data) => data == true,
-      body: delivery.toJson(),
+    final ApiResponse<bool> res;
+    try {
+      res = await _api.put<bool>(
+        'api/Purchases/reciveOrders/${delivery.purchaseId}',
+        (data) => data == true,
+        body: delivery.toJson(),
+      );
+    } on ApiException catch (e) {
+      // Reintento de una recepción ya aplicada: el uid chocó contra el índice
+      // único y el backend lo responde con MessageType `info`. No es un fallo
+      // —la mercadería entró—, así que es el único caso que no se propaga.
+      if (e.isInfo) {
+        return PurchaseReceiptResult(
+          PurchaseReceiptOutcome.alreadyRegistered,
+          e.message.isNotEmpty ? e.message : 'Esta recepción ya fue registrada.',
+        );
+      }
+      rethrow;
+    }
+
+    return PurchaseReceiptResult(
+      PurchaseReceiptOutcome.applied,
+      res.message.description,
     );
-
-    if (res.ok) {
-      return PurchaseReceiptResult(
-        PurchaseReceiptOutcome.applied,
-        res.message.description,
-      );
-    }
-
-    // Reintento de una recepción ya aplicada: el uid chocó contra el índice
-    // único y el backend responde con MessageType `info`. El ApiClient solo
-    // lanza ante `error`, así que sin esto el caso pasaría mudo.
-    if (res.message.messageType.toLowerCase() == 'info') {
-      return PurchaseReceiptResult(
-        PurchaseReceiptOutcome.alreadyRegistered,
-        res.message.description.isNotEmpty
-            ? res.message.description
-            : 'Esta recepción ya fue registrada.',
-      );
-    }
-
-    throw ApiException(_reason(res, 'No se pudo registrar la recepción.'));
   }
 
   /// PUT api/Purchases/close/{id} — cierra con faltante una orden que el
@@ -122,15 +120,12 @@ class PurchaseService {
       (data) => data == true,
       body: const <String, dynamic>{},
     );
-    if (!res.ok) {
-      throw ApiException(_reason(res, 'No se pudo cerrar la orden.'));
-    }
     return res.message.description;
   }
 
-  /// Las reglas de negocio del backend responden `ok:false` con MessageType
-  /// `warning`, que el ApiClient no convierte en excepción. Sin rescatar el
-  /// texto acá, el motivo del rechazo se perdería.
+  /// Motivo del servidor, o un texto por defecto. Se usa donde la respuesta
+  /// llega con ok:true pero sin los datos esperados: el ApiClient no la
+  /// considera un fallo, y sin esto el usuario vería una pantalla vacía.
   String _reason(ApiResponse<dynamic> res, String fallback) =>
       res.message.description.isNotEmpty ? res.message.description : fallback;
 }

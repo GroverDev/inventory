@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 namespace MultiTenancy.Tests;
@@ -56,6 +57,25 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
         return cn;
     }
 
+    /// <summary>
+    /// Contexto de datos apuntando a la base desechable, para ejercitar los
+    /// repositorios que abren su propia conexión en vez de recibirla.
+    /// </summary>
+    public Inventory.Infrastructure.InventoryDbContext ContextoApp(int tenantId)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"ConnectionStrings:{Common.Utilities.MultiTenancy.ConnectionStringResolver.Key}"] = _appConn,
+            })
+            .Build();
+
+        var tenant = new Common.Utilities.MultiTenancy.TenantContext();
+        tenant.SetTenant(tenantId);
+
+        return new Inventory.Infrastructure.InventoryDbContext(config, tenant);
+    }
+
     /// <summary>Conexión de superusuario. Sirve para preparar datos saltando RLS.</summary>
     public NpgsqlConnection AbrirComoAdmin()
     {
@@ -72,6 +92,7 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+
         await using (var maestro = new NpgsqlConnection(_admin))
         {
             try

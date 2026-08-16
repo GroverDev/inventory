@@ -10,6 +10,9 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Dapper" Version="2.1.35" />
+    <!-- Para armar un IConfiguration en memoria y construir InventoryDbContext
+         contra la base desechable. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -29,6 +32,9 @@
     -->
     <ProjectReference Include="..\..\4-Domain\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\3-Infrastructure\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
+    <!-- Para probar el mapeo de Mapster, que es donde un vacío se convertía en
+         Guid.Empty y rompía la FK. -->
+    <ProjectReference Include="..\..\2-Application\Inventory.Application\Inventory.Application.csproj" />
   </ItemGroup>
 
 </Project>

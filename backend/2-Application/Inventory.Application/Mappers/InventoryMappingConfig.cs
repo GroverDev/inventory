@@ -23,7 +23,16 @@ public class InventoryMappingConfig : IRegister
         config.NewConfig<Product, ProductRequest>().TwoWays();
         config.NewConfig<ProductRequest, Product>()
             .Map(dest => dest.Id, src => string.IsNullOrEmpty(src.Id) ? Guid.Empty : Guid.Parse(src.Id))
-            .Map(dest => dest.CategoryId, src => string.IsNullOrEmpty(src.CategoryId) ? Guid.Empty : Guid.Parse(src.CategoryId));
+            // Sin categoría va NULL, no Guid.Empty: con Guid.Empty el INSERT
+            // choca contra products_category_id_fkey. Lo cubre
+            // ProductoSinClasificacionTests.
+            .Map(dest => dest.CategoryId,
+                 src => string.IsNullOrWhiteSpace(src.CategoryId) ? (Guid?)null : Guid.Parse(src.CategoryId))
+            // Sin laboratorio va NULL, no Guid.Empty: la columna es nullable y
+            // tiene FK, así que un Guid vacío no referenciaría a nada y la
+            // inserción fallaría.
+            .Map(dest => dest.LaboratoryId,
+                 src => string.IsNullOrWhiteSpace(src.LaboratoryId) ? (Guid?)null : Guid.Parse(src.LaboratoryId));
 
         // Category
         config.NewConfig<Category, CategoryRequest>().TwoWays();

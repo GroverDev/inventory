@@ -55,6 +55,95 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
         return ok;
     }
 
+    /// <summary>Una entrada de mercadería sobre una existencia concreta.</summary>
+    private readonly record struct Entrada(
+        Guid StockItemId, decimal StockBefore, decimal StockAfter, int Cantidad);
+
+    /// <summary>
+    /// Da entrada al stock según cómo se identifique el producto, y devuelve una
+    /// fila por existencia afectada.
+    /// </summary>
+    /// <remarks>
+    /// Con lotes y sin seguimiento hay una sola existencia; con series hay una
+    /// por unidad, porque cada número identifica una unidad física distinta.
+    /// Los tres caminos terminan en <c>fn_mover_stock</c>, así que la caché de
+    /// <c>products.current_stock</c> queda alineada en todos los casos.
+    /// </remarks>
+    private static async Task<List<Entrada>> RegistrarEntradas(
+        string modo, PurchaseDeliveryDetail detail, IDbConnection db, IDbTransaction transaction)
+    {
+        const string sqlEntrada = "SELECT stock_item_id, stock_before, stock_after FROM ";
+
+        if (modo == "lot")
+        {
+            if (string.IsNullOrWhiteSpace(detail.LotCode))
+                throw new CustomException(
+                    "El producto usa seguimiento por lotes: hay que indicar el lote recibido.");
+
+            // Los dos casts son obligatorios, no decorativos: la función se
+            // declara (uuid, numeric, varchar, date, integer) y Npgsql manda el
+            // DateTime como `timestamp` y el string como `text`. PostgreSQL no
+            // convierte timestamp→date al resolver la función, así que sin el
+            // cast falla con "function ... does not exist".
+            var lote = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                sqlEntrada + "fn_recibir_lote(@ProductId, @Cantidad, @Lote::varchar, @Vence::date, @UserId)",
+                new
+                {
+                    detail.ProductId,
+                    Cantidad = (decimal)detail.DeliveryQuantity,
+                    Lote = detail.LotCode,
+                    Vence = detail.ExpiryDate,
+                    UserId = detail.CreatedBy
+                }, transaction);
+
+            return [new Entrada(lote.StockItemId, lote.StockBefore, lote.StockAfter, detail.DeliveryQuantity)];
+        }
+
+        if (modo == "serial")
+        {
+            var series = (detail.SerialNumbers ?? [])
+                .Select(s => (s ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+
+            // Una unidad, un número: recibir 5 aparatos exige 5 números. Si no
+            // coinciden, alguien se saltó una etiqueta o tecleó de más, y dejarlo
+            // pasar significaría stock que nadie puede identificar después.
+            if (series.Count != detail.DeliveryQuantity)
+                throw new CustomException(
+                    $"El producto se identifica por número de serie: hay que indicar " +
+                    $"{detail.DeliveryQuantity} número(s) y llegaron {series.Count}.");
+
+            if (series.Distinct(StringComparer.OrdinalIgnoreCase).Count() != series.Count)
+                throw new CustomException(
+                    "Hay números de serie repetidos en esta recepción: cada uno identifica una unidad distinta.");
+
+            var entradas = new List<Entrada>(series.Count);
+            foreach (var serie in series)
+            {
+                var fila = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                    sqlEntrada + "fn_recibir_serie(@ProductId, @Serie::varchar, @Vence::date, @UserId)",
+                    new
+                    {
+                        detail.ProductId,
+                        Serie = serie,
+                        Vence = detail.ExpiryDate,
+                        UserId = detail.CreatedBy
+                    }, transaction);
+
+                entradas.Add(new Entrada(fila.StockItemId, fila.StockBefore, fila.StockAfter, 1));
+            }
+            return entradas;
+        }
+
+        var simple = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+            sqlEntrada + "fn_mover_stock(@ProductId, @Delta, @UserId)",
+            new { detail.ProductId, Delta = (decimal)detail.DeliveryQuantity, UserId = detail.CreatedBy },
+            transaction);
+
+        return [new Entrada(simple.StockItemId, simple.StockBefore, simple.StockAfter, detail.DeliveryQuantity)];
+    }
+
     /// <summary>
     /// Registra una línea de recepción: graba el hecho, mueve el stock, deja el
     /// movimiento auditable y actualiza el acumulado de la línea del pedido.
@@ -74,58 +163,18 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
 
             await db.ExecuteAsync(sqlQuery, detail, transaction);
 
-            // La recepción es el único momento en que un lote entra al sistema: es
-            // cuando la caja física llega con su etiqueta. Después ya no hay forma
-            // de saber de qué lote era.
-            bool usaLotes = await db.ExecuteScalarAsync<bool>(
-                "SELECT tracking_mode = 'lot' FROM products WHERE id = @ProductId",
-                new { detail.ProductId }, transaction);
+            // La recepción es el único momento en que el lote o la serie entran al
+            // sistema: es cuando la caja física llega con su etiqueta. Después ya
+            // no hay forma de saber de qué lote era ni qué unidad se recibió.
+            string modo = await db.ExecuteScalarAsync<string>(
+                "SELECT tracking_mode FROM products WHERE id = @ProductId",
+                new { detail.ProductId }, transaction) ?? "none";
 
-            if (usaLotes && string.IsNullOrWhiteSpace(detail.LotCode))
-                throw new CustomException(
-                    "El producto usa seguimiento por lotes: hay que indicar el lote recibido.");
-
-            // Con lotes se busca o crea la existencia del lote; sin lotes se usa la
-            // implícita. Los dos caminos terminan en fn_mover_stock, así que el
-            // movimiento y la caché se actualizan igual en ambos casos.
-            var stock = usaLotes
-                // Los dos casts son obligatorios, no decorativos: la función se
-                // declara (uuid, numeric, varchar, date, integer) y Npgsql manda el
-                // DateTime como `timestamp` y el string como `text`. PostgreSQL no
-                // convierte timestamp→date al resolver la función, así que sin el
-                // cast falla con "function ... does not exist".
-                ? await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
-                    "SELECT stock_item_id, stock_before, stock_after FROM fn_recibir_lote(@ProductId, @Cantidad, @Lote::varchar, @Vence::date, @UserId)",
-                    new
-                    {
-                        detail.ProductId,
-                        Cantidad = (decimal)detail.DeliveryQuantity,
-                        Lote = detail.LotCode,
-                        Vence = detail.ExpiryDate,
-                        UserId = detail.CreatedBy
-                    }, transaction)
-                : await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
-                    "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId)",
-                    new { detail.ProductId, Delta = (decimal)detail.DeliveryQuantity, UserId = detail.CreatedBy },
-                    transaction);
-
-            var movement = new StockMovement
-            {
-                Id = Guid.NewGuid(),
-                ProductId = detail.ProductId,
-                StockItemId = stock.StockItemId,
-                MovementType = "COMPRA",
-                Quantity = detail.DeliveryQuantity,
-                StockBefore = (int)stock.StockBefore,
-                StockAfter = (int)stock.StockAfter,
-                ReferenceId = detail.PurchaseDeliveryId,
-                ReferenceType = "PURCHASE",
-                State = true,
-                CreatedBy = detail.CreatedBy,
-                ModifiedBy = detail.CreatedBy,
-                Created = DateTime.Now,
-                Modified = DateTime.Now,
-            };
+            // Cada entrada mueve una existencia distinta. Con lotes o sin
+            // seguimiento hay una sola; con series hay una por unidad, y el libro
+            // mayor guarda un movimiento por cada una: es lo que después permite
+            // decir qué unidad concreta entró y cuándo.
+            var entradas = await RegistrarEntradas(modo, detail, db, transaction);
 
             string movSql = @"
                 INSERT INTO stock_movements
@@ -136,7 +185,27 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
                         @Reason, @Observation, @ReferenceId, @ReferenceType,
                         @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
             ";
-            await db.ExecuteAsync(movSql, movement, transaction);
+
+            foreach (var entrada in entradas)
+            {
+                await db.ExecuteAsync(movSql, new StockMovement
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = detail.ProductId,
+                    StockItemId = entrada.StockItemId,
+                    MovementType = "COMPRA",
+                    Quantity = entrada.Cantidad,
+                    StockBefore = (int)entrada.StockBefore,
+                    StockAfter = (int)entrada.StockAfter,
+                    ReferenceId = detail.PurchaseDeliveryId,
+                    ReferenceType = "PURCHASE",
+                    State = true,
+                    CreatedBy = detail.CreatedBy,
+                    ModifiedBy = detail.CreatedBy,
+                    Created = DateTime.Now,
+                    Modified = DateTime.Now,
+                }, transaction);
+            }
 
             // Caché denormalizado sobre la línea del pedido. La verdad sigue siendo
             // el log de recepciones; esto solo evita recalcularlo en cada consulta.

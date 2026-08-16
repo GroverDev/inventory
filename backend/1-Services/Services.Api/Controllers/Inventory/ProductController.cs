@@ -31,7 +31,10 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
             return new Response<string>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para crear productos." } };
 
         if (!Guid.TryParse(productRequest.Id, out _)) productRequest.Id = "";
-        if (!Guid.TryParse(productRequest.LaboratoryId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Laboratory ID no valido" } });
+        // El laboratorio es opcional: vacío es válido. Solo se rechaza un valor
+        // presente pero mal formado, que sí es un error del cliente.
+        if (!string.IsNullOrWhiteSpace(productRequest.LaboratoryId) && !Guid.TryParse(productRequest.LaboratoryId, out _))
+            return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Laboratory ID no valido" } });
         if (!Guid.TryParse(productRequest.UomId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "El Id de la unidad de medida es no valido" } });
 
         ValidationResult result = new ProductRequestValidator().Validate(productRequest);
@@ -80,7 +83,8 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
             return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
 
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
-        if (!Guid.TryParse(productRequest.LaboratoryId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "ProviderId no valido" } });
+        if (!string.IsNullOrWhiteSpace(productRequest.LaboratoryId) && !Guid.TryParse(productRequest.LaboratoryId, out _))
+            return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Laboratory ID no valido" } });
         if (!Guid.TryParse(productRequest.UomId, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "El Id de la unidad de medida es no valido" } });
 
          ValidationResult result = new ProductRequestValidator().Validate(productRequest);
@@ -92,12 +96,13 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
         return respuesta;
     }
 
-    // POST api/Product/5/lot-tracking
-    // Activa el seguimiento por lotes. Va aparte del PUT porque no es un campo
-    // más de la ficha: es irreversible y toca las existencias, así que la UI lo
-    // pide como una acción deliberada y no como un guardado cualquiera.
-    [HttpPost("{id}/lot-tracking")]
-    public async Task<ActionResult<Response<bool>>> ActivateLotTracking(string id)
+    // POST api/Product/5/tracking?modo=lot|serial
+    // Activa el seguimiento por lotes o por números de serie. Va aparte del PUT
+    // porque no es un campo más de la ficha: es irreversible y toca las
+    // existencias, así que la UI lo pide como una acción deliberada y no como un
+    // guardado cualquiera.
+    [HttpPost("{id}/tracking")]
+    public async Task<ActionResult<Response<bool>>> ActivateTracking(string id, [FromQuery] string modo = "lot")
     {
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
         var datos = TokenData.GetData(HttpContext);
@@ -107,7 +112,7 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
 
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
 
-        return await _productApplication.ActivateLotTracking(id);
+        return await _productApplication.ActivateTracking(id, modo);
     }
 
     // DELETE api/Product/5
