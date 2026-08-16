@@ -9,6 +9,14 @@ export class SaleDetail {
   public LineTotal: number = 0;
   public ProductName: string = '';
   public LaboratoryName: string = '';
+  /**
+   * Lote del que salió la línea, elegido por FEFO al vender. Vacío si el
+   * producto no usa lotes. Una venta que abarca varios lotes se parte en una
+   * línea por lote, así que este campo identifica exactamente qué se entregó:
+   * es lo que permite responder a un retiro del laboratorio.
+   */
+  public LotCode: string | null = null;
+  public ExpiryDate: string | null = null;
   public isSelected: boolean = false;
   // Discount tracking (DiscountId is sent to the API)
   public DiscountId: string = '';

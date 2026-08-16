@@ -156,6 +156,16 @@
                         <span v-if="line.Net === 0" class="badge bg-secondary ms-2" style="font-size:.65rem">
                           Devuelto
                         </span>
+                        <!--
+                          El lote va debajo del nombre y no en una columna
+                          propia: solo lo tienen los productos con seguimiento,
+                          y esta tabla ya suma y resta columnas según haya
+                          devoluciones o descuentos.
+                        -->
+                        <small v-if="line.LotCode" class="d-block text-muted" style="font-size:.72rem">
+                          <i class="fal fa-layer-group me-1"></i>Lote {{ line.LotCode }}
+                          <span v-if="line.ExpiryDate"> · vence {{ formatDate(line.ExpiryDate) }}</span>
+                        </small>
                       </td>
                       <td class="text-end text-muted small">{{ formatCurrency(line.UnitPrice) }}</td>
                       <td class="text-center">{{ line.Quantity }}</td>
@@ -226,6 +236,10 @@
                           <span v-if="line.Returned > 0" class="text-warning ms-1">
                             · {{ line.Returned }} devuelto{{ line.Returned > 1 ? 's' : '' }}
                           </span>
+                        </small>
+                        <small v-if="line.LotCode" class="d-block text-muted" style="font-size:.72rem">
+                          <i class="fal fa-layer-group me-1"></i>Lote {{ line.LotCode }}
+                          <span v-if="line.ExpiryDate"> · vence {{ formatDate(line.ExpiryDate) }}</span>
                         </small>
                         <div v-if="line.LineTotalDiscounts > 0" class="d-flex justify-content-between mt-1">
                           <small class="text-muted">Subtotal</small>
