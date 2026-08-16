@@ -111,40 +111,94 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(line, i) in delivery.Detail" :key="line.ProductId"
-                    :class="{ 'opacity-50': line.PendingQuantity === 0 }">
-                    <td class="fw-semibold">{{ line.ProductName }}</td>
-                    <td class="text-center">{{ line.OrderedQuantity }}</td>
-                    <td class="text-center">{{ line.ReceivedQuantity }}</td>
-                    <td class="text-center">
-                      <span :class="line.PendingQuantity > 0 ? 'badge bg-warning text-dark' : 'badge bg-success'">
-                        {{ line.PendingQuantity }}
-                      </span>
-                    </td>
-                    <td class="text-center">
-                      <input
-                        type="number"
-                        class="form-control form-control-sm text-center"
-                        :class="{ 'is-invalid': lineErrors[i] }"
-                        min="0"
-                        :max="line.PendingQuantity"
-                        v-model.number="line.DeliveryQuantity"
-                        :disabled="isSaved || line.PendingQuantity === 0"
-                        @input="clampLine(i)"
-                      />
-                    </td>
-                    <td class="text-end">
-                      <input
-                        type="number"
-                        class="form-control form-control-sm text-end"
-                        min="0"
-                        step="0.01"
-                        v-model.number="line.UnitPrice"
-                        :disabled="isSaved || line.PendingQuantity === 0"
-                      />
-                    </td>
-                    <td class="text-end fw-semibold">{{ formatCurrency(line.DeliveryQuantity * line.UnitPrice) }}</td>
-                  </tr>
+                  <template v-for="(line, i) in delivery.Detail" :key="line.ProductId">
+                    <tr :class="{ 'opacity-50': line.PendingQuantity === 0 }">
+                      <td class="fw-semibold">
+                        {{ line.ProductName }}
+                        <span v-if="usesLot(line)" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">
+                          <i class="fal fa-layer-group me-1"></i>Lote
+                        </span>
+                      </td>
+                      <td class="text-center">{{ line.OrderedQuantity }}</td>
+                      <td class="text-center">{{ line.ReceivedQuantity }}</td>
+                      <td class="text-center">
+                        <span :class="line.PendingQuantity > 0 ? 'badge bg-warning text-dark' : 'badge bg-success'">
+                          {{ line.PendingQuantity }}
+                        </span>
+                      </td>
+                      <td class="text-center">
+                        <input
+                          type="number"
+                          class="form-control form-control-sm text-center"
+                          :class="{ 'is-invalid': lineErrors[i] }"
+                          min="0"
+                          :max="line.PendingQuantity"
+                          v-model.number="line.DeliveryQuantity"
+                          :disabled="isSaved || line.PendingQuantity === 0"
+                          @input="clampLine(i)"
+                        />
+                      </td>
+                      <td class="text-end">
+                        <input
+                          type="number"
+                          class="form-control form-control-sm text-end"
+                          min="0"
+                          step="0.01"
+                          v-model.number="line.UnitPrice"
+                          :disabled="isSaved || line.PendingQuantity === 0"
+                        />
+                      </td>
+                      <td class="text-end fw-semibold">{{ formatCurrency(line.DeliveryQuantity * line.UnitPrice) }}</td>
+                    </tr>
+
+                    <!--
+                      Los campos del lote van en una sub-fila y no en columnas
+                      propias: solo los necesita una minoría de productos, y
+                      sumarlas a una tabla de siete columnas la vuelve ilegible
+                      para todos los demás.
+                    -->
+                    <tr v-if="usesLot(line) && line.PendingQuantity > 0" class="lot-row">
+                      <td class="border-0"></td>
+                      <td colspan="6" class="border-0 pt-0">
+                        <div class="row g-2">
+                          <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted mb-1">
+                              Lote recibido <span class="text-danger">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              class="form-control form-control-sm"
+                              :class="{ 'is-invalid': lotErrors[i] }"
+                              maxlength="50"
+                              placeholder="Código impreso en la caja"
+                              v-model.trim="line.LotCode"
+                              :disabled="isSaved"
+                              @input="lotErrors[i] = false"
+                            />
+                          </div>
+                          <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted mb-1">Vencimiento</label>
+                            <input
+                              type="date"
+                              class="form-control form-control-sm"
+                              v-model="line.ExpiryDate"
+                              :disabled="isSaved"
+                            />
+                            <small v-if="isExpired(line)" class="text-danger">
+                              <i class="fal fa-exclamation-triangle me-1"></i>Ya vencido
+                            </small>
+                          </div>
+                          <div class="col-12 col-md-4 d-flex align-items-end">
+                            <small class="text-muted">
+                              <i class="fal fa-info-circle me-1"></i>
+                              Un lote por recepción. Si llegaron varios, registre este y
+                              repita la recepción con el saldo.
+                            </small>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
                 <tfoot>
                   <tr>
@@ -183,8 +237,16 @@ const purchase = ref(new Purchase());
 const delivery = ref(new PurchaseDelivery());
 const isSaved = ref(false);
 const lineErrors = ref<boolean[]>([]);
+const lotErrors = ref<boolean[]>([]);
 
-const today = new Date().toISOString().split('T')[0];
+/**
+ * Fecha de hoy en horario LOCAL, no UTC. Con `toISOString()` una farmacia en
+ * Bolivia (UTC−4) ve la fecha de mañana a partir de las 20:00, y el servidor
+ * —que compara contra su fecha local— rechaza la recepción por futura: entre
+ * las 20:00 y la medianoche no se podía recepcionar nada. `sv-SE` se usa
+ * porque su formato de fecha ya es el ISO `yyyy-MM-dd` que espera el input.
+ */
+const today = new Date().toLocaleDateString('sv-SE');
 
 const formatDate = (val: string | Date): string => {
   if (!val) return '—';
@@ -219,6 +281,17 @@ const statusLabel = (id: number) => {
   if (id === PURCHASE_STATUS.CLOSED) return 'Cerrado';
   return 'Solicitado';
 };
+
+/**
+ * El servidor rechaza la recepción sin lote cuando el producto lo lleva, así que
+ * la fila lo pide antes de intentar el viaje. `serial` todavía no se recibe por
+ * esta pantalla: se trata como los demás hasta que exista su propia captura.
+ */
+const usesLot = (line: PurchaseDeliveryDetail) => line.TrackingMode === 'lot';
+
+/** Un vencimiento ya cumplido no bloquea, pero sí se advierte antes de confirmar. */
+const isExpired = (line: PurchaseDeliveryDetail) =>
+  !!line.ExpiryDate && line.ExpiryDate < today;
 
 const hasPending = computed(() => delivery.value.Detail.some(d => d.PendingQuantity > 0));
 
@@ -270,14 +343,19 @@ const loadPurchase = async (id: string) => {
     detail.PendingQuantity = Number(
       d.PendingQuantity ?? Math.max(0, detail.OrderedQuantity - detail.ReceivedQuantity)
     );
-    // Se propone recibir el saldo pendiente, no el total ordenado.
-    detail.DeliveryQuantity = d.PendingQuantity;
+    // Se propone recibir el saldo pendiente, no el total ordenado. Se usa el
+    // valor ya derivado y no el crudo: si el servidor lo omitió, la propuesta
+    // quedaría en undefined mientras el tope sí tiene número.
+    detail.DeliveryQuantity = detail.PendingQuantity;
     // El precio pactado es el punto de partida; se corrige si el proveedor facturó otro.
     detail.UnitPrice = d.OrderUnitPrice ?? 0;
+    // Una orden vieja puede venir sin el campo; sin seguimiento es el caso simple.
+    detail.TrackingMode = d.TrackingMode ?? 'none';
     return detail;
   });
 
   lineErrors.value = delivery.value.Detail.map(() => false);
+  lotErrors.value = delivery.value.Detail.map(() => false);
 };
 
 /** Recorta la cantidad al pendiente disponible mientras el usuario tipea. */
@@ -320,6 +398,30 @@ const saveReceive = async () => {
   if (lines.length === 0) {
     utils.showMessageModal({ Description: 'Debe indicar al menos un producto con cantidad recibida.', MessageType: 'warning' });
     return;
+  }
+
+  // Sin lote el servidor rechaza la línea y se pierde toda la recepción, no solo
+  // esa fila. Se corta acá para que el usuario no reescriba lo demás.
+  const sinLote = delivery.value.Detail.findIndex(
+    d => d.DeliveryQuantity > 0 && usesLot(d) && !d.LotCode
+  );
+  if (sinLote >= 0) {
+    lotErrors.value[sinLote] = true;
+    utils.showMessageModal({
+      Description: `"${delivery.value.Detail[sinLote].ProductName}" se maneja por lotes: indique el lote recibido.`,
+      MessageType: 'warning',
+    });
+    return;
+  }
+
+  // Recibir mercadería vencida es casi siempre un error de tipeo, pero a veces es
+  // real (una devolución al proveedor pendiente). Se advierte, no se prohíbe.
+  const vencidos = delivery.value.Detail.filter(d => d.DeliveryQuantity > 0 && isExpired(d));
+  if (vencidos.length > 0) {
+    const nombres = vencidos.map(d => d.ProductName).join(', ');
+    if (!await utils.showMessageQuestion(
+      `El vencimiento indicado ya pasó en: ${nombres}. ¿Registrar la recepción de todos modos?`
+    )) return;
   }
 
   const partial = delivery.value.Detail.some(d => d.DeliveryQuantity < d.PendingQuantity);

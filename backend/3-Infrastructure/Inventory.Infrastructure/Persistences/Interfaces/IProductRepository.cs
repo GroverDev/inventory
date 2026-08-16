@@ -13,4 +13,5 @@ public interface IProductRepository
     public Task<ProductResponse> GetProduct(Guid Id);
     public Task<ProductStockPriceResponse> GetProductStockPrice(Guid Id);
     public Task<int> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy);
+    public Task ActivateLotTracking(Guid id);
 }

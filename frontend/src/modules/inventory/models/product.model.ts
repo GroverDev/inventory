@@ -17,7 +17,15 @@ export class Product {
   public CategoryName: string = '';
   public InitialStock: number = 0;
   public IsActive: boolean = false;
+  /**
+   * Seguimiento de existencias. Lo fija el servidor: la ficha no lo edita, se
+   * cambia con la acción de activar lotes.
+   */
+  public TrackingMode: TrackingMode = 'none';
 }
+
+/** Cómo identifica el sistema cada unidad del producto. */
+export type TrackingMode = 'none' | 'lot' | 'serial';
 
 export interface ProductBulkUpdate {
   Id: string;

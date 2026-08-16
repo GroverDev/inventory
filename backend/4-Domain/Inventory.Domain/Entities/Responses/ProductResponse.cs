@@ -22,6 +22,11 @@ public class ProductResponse
     public string CategoryName { get; set; }="";
  
     public bool IsActive { get; set; }
-    
+
+    /// <summary>
+    /// Seguimiento de existencias: 'none', 'lot' o 'serial'. Decide si la recepción
+    /// exige lote y si la venta reparte por FEFO.
+    /// </summary>
+    public string TrackingMode { get; set; } = "none";
 
 }

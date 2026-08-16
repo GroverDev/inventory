@@ -89,8 +89,13 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
             // implícita. Los dos caminos terminan en fn_mover_stock, así que el
             // movimiento y la caché se actualizan igual en ambos casos.
             var stock = usaLotes
+                // Los dos casts son obligatorios, no decorativos: la función se
+                // declara (uuid, numeric, varchar, date, integer) y Npgsql manda el
+                // DateTime como `timestamp` y el string como `text`. PostgreSQL no
+                // convierte timestamp→date al resolver la función, así que sin el
+                // cast falla con "function ... does not exist".
                 ? await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
-                    "SELECT stock_item_id, stock_before, stock_after FROM fn_recibir_lote(@ProductId, @Cantidad, @Lote, @Vence, @UserId)",
+                    "SELECT stock_item_id, stock_before, stock_after FROM fn_recibir_lote(@ProductId, @Cantidad, @Lote::varchar, @Vence::date, @UserId)",
                     new
                     {
                         detail.ProductId,

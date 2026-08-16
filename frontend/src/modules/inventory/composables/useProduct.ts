@@ -49,6 +49,15 @@ const useProduct = () => {
     return await put<ResponseObject<number>>('Product/bulk', items);
   }
 
-  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts }
+  /**
+   * Activa el seguimiento por lotes. Es una acción aparte del guardado de la
+   * ficha porque no tiene vuelta atrás: el stock actual queda como existencia
+   * sin lote y desde entonces cada recepción exige su código.
+   */
+  const activateLotTracking = async (productId: string): Promise<ResponseObject<boolean>> => {
+    return await post<ResponseObject<boolean>>(`Product/${productId}/lot-tracking`, {});
+  }
+
+  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts, activateLotTracking }
 }
 export default useProduct;

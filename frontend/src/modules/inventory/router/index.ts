@@ -190,6 +190,13 @@ export default {
       meta: { requiresAuth: true, title: 'PV - Control de Stock', titleForm: 'Control de Stock' },
     },
     {
+      path: 'stock-expiry',
+      name: 'stock-expiry',
+      component: () => import(/* webpackChunkName: "stock-expiry" */ '@/modules/inventory/views/stock-inventory/StockExpiryView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Vencimientos', titleForm: 'Vencimientos' },
+    },
+    {
       path: 'stock-history/:id',
       name: 'stock-history',
       component: () => import(/* webpackChunkName: "stock-history" */ '@/modules/inventory/views/stock-inventory/StockHistoryView.vue'),

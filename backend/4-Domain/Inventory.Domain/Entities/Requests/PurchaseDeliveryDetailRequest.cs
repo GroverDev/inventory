@@ -17,6 +17,9 @@ public class PurchaseDeliveryDetailRequest
     /// <summary>Lote recibido. Obligatorio si el producto usa lotes.</summary>
     public string? LotCode { get; set; }
 
-    /// <summary>Vencimiento del lote, en formato dd/MM/yyyy. Opcional.</summary>
+    /// <summary>
+    /// Vencimiento del lote. Opcional. Se parsea con la cultura del servidor, así
+    /// que el web manda ISO (yyyy-MM-dd), que toda cultura interpreta igual.
+    /// </summary>
     public string? ExpiryDate { get; set; }
 }

@@ -344,6 +344,49 @@
                     </div>
                   </div>
 
+                  <!-- Sección 5: Trazabilidad -->
+                  <!--
+                    Solo en edición: activar lotes actúa sobre el stock existente,
+                    y un producto que todavía no se grabó no tiene ninguno.
+                  -->
+                  <template v-if="product.Id !== '0'">
+                    <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                      <i class="fal fa-layer-group me-1"></i> Trazabilidad
+                    </h6>
+                    <div class="row">
+                      <div class="col-12 col-md-4 mb-3">
+                        <label class="form-label d-block">Seguimiento de existencias</label>
+                        <span :class="trackingBadge">{{ trackingLabel }}</span>
+                      </div>
+                      <div class="col-12 col-md-8 mb-3">
+                        <template v-if="product.TrackingMode === 'none'">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-outline-primary"
+                            :disabled="isReadOnly"
+                            @click="activateLots"
+                          >
+                            <i class="fal fa-layer-group me-1"></i>Activar control por lotes
+                          </button>
+                          <small class="d-block text-muted mt-2">
+                            A partir de la activación, cada recepción de este producto pedirá el
+                            lote y su vencimiento, y las ventas saldrán del lote que vence antes.
+                            Las {{ product.CurrentStock }} unidades que hay hoy quedan como
+                            existencia sin lote y se venden primero. <strong>No se puede deshacer.</strong>
+                          </small>
+                        </template>
+                        <small v-else-if="product.TrackingMode === 'lot'" class="text-muted">
+                          <i class="fal fa-check-circle text-success me-1"></i>
+                          Cada recepción registra su lote y vencimiento; la venta consume primero
+                          lo que vence antes.
+                        </small>
+                        <small v-else class="text-muted">
+                          Este producto se identifica por número de serie.
+                        </small>
+                      </div>
+                    </div>
+                  </template>
+
                 </form>
               </div>
 
@@ -375,7 +418,7 @@ import usePermissions from '@/modules/common/composables/usePermissions';
 
 const router = useRouter();
 
-const { getProductById, updateProduct, createProduct } = useProduct();
+const { getProductById, updateProduct, createProduct, activateLotTracking } = useProduct();
 const { getLaboratories: fetchLaboratories } = useLaboratory();
 const { getCategories: fetchCategories } = useCategory();
 const { getUnitsOfMeasurement: fetchUnitsOfMeasurement } = useUnitOfMeasurement();
@@ -428,6 +471,44 @@ const canSave = computed(() =>
 );
 // El formulario queda bloqueado si ya se grabó o si el usuario no puede grabar.
 const isReadOnly = computed(() => isSaved.value || !canSave.value);
+
+const trackingLabel = computed(() => {
+  if (product.value.TrackingMode === 'lot') return 'Por lotes';
+  if (product.value.TrackingMode === 'serial') return 'Por número de serie';
+  return 'Sin seguimiento';
+});
+
+/**
+ * Mismo criterio de contraste que el resto de la app: `subtle` + `emphasis` son
+ * las variantes que el bloque de tema oscuro redefine.
+ */
+const trackingBadge = computed(() => {
+  const base = 'badge border';
+  if (product.value.TrackingMode === 'none')
+    return `${base} bg-secondary-subtle text-secondary-emphasis border-secondary-subtle`;
+  return `${base} bg-info-subtle text-info-emphasis border-info-subtle`;
+});
+
+/**
+ * La activación es irreversible, así que se confirma con las consecuencias a la
+ * vista y se recarga la ficha desde el servidor: el modo lo decide él.
+ */
+const activateLots = async () => {
+  const confirmado = await utils.showMessageQuestion(
+    `¿Activar el control por lotes en "${product.value.ProductName}"? ` +
+    'Desde ahora cada recepción pedirá el lote. Esta acción no se puede deshacer.'
+  );
+  if (!confirmado) return;
+
+  const { ok } = await activateLotTracking(product.value.Id);
+  if (!ok) return;
+
+  await getProductXId(product.value.Id);
+  await utils.showMessageModal({
+    Description: 'El producto ahora se controla por lotes.',
+    MessageType: 'success',
+  });
+};
 
 // Clase dinámica para el campo Stock Actual según nivel vs mínimo
 const stockClass = computed((): string => {

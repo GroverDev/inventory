@@ -250,6 +250,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.category_id,
                               c.category_name,
                               p.uom_id,
+                              p.tracking_mode,
                               uom.unit_name
                          FROM products p
                               INNER JOIN laboratories l ON p.laboratory_id = l.id
@@ -358,6 +359,31 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         catch (Exception ex) { throw new Exception(ex.Message, ex); }
         finally { db.Close(); }
         return totalRows;
+    }
+
+    /// <summary>
+    /// Pasa el producto a seguimiento por lotes. La decisión de qué hacer con el
+    /// stock que ya tenía vive en <c>fn_activar_lotes</c>, no acá: queda como una
+    /// existencia sin lote que FEFO consume primero.
+    /// </summary>
+    public async Task ActivateLotTracking(Guid id)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            await db.ExecuteAsync("SELECT fn_activar_lotes(@Id);", new { Id = id });
+        }
+        // La función se defiende con RAISE EXCEPTION (producto inexistente, o ya
+        // con series). Ese caso llega como P0001 y su texto es para el usuario;
+        // ExceptionHandler lo traduciría a "no se puede conectar a la base".
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+        {
+            throw new CustomException(ex.MessageText, MessageTypes.Warning);
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex, ex.messageType); }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
     }
 
 }

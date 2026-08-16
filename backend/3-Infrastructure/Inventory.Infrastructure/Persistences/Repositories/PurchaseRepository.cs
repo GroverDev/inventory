@@ -58,6 +58,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                pd.delivered_quantity,
                pd.delivery_final_price,
                pd.purchase_status_id,
+               p.tracking_mode,
                COALESCE(rec.received, 0)                                    AS received_quantity,
                GREATEST(pd.ordered_quantity - COALESCE(rec.received, 0), 0) AS pending_quantity
           FROM purchases_detail pd

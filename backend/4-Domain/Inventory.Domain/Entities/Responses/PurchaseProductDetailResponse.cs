@@ -19,4 +19,11 @@ public class PurchaseProductDetailResponse
 
     /// <summary>Saldo por recibir. Es el tope de la próxima recepción.</summary>
     public int PendingQuantity { get; set; }
+
+    /// <summary>
+    /// Seguimiento del producto: 'none', 'lot' o 'serial'. Viaja con el detalle
+    /// porque la recepción exige el lote cuando vale 'lot', y sin esto la UI no
+    /// tendría cómo saber qué líneas pedirlo antes de enviar.
+    /// </summary>
+    public string TrackingMode { get; set; } = "none";
 }

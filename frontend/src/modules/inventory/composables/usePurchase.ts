@@ -77,6 +77,12 @@ const usePurchase = () => {
           productId: d.ProductId,
           deliveryQuantity: d.DeliveryQuantity,
           unitPrice: d.UnitPrice,
+          // Van siempre, no solo cuando el producto usa lotes: el servidor
+          // ignora los vacíos y los exige cuando corresponde. Este payload se
+          // arma campo por campo, así que lo que no se nombre acá se pierde en
+          // silencio por más que el modelo y la pantalla lo tengan.
+          lotCode: d.LotCode || null,
+          expiryDate: d.ExpiryDate || null,
         })),
     });
   }

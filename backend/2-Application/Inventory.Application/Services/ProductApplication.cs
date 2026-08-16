@@ -149,4 +149,25 @@ public class ProductApplication(
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return respuesta;
     }
+
+    /// <summary>
+    /// Activa el seguimiento por lotes de un producto. No tiene vuelta atrás por
+    /// diseño: una vez que hay existencias con lote, volver a 'none' dejaría stock
+    /// identificado que nadie podría consumir.
+    /// </summary>
+    public async Task<Response<bool>> ActivateLotTracking(string id)
+    {
+        Response<bool> respuesta = new();
+        try
+        {
+            if (!Guid.TryParse(id, out var productId) || productId == Guid.Empty)
+                throw new CustomException("El identificador del producto no es válido.", MessageTypes.Warning);
+
+            await _productRepository.ActivateLotTracking(productId);
+            respuesta.Data = respuesta.ok = true;
+        }
+        catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }
+        catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
+        return respuesta;
+    }
 }

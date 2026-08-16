@@ -1,3 +1,5 @@
+import type { TrackingMode } from '@/modules/inventory/models/product.model';
+
 export class PurchaseDetail {
   public Id: string = '';
   public PurchaseId: string = '';
@@ -14,6 +16,8 @@ export class PurchaseDetail {
   public ReceivedQuantity: number = 0;
   /** Saldo por recibir. Es el tope de la próxima recepción. */
   public PendingQuantity: number = 0;
+  /** Seguimiento del producto: decide si la recepción debe pedir lote. */
+  public TrackingMode: TrackingMode = 'none';
 }
 
 export class Purchase {
@@ -56,6 +60,12 @@ export class PurchaseDeliveryDetail {
   public PendingQuantity: number = 0;
   /** Solo para la UI: acumulado ya recibido antes de esta entrega. */
   public ReceivedQuantity: number = 0;
+  /** Lote recibido. El servidor lo exige si el producto usa `tracking_mode = 'lot'`. */
+  public LotCode: string = '';
+  /** Vencimiento del lote en ISO (yyyy-MM-dd). Opcional incluso con lotes. */
+  public ExpiryDate: string = '';
+  /** Solo para la UI: decide si la fila muestra y exige los campos de lote. */
+  public TrackingMode: TrackingMode = 'none';
 }
 
 export class PurchaseDelivery {

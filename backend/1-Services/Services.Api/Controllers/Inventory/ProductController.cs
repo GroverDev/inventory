@@ -92,6 +92,24 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
         return respuesta;
     }
 
+    // POST api/Product/5/lot-tracking
+    // Activa el seguimiento por lotes. Va aparte del PUT porque no es un campo
+    // más de la ficha: es irreversible y toca las existencias, así que la UI lo
+    // pide como una acción deliberada y no como un guardado cualquiera.
+    [HttpPost("{id}/lot-tracking")]
+    public async Task<ActionResult<Response<bool>>> ActivateLotTracking(string id)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
+
+        if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
+
+        return await _productApplication.ActivateLotTracking(id);
+    }
+
     // DELETE api/Product/5
     [HttpDelete("{id}")]
     public async Task<ActionResult<Response<bool>>> Delete(string id)

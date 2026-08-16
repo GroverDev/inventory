@@ -22,4 +22,13 @@ public class PurchaseDetailRequest
 
     /// <summary>Saldo por recibir. Es el tope de la próxima recepción.</summary>
     public int PendingQuantity { get; set; }
+
+    /// <summary>
+    /// Seguimiento del producto: 'none', 'lot' o 'serial'. Tiene que estar acá y
+    /// no solo en <c>PurchaseProductDetailResponse</c> porque la consulta de la
+    /// orden se sirve mapeada con <c>Adapt&lt;PurchaseRequest&gt;()</c>: lo que
+    /// no exista en este DTO no llega al cliente, y sin él la recepción no sabe
+    /// a qué línea pedirle el lote.
+    /// </summary>
+    public string TrackingMode { get; set; } = "none";
 }
