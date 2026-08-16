@@ -212,13 +212,14 @@ import { useRouter } from 'vue-router';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
 import { PURCHASE_STATUS, type Purchase } from '@/modules/inventory/models/purchase.model';
 import utils from '@/utils/msg';
+import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
 
 const purchases = ref<Purchase[]>([]);
 const { getPurchases, deletePurchase, closePurchase, cancelPurchase } = usePurchase();
 const router = useRouter();
 
-const today = new Date().toISOString().split('T')[0];
-const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+const today = todayIso();
+const firstOfMonth = firstOfMonthIso();
 
 const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today, statusId: 1 });
 

@@ -133,12 +133,13 @@ import { ref, computed } from 'vue';
 import useSales from '@/modules/inventory/composables/useSales';
 import type { Sale } from '@/modules/inventory/models/sale.model';
 import { exportToExcel } from '@/utils/excelHelper';
+import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
 
 const { getSales } = useSales();
 const sales = ref<Sale[]>([]);
 
-const today = new Date().toISOString().split('T')[0];
-const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+const today = todayIso();
+const firstOfMonth = firstOfMonthIso();
 const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today });
 
 const totalSubtotal  = computed(() => sales.value.reduce((s, v) => s + v.Subtotal, 0));

@@ -211,6 +211,7 @@ import { useRouter } from 'vue-router';
 import useStockMovement from '@/modules/inventory/composables/useStockMovement';
 import type { ExpiryStatus, StockExpiryResponse } from '@/modules/inventory/models/stockMovement.model';
 import { exportToExcel } from '@/utils/excelHelper';
+import { todayIso } from '@/utils/dateHelper';
 
 const { getExpiring } = useStockMovement();
 const router = useRouter();
@@ -321,8 +322,8 @@ const exportList = () => {
     'Valor en riesgo': item.ValorEnRiesgo,
     Estado: estadoLabel(item.Estado),
   }));
-  // Fecha local: con `toISOString()` el archivo sale fechado mañana de noche.
-  const hoy = new Date().toLocaleDateString('sv-SE');
+  // Local: con UTC el archivo sale fechado mañana si se exporta de noche.
+  const hoy = todayIso();
   exportToExcel(filas, `vencimientos_${hoy}.xlsx`);
 };
 </script>

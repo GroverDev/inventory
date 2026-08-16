@@ -228,6 +228,7 @@ import {
   Purchase, PurchaseDelivery, PurchaseDeliveryDetail, PURCHASE_STATUS,
 } from '@/modules/inventory/models/purchase.model';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
+import { todayIso } from '@/utils/dateHelper';
 
 const router = useRouter();
 const route = useRoute();
@@ -240,13 +241,10 @@ const lineErrors = ref<boolean[]>([]);
 const lotErrors = ref<boolean[]>([]);
 
 /**
- * Fecha de hoy en horario LOCAL, no UTC. Con `toISOString()` una farmacia en
- * Bolivia (UTC−4) ve la fecha de mañana a partir de las 20:00, y el servidor
- * —que compara contra su fecha local— rechaza la recepción por futura: entre
- * las 20:00 y la medianoche no se podía recepcionar nada. `sv-SE` se usa
- * porque su formato de fecha ya es el ISO `yyyy-MM-dd` que espera el input.
+ * En horario LOCAL: con UTC, a partir de las 20:00 el servidor rechazaba la
+ * recepción por futura y no se podía recepcionar nada hasta la medianoche.
  */
-const today = new Date().toLocaleDateString('sv-SE');
+const today = todayIso();
 
 const formatDate = (val: string | Date): string => {
   if (!val) return '—';

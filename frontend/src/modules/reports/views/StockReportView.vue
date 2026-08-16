@@ -148,6 +148,7 @@ import { ref, computed } from 'vue';
 import useProduct from '@/modules/inventory/composables/useProduct';
 import type { Product } from '@/modules/inventory/models/product.model';
 import { exportToExcel } from '@/utils/excelHelper';
+import { todayIso } from '@/utils/dateHelper';
 
 const { getProductsByName } = useProduct();
 const products = ref<Product[]>([]);
@@ -182,6 +183,6 @@ const exportar = () => {
     Valor_Inventario: +(p.CurrentStock * p.SalePrice).toFixed(2),
     Alerta:          p.CurrentStock < p.MinReorderQuantity ? 'BAJO MÍNIMO' : '',
   }));
-  exportToExcel(rows, `reporte_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
+  exportToExcel(rows, `reporte_stock_${todayIso()}.xlsx`);
 };
 </script>

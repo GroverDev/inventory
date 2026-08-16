@@ -237,6 +237,7 @@ import useProvider from '@/modules/inventory/composables/useProvider';
 import useProduct from '@/modules/inventory/composables/useProduct';
 import type { Provider } from '@/modules/inventory/models/provider.model';
 import type { Product } from '@/modules/inventory/models/product.model';
+import { todayIso } from '@/utils/dateHelper';
 
 const router = useRouter();
 const route = useRoute();
@@ -265,7 +266,8 @@ const formatCurrency = (val: number): string =>
 
 onMounted(async () => {
   const id = route.params.id as string;
-  const today = new Date().toISOString().split('T')[0];
+  // Local, no UTC: de noche una compra nueva quedaba fechada al día siguiente.
+  const today = todayIso();
   purchase.value.PurchaseDate = today;
   purchase.value.EstimatedDeliveryDate = today;
   if (id && id !== '0') await loadPurchase(id);

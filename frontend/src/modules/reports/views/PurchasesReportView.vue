@@ -135,12 +135,13 @@ import { ref, computed } from 'vue';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
 import type { Purchase } from '@/modules/inventory/models/purchase.model';
 import { exportToExcel } from '@/utils/excelHelper';
+import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
 
 const { getPurchases } = usePurchase();
 const purchases = ref<Purchase[]>([]);
 
-const today        = new Date().toISOString().split('T')[0];
-const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+const today        = todayIso();
+const firstOfMonth = firstOfMonthIso();
 const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today, statusId: 1 });
 
 const totalAmount    = computed(() => purchases.value.reduce((s, p) => s + p.Total, 0));
