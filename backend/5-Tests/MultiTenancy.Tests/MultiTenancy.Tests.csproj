@@ -22,6 +22,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Common.Utilities\Common.Utilities.csproj" />
+    <!--
+      Para poder ejercitar el repositorio de verdad y no una copia de su SQL:
+      las consultas con parámetros tipados fallan de formas que un literal
+      escrito en la prueba nunca reproduce.
+    -->
+    <ProjectReference Include="..\..\4-Domain\Inventory.Domain\Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\3-Infrastructure\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

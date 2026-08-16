@@ -186,6 +186,74 @@ public class LotesTests(TenantDatabaseFixture db)
         Assert.Equal("VIGENTE",  estados["G"]);
     }
 
+    /// <summary>
+    /// Regresión del bug que dejó la recepción con lotes inservible desde el día
+    /// que se escribió: <c>fn_recibir_lote</c> se declara
+    /// <c>(uuid, numeric, varchar, date, integer)</c>, pero Npgsql manda el
+    /// string como <c>text</c> y el DateTime como <c>timestamp</c>, y PostgreSQL
+    /// no convierte timestamp→date al resolver una función. Sin los casts la
+    /// llamada respondía "function does not exist", que además
+    /// <c>ExceptionHandler</c> disfrazaba de "no se puede conectar a la base".
+    ///
+    /// El resto de las pruebas no lo detectaba porque llaman a la función con
+    /// LITERALES ('2027-01-01'), y a esos PostgreSQL les asigna el tipo desde el
+    /// contexto. Por eso esta prueba ejercita el repositorio real y no una copia
+    /// de su SQL: es la única forma de que falle si alguien quita los casts.
+    /// </summary>
+    [Fact]
+    public async Task La_recepcion_registra_el_lote_con_los_tipos_que_manda_Npgsql()
+    {
+        using var cn = db.AbrirComoAdmin();
+        // El INSERT del repositorio no nombra tenant_id: lo resuelve el DEFAULT
+        // current_tenant(), igual que en la aplicación.
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+
+        var producto = CrearProductoConLotes(cn, "TEST RECEPCION TIPADA");
+        var compra = cn.ExecuteScalar<Guid>(
+            "SELECT id FROM purchases WHERE tenant_id = @t LIMIT 1",
+            new { t = TenantDatabaseFixture.TenantUno });
+        var entrega = Guid.NewGuid();
+        cn.Execute(@"
+            INSERT INTO purchases_delivery
+                (id, purchase_id, delivery_date, operation_uid, state,
+                 created_by, created, modified_by, modified, tenant_id)
+            VALUES (@id, @compra, now(), gen_random_uuid(), true,
+                    1, now(), 1, now(), @t)",
+            new { id = entrega, compra, t = TenantDatabaseFixture.TenantUno });
+
+        var detalle = new Inventory.Domain.PurchaseDeliveryDetail
+        {
+            PurchaseDeliveryId = entrega,
+            ProductId = producto,
+            DeliveryQuantity = 12,
+            OrderedQuantity = 12,
+            UnitPrice = 4.5m,
+            LotCode = "PARAM-1",
+            ExpiryDate = new DateTime(2027, 3, 15),
+            DeliveryDate = DateTime.Now,
+            State = true,
+            CreatedBy = 1,
+            ModifiedBy = 1,
+            Created = DateTime.Now,
+            Modified = DateTime.Now,
+        };
+
+        using var tx = cn.BeginTransaction();
+        var ok = await new Inventory.Infrastructure.PurchaseDetailRepository()
+            .ReceiveOrdersDetail(compra, detalle, cn, tx);
+        tx.Commit();
+
+        Assert.True(ok);
+
+        var lote = cn.QueryFirst<(string Lote, DateTime Vence, decimal Cantidad)>(
+            "SELECT lot_code, expiry_date, quantity FROM stock_items WHERE product_id = @p AND lot_code IS NOT NULL",
+            new { p = producto });
+
+        Assert.Equal("PARAM-1", lote.Lote);
+        Assert.Equal(new DateTime(2027, 3, 15), lote.Vence);
+        Assert.Equal(12m, lote.Cantidad);
+    }
+
     [Fact]
     public void Los_lotes_de_una_farmacia_no_son_visibles_para_otra()
     {
