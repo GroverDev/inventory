@@ -11,9 +11,14 @@ import 'package:inventory_movil/services/purchase_service.dart';
 
 /// Pedido en memoria: la pantalla no debe tocar la red en la prueba.
 class _FakePurchaseService extends PurchaseService {
-  _FakePurchaseService(super.api, {required this.statusId});
+  _FakePurchaseService(super.api,
+      {required this.statusId, this.trackingMode = 'none'});
 
   final int statusId;
+
+  /// Seguimiento de la primera línea: con 'lot' la tarjeta suma los campos de
+  /// lote y vencimiento, que es lo que puede desbordar en un teléfono angosto.
+  final String trackingMode;
   PurchaseDelivery? received;
 
   @override
@@ -33,6 +38,7 @@ class _FakePurchaseService extends PurchaseService {
             receivedQuantity: 4,
             pendingQuantity: 6,
             orderUnitPrice: 12345.67,
+            trackingMode: trackingMode,
           ),
           PurchaseOrderLine(
             productId: 'x2',
@@ -146,6 +152,89 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PopupMenuButton<String>), findsNothing);
+  });
+
+  testWidgets('los campos de lote no desbordan en pantalla angosta',
+      (tester) async {
+    // La tarjeta con lote es la más cargada: nombre largo, chip, saldos, dos
+    // campos numéricos, el lote y la fila del vencimiento.
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()),
+        statusId: PurchaseStatusIds.partiallyReceived, trackingMode: 'lot');
+
+    await tester.pumpWidget(_app(svc));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lote'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Lote recibido *'), findsOneWidget);
+    expect(find.text('Vencimiento (opcional)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('los campos de lote no desbordan con el texto ampliado',
+      (tester) async {
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()),
+        statusId: PurchaseStatusIds.partiallyReceived, trackingMode: 'lot');
+
+    await tester.pumpWidget(_app(svc, textScale: 2.0));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('un producto sin lotes no pide lote', (tester) async {
+    // La mayoría de los productos no lleva seguimiento: sumarles los campos
+    // sería ruido en cada tarjeta.
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()),
+        statusId: PurchaseStatusIds.partiallyReceived);
+
+    await tester.pumpWidget(_app(svc));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lote'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Lote recibido *'), findsNothing);
+  });
+
+  testWidgets('no se envía la recepción si falta el lote', (tester) async {
+    // El servidor rechazaría la entrega completa: cortar acá evita que el
+    // usuario tenga que volver a cargar todas las cantidades.
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()),
+        statusId: PurchaseStatusIds.partiallyReceived, trackingMode: 'lot');
+
+    await tester.pumpWidget(_app(svc));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirmar recepción'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('se maneja por lotes'), findsOneWidget);
+    expect(svc.received, isNull);
+  });
+
+  testWidgets('con el lote cargado la recepción viaja con su código',
+      (tester) async {
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()),
+        statusId: PurchaseStatusIds.partiallyReceived, trackingMode: 'lot');
+
+    await tester.pumpWidget(_app(svc));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Lote recibido *'), 'IBU-2609-A');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirmar recepción'));
+    await tester.pumpAndSettle();
+    // El diálogo de confirmación se acepta antes de que la entrega salga.
+    await tester.tap(find.text('Confirmar').last);
+    await tester.pumpAndSettle();
+
+    final detail = svc.received!.toJson()['Detail'] as List;
+    expect((detail.first as Map)['LotCode'], 'IBU-2609-A');
   });
 
   testWidgets('un pedido ya recibido lo dice y no ofrece confirmar',

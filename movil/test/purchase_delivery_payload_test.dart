@@ -95,6 +95,106 @@ void main() {
     expect(newUid(), isNot(uid));
   });
 
+  group('lotes', () {
+    PurchaseOrderLine conLote({int ordered = 10}) => PurchaseOrderLine(
+          productId: 'x1',
+          productName: 'Ibuprofeno 200 mg',
+          orderedQuantity: ordered,
+          receivedQuantity: 0,
+          pendingQuantity: ordered,
+          orderUnitPrice: 3,
+          trackingMode: 'lot',
+        );
+
+    PurchaseDelivery build(List<PurchaseDeliveryLine> lines) =>
+        PurchaseDelivery(
+          purchaseId: 'ord-1',
+          deliveryDate: DateTime(2026, 8, 15),
+          detail: lines,
+          operationUid: newUid(),
+        );
+
+    test('el lote y el vencimiento viajan en la línea con seguimiento', () {
+      final line = PurchaseDeliveryLine(conLote())
+        ..lotCode = 'IBU-2609-A'
+        ..expiryDate = DateTime(2026, 9, 10);
+
+      expect(build([line]).toJson()['Detail'], [
+        {
+          'ProductId': 'x1',
+          'DeliveryQuantity': 10,
+          'UnitPrice': 3.0,
+          'LotCode': 'IBU-2609-A',
+          // ISO, como la fecha de recepción: el backend lo parsea con la
+          // cultura del servidor y dd/MM/yyyy se leería al revés.
+          'ExpiryDate': '2026-09-10',
+        }
+      ]);
+    });
+
+    test('un producto sin lotes no ensucia el payload', () {
+      // El backend ignora los campos vacíos, pero mandarlos en cada línea de
+      // un pedido largo solo agranda el envío desde un teléfono.
+      final json = build([PurchaseDeliveryLine(_line())]).toJson();
+
+      expect((json['Detail'] as List).single, isNot(contains('LotCode')));
+    });
+
+    test('el vencimiento se omite cuando no se conoce', () {
+      // Hay mercadería sin fecha impresa: es opcional incluso con lotes.
+      final line = PurchaseDeliveryLine(conLote())..lotCode = 'SIN-FECHA';
+      final detail = (build([line]).toJson()['Detail'] as List).single
+          as Map<String, dynamic>;
+
+      expect(detail['LotCode'], 'SIN-FECHA');
+      expect(detail, isNot(contains('ExpiryDate')));
+    });
+
+    test('se detecta la línea que va a recibirse sin declarar su lote', () {
+      // El servidor rechaza la transacción ENTERA, así que hay que cortar
+      // antes de enviar o el usuario pierde todo lo que cargó.
+      final sinLote = PurchaseDeliveryLine(conLote());
+      final conCodigo = PurchaseDeliveryLine(conLote())..lotCode = 'OK-1';
+
+      expect(build([sinLote]).linesMissingLot, hasLength(1));
+      expect(build([conCodigo]).linesMissingLot, isEmpty);
+      // Los espacios no son un lote.
+      expect(build([PurchaseDeliveryLine(conLote())..lotCode = '   '])
+          .linesMissingLot, hasLength(1));
+    });
+
+    test('una línea que no se recibe no exige lote', () {
+      // Si no se recibe nada de ese producto, el backend descarta la línea:
+      // pedirle el lote sería trabar el envío por algo que no viaja.
+      final line = PurchaseDeliveryLine(conLote())..deliveryQuantity = 0;
+
+      expect(build([line]).linesMissingLot, isEmpty);
+    });
+
+    test('el seguimiento se lee del detalle del pedido', () {
+      final line = PurchaseOrderLine.fromJson({
+        'ProductId': 'x1',
+        'ProductName': 'Ibuprofeno',
+        'OrderedQuantity': 10,
+        'TrackingMode': 'lot',
+      });
+
+      expect(line.usesLot, isTrue);
+    });
+
+    test('sin el campo TrackingMode se asume que no hay seguimiento', () {
+      // Compatibilidad: contra una API vieja la pantalla se comporta como
+      // siempre en lugar de pedir un lote que nadie va a poder cargar.
+      final line = PurchaseOrderLine.fromJson({
+        'ProductId': 'x1',
+        'ProductName': 'Ibuprofeno',
+        'OrderedQuantity': 10,
+      });
+
+      expect(line.usesLot, isFalse);
+    });
+  });
+
   test('el pendiente se deriva si el API no lo manda', () {
     // Defensa: una línea con saldo real no puede presentarse como completa,
     // porque la pantalla desactivaría sus campos.

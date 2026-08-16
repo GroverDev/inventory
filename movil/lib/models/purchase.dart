@@ -161,6 +161,10 @@ class PurchaseOrderLine {
   final int pendingQuantity;
   final double orderUnitPrice;
 
+  /// Seguimiento del producto: 'none', 'lot' o 'serial'. Lo manda el servidor
+  /// en el detalle del pedido y decide si la recepción tiene que pedir el lote.
+  final String trackingMode;
+
   PurchaseOrderLine({
     required this.productId,
     required this.productName,
@@ -168,7 +172,12 @@ class PurchaseOrderLine {
     required this.receivedQuantity,
     required this.pendingQuantity,
     required this.orderUnitPrice,
+    this.trackingMode = 'none',
   });
+
+  /// El servidor RECHAZA la recepción de estos productos si no se indica el
+  /// lote, y con ella se cae la entrega entera, no solo esta línea.
+  bool get usesLot => trackingMode == 'lot';
 
   factory PurchaseOrderLine.fromJson(Map<String, dynamic> j) {
     final ordered = (j['OrderedQuantity'] ?? 0) as int;
@@ -183,6 +192,9 @@ class PurchaseOrderLine {
       pendingQuantity: (j['PendingQuantity'] as int?) ??
           (ordered - received).clamp(0, ordered),
       orderUnitPrice: (j['OrderUnitPrice'] ?? 0).toDouble(),
+      // Un pedido servido por una API vieja no trae el campo: sin seguimiento
+      // es el caso simple y la pantalla se comporta como siempre.
+      trackingMode: (j['TrackingMode'] ?? 'none').toString(),
     );
   }
 }
@@ -228,18 +240,39 @@ class PurchaseDeliveryLine {
   int deliveryQuantity;
   double unitPrice;
 
+  /// Lote que llegó, leído de la etiqueta de la caja. Obligatorio si el
+  /// producto usa lotes; ignorado por el servidor si no.
+  String lotCode;
+
+  /// Vencimiento del lote. Opcional incluso con lotes: hay mercadería sin
+  /// fecha impresa, y negarse a recibirla no la hace aparecer.
+  DateTime? expiryDate;
+
   PurchaseDeliveryLine(this.source)
       // Se propone recibir el saldo pendiente al precio pactado; ambos se
       // corrigen si el proveedor entregó o facturó otra cosa.
       : deliveryQuantity = source.pendingQuantity,
-        unitPrice = source.orderUnitPrice;
+        unitPrice = source.orderUnitPrice,
+        lotCode = '';
 
   double get subtotal => deliveryQuantity * unitPrice;
+
+  bool get usesLot => source.usesLot;
+
+  /// Línea que se va a recibir y todavía no declaró su lote: el servidor la
+  /// rechazaría y se perdería la entrega completa.
+  bool get missingLot =>
+      deliveryQuantity > 0 && usesLot && lotCode.trim().isEmpty;
 
   Map<String, dynamic> toJson() => {
         'ProductId': source.productId,
         'DeliveryQuantity': deliveryQuantity,
         'UnitPrice': unitPrice,
+        // Solo viajan en las líneas con lote: en el resto no hay nada que
+        // declarar, y el servidor trata la ausencia igual que el vacío.
+        if (usesLot) 'LotCode': lotCode.trim(),
+        if (usesLot && expiryDate != null)
+          'ExpiryDate': apiDateFormat.format(expiryDate!),
       };
 }
 
@@ -269,6 +302,12 @@ class PurchaseDelivery {
       detail.where((l) => l.deliveryQuantity > 0).toList();
 
   double get total => receivedLines.fold(0, (s, l) => s + l.subtotal);
+
+  /// Líneas que van a recibirse sin declarar su lote. Se corta acá el envío:
+  /// el servidor rechaza la transacción entera, así que dejarlo pasar obliga
+  /// al usuario a recargar la pantalla y recargar todo lo que ya había puesto.
+  List<PurchaseDeliveryLine> get linesMissingLot =>
+      receivedLines.where((l) => l.missingLot).toList();
 
   /// La entrega es parcial si alguna línea deja saldo sin recibir.
   bool get isPartial =>

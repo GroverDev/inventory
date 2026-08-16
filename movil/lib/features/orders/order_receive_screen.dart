@@ -121,6 +121,33 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
       return;
     }
 
+    // Sin lote el servidor rechaza la entrega COMPLETA, no solo esa línea: se
+    // corta acá para que no haya que volver a cargar todo lo demás.
+    final sinLote = delivery.linesMissingLot;
+    if (sinLote.isNotEmpty) {
+      _snack('"${sinLote.first.source.productName}" se maneja por lotes: '
+          'indica el lote recibido.');
+      return;
+    }
+
+    // Recibir mercadería vencida casi siempre es un error de tipeo, pero a
+    // veces es real. Se advierte, no se prohíbe.
+    final vencidas = delivery.receivedLines
+        .where((l) =>
+            l.expiryDate != null && l.expiryDate!.isBefore(DateTime.now()))
+        .toList();
+    if (vencidas.isNotEmpty) {
+      final seguir = await confirm(
+        context,
+        title: 'Vencimiento cumplido',
+        message: 'El vencimiento indicado en '
+            '"${vencidas.first.source.productName}" ya pasó. '
+            '¿Registrar la recepción igual?',
+        confirmLabel: 'Registrar',
+      );
+      if (!seguir || !mounted) return;
+    }
+
     final ok = await confirm(
       context,
       title: 'Confirmar recepción',
@@ -383,8 +410,19 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(line.source.productName,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(line.source.productName,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  if (line.usesLot) ...[
+                    const SizedBox(width: 8),
+                    _lotChip(theme),
+                  ],
+                ],
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -425,6 +463,12 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
                   ),
                 ],
               ),
+              // Los campos del lote solo aparecen donde hacen falta: en una
+              // tarjeta ya cargada, sumárselos a todos los productos es ruido.
+              if (line.usesLot && !complete) ...[
+                const SizedBox(height: 12),
+                _buildLotFields(line, editors, theme),
+              ],
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
@@ -436,6 +480,99 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
         ),
       ),
     );
+  }
+
+  Widget _lotChip(ThemeData theme) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.tertiaryContainer,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          'Lote',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onTertiaryContainer,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+
+  /// Lote y vencimiento de una línea. Van uno debajo del otro y no en fila:
+  /// el código de lote es largo y en un teléfono angosto quedaría ilegible
+  /// compartiendo el ancho con una fecha.
+  Widget _buildLotFields(
+    PurchaseDeliveryLine line,
+    _LineEditors editors,
+    ThemeData theme,
+  ) {
+    final expiry = line.expiryDate;
+    final vencido = expiry != null && expiry.isBefore(DateTime.now());
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: editors.lot,
+          enabled: !_saving,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 50,
+          decoration: const InputDecoration(
+            labelText: 'Lote recibido *',
+            hintText: 'Código impreso en la caja',
+            counterText: '',
+          ),
+          onChanged: (v) => setState(() => line.lotCode = v),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _saving ? null : () => _pickExpiry(line),
+                icon: const Icon(Icons.event_outlined, size: 18),
+                label: Text(
+                  expiry == null
+                      ? 'Vencimiento (opcional)'
+                      : 'Vence: ${_display.format(expiry)}',
+                ),
+              ),
+            ),
+            if (expiry != null)
+              IconButton(
+                tooltip: 'Quitar vencimiento',
+                onPressed:
+                    _saving ? null : () => setState(() => line.expiryDate = null),
+                icon: const Icon(Icons.close),
+              ),
+          ],
+        ),
+        if (vencido)
+          Text(
+            'Ese vencimiento ya pasó.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
+          ),
+        Text(
+          'Un lote por recepción. Si llegaron varios, registra este y repite '
+          'la recepción con el saldo.',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickExpiry(PurchaseDeliveryLine line) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: line.expiryDate ?? now.add(const Duration(days: 365)),
+      // Se permite el pasado: a veces llega mercadería ya vencida y el sistema
+      // tiene que poder registrarlo para que alguien lo vea y lo devuelva.
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 15),
+    );
+    if (picked != null) setState(() => line.expiryDate = picked);
   }
 
   /// Recorta la cantidad al pendiente mientras el usuario tipea. Solo reescribe
@@ -492,13 +629,16 @@ class _LineEditors {
   _LineEditors(PurchaseDeliveryLine line)
       : quantity = TextEditingController(text: line.deliveryQuantity.toString()),
         price = TextEditingController(
-            text: line.unitPrice.toStringAsFixed(2));
+            text: line.unitPrice.toStringAsFixed(2)),
+        lot = TextEditingController(text: line.lotCode);
 
   final TextEditingController quantity;
   final TextEditingController price;
+  final TextEditingController lot;
 
   void dispose() {
     quantity.dispose();
     price.dispose();
+    lot.dispose();
   }
 }
