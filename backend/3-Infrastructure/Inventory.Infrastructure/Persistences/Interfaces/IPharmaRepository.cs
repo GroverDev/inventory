@@ -18,6 +18,9 @@ public interface IPharmaRepository
     /// <summary>Los productos que sugieren a este: la relación al revés.</summary>
     Task<List<ProductEquivalentResponse>> GetSuggestedIn(Guid productId);
 
+    /// <summary>Fija el orden; lo que no venga en la lista vuelve al automático.</summary>
+    Task SetAlternativesOrder(Guid productId, List<Guid> ordenadas, int userId);
+
     Task AddAlternative(Guid productId, Guid alternativeId, string? motivo, int userId);
     Task RemoveAlternative(Guid productId, Guid alternativeId);
 }

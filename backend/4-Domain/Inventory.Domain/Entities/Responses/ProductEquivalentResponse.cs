@@ -25,4 +25,11 @@ public class ProductEquivalentResponse
 
     public bool IsManual { get; set; }
     public string Reason { get; set; } = "";
+
+    /// <summary>
+    /// Posición fijada a mano. 0 significa sin fijar: esa se acomoda sola, por
+    /// disponibilidad y después precio. La ficha lo usa para saber si ofrecer el
+    /// botón de volver al orden automático.
+    /// </summary>
+    public int ShowOrder { get; set; }
 }

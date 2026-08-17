@@ -14,6 +14,7 @@ public interface IPharmaApplication
     Task<Response<bool>> SaveLeaflet(string productId, string? contenido, int userId);
     Task<Response<List<ProductEquivalentResponse>>> GetEquivalents(string productId);
     Task<Response<List<ProductEquivalentResponse>>> GetSuggestedIn(string productId);
+    Task<Response<bool>> SetAlternativesOrder(string productId, List<string>? alternativeIds, int userId);
     Task<Response<bool>> AddAlternative(string productId, string alternativeId, string? motivo, int userId);
     Task<Response<bool>> RemoveAlternative(string productId, string alternativeId);
 }

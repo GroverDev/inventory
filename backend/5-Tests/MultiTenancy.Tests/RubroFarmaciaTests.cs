@@ -325,4 +325,46 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
         // Y NO es simétrica: desde la ficha uno, el ofrecido no la sugiere a ella.
         Assert.Empty(await repo.GetSuggestedIn(ficha1));
     }
+
+    /// <summary>
+    /// El orden fijado a mano manda sobre el automático, y se puede devolver.
+    /// </summary>
+    /// <remarks>
+    /// Poder volver atrás no es un extra: un orden escrito a mano envejece mal
+    /// —cambian los precios y el stock y queda mintiendo—, así que tiene que
+    /// haber forma de devolverle la decisión al sistema.
+    /// </remarks>
+    [Fact]
+    public async Task El_orden_fijado_manda_y_se_puede_devolver_al_automatico()
+    {
+        using var cn = db.AbrirComoAdmin();
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+
+        var repo = new Inventory.Infrastructure.PharmaRepository(
+            db.ContextoApp(TenantDatabaseFixture.TenantUno));
+
+        var producto = CrearProducto(cn, "TEST FIJAR BASE", 20m);
+        var barata   = CrearProducto(cn, "TEST FIJAR BARATA", 4m);
+        var cara     = CrearProducto(cn, "TEST FIJAR CARA", 18m);
+
+        await repo.AddAlternative(producto, barata, "Más económico", 1);
+        await repo.AddAlternative(producto, cara,   "El cliente lo prefiere", 1);
+
+        // Sin fijar nada, manda el precio: la barata primero.
+        var automatico = await repo.GetManualAlternatives(producto);
+        Assert.Equal("TEST FIJAR BARATA", automatico[0].ProductName);
+
+        // La farmacia decide destacar la cara.
+        await repo.SetAlternativesOrder(producto, [cara], 1);
+
+        var fijado = await repo.GetManualAlternatives(producto);
+        Assert.Equal("TEST FIJAR CARA", fijado[0].ProductName);
+        Assert.Equal("TEST FIJAR BARATA", fijado[1].ProductName);
+
+        // Y se devuelve el control mandando la lista vacía.
+        await repo.SetAlternativesOrder(producto, [], 1);
+
+        var otraVez = await repo.GetManualAlternatives(producto);
+        Assert.Equal("TEST FIJAR BARATA", otraVez[0].ProductName);
+    }
 }

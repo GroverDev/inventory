@@ -434,7 +434,10 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
         try
         {
             db.Open();
-            string sqlQuery = @"
+            // Cadena literal sin procesar (""") y no verbatim (@""): dentro de una
+            // verbatim, una comilla doble termina el texto, así que un comentario
+            // SQL con comillas rompe la compilación de formas confusas.
+            string sqlQuery = """
                         SELECT p.id, p.purchase_date, p.total, p.is_active, ps.description as PurchaseStatusName, p.purchase_status_id,
                                p.provider_id, pr.provider_name, p.estimated_delivery_date
                           FROM purchases p
@@ -444,14 +447,14 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                            AND p.is_active
                            AND p.purchase_date >= @PurchaseDateInitial
                            AND p.purchase_date <= @PurchaseDateEnd
-                           -- 0 significa: todos los estados. Es un valor que el
+                           -- 0 significa "todos los estados": es un valor que el
                            -- enum no define, así que ninguna orden lo tiene y no
                            -- se pisa con un filtro real.
                            AND (@PurchaseStatusId = 0 OR p.purchase_status_id = @PurchaseStatusId)
                            AND EXISTS (SELECT 1 FROM purchases_detail pd
                                         WHERE pd.purchase_id = p.id AND pd.state)
                          ORDER BY p.purchase_date DESC;
-                ";
+                """;
 
             var result = await db.QueryAsync<PurchaseProductResponse>(sqlQuery,
                 new

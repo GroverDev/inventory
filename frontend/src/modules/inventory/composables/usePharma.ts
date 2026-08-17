@@ -80,7 +80,15 @@ const usePharma = () => {
   const getSuggestedIn = async (productId: string): Promise<ResponseArray<ProductEquivalent>> =>
     await get<ResponseArray<ProductEquivalent>>(`Pharma/product/${productId}/suggested-in`);
 
-  return { getForms, getRoutes, searchSubstances, getByProduct, savePharma, getLeaflet, saveLeaflet, getEquivalents, getSuggestedIn, addAlternative, removeAlternative };
+  /**
+   * Fija el orden en que se ofrecen. Una lista vacía devuelve el control al
+   * orden automático: disponibilidad primero y después precio.
+   */
+  const setAlternativesOrder = async (productId: string, alternativeIds: string[]): Promise<ResponseObject<boolean>> =>
+    await put<ResponseObject<boolean>>(`Pharma/product/${productId}/alternatives/order`,
+      { AlternativeIds: alternativeIds });
+
+  return { getForms, getRoutes, searchSubstances, getByProduct, savePharma, getLeaflet, saveLeaflet, getEquivalents, getSuggestedIn, addAlternative, removeAlternative, setAlternativesOrder };
 };
 
 export default usePharma;

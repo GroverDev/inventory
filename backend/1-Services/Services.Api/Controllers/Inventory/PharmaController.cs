@@ -65,6 +65,21 @@ public class PharmaController(IPharmaApplication _pharmaApplication, IRolesAppli
         return await _pharmaApplication.GetEquivalents(productId);
     }
 
+    // PUT api/Pharma/product/{id}/alternatives/order
+    // Fija en qué orden se ofrecen. Mandar la lista vacía devuelve el control al
+    // orden automático (disponibilidad y después precio).
+    [HttpPut("product/{productId}/alternatives/order")]
+    public async Task<ActionResult<Response<bool>>> SetAlternativesOrder(string productId, [FromBody] AlternativesOrderRequest request)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
+
+        return await _pharmaApplication.SetAlternativesOrder(productId, request?.AlternativeIds, datos.UserId);
+    }
+
     // GET api/Pharma/product/{id}/suggested-in
     // La vuelta de la relación: en qué fichas se está ofreciendo este producto.
     [HttpGet("product/{productId}/suggested-in")]
@@ -152,6 +167,14 @@ public class LeafletRequest
 }
 
 /// <summary>Alta de una alternativa definida a mano.</summary>
+/// <summary>
+/// Las alternativas fijadas, en su orden. Vacío = volver al orden automático.
+/// </summary>
+public class AlternativesOrderRequest
+{
+    public List<string>? AlternativeIds { get; set; }
+}
+
 public class AlternativeRequest
 {
     public string? AlternativeId { get; set; }

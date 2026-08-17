@@ -197,6 +197,34 @@ public class PharmaApplication(IPharmaRepository _pharmaRepository) : IPharmaApp
         return resp;
     }
 
+    /// <summary>
+    /// Fija el orden en que se ofrecen las alternativas. Una lista vacía
+    /// devuelve el control al orden automático.
+    /// </summary>
+    public async Task<Response<bool>> SetAlternativesOrder(string productId, List<string>? alternativeIds, int userId)
+    {
+        var resp = new Response<bool>();
+        try
+        {
+            if (!Guid.TryParse(productId, out var id) || id == Guid.Empty)
+                throw new CustomException("El identificador del producto no es válido.", MessageTypes.Warning);
+
+            // Los identificadores ilegibles se descartan en vez de abortar: el
+            // orden es una preferencia de presentación, no un dato del negocio.
+            var ordenadas = (alternativeIds ?? [])
+                .Select(x => Guid.TryParse(x, out var g) ? g : Guid.Empty)
+                .Where(g => g != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            await _pharmaRepository.SetAlternativesOrder(id, ordenadas, userId);
+            resp.Data = resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
     public async Task<Response<bool>> AddAlternative(string productId, string alternativeId, string? motivo, int userId)
     {
         var resp = new Response<bool>();

@@ -56,6 +56,8 @@ export interface ProductEquivalent {
   /** `true` si la definió la farmacia; `false` si se dedujo de la composición. */
   IsManual: boolean;
   Reason: string;
+  /** Posición fijada a mano; 0 es sin fijar, o sea que se ordena sola. */
+  ShowOrder: number;
 }
 
 /** Unidades habituales de concentración, para sugerir sin encajonar. */

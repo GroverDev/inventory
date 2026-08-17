@@ -578,18 +578,55 @@
                       alguien pide este producto.
                     </p>
 
-                    <div v-for="a in alternativasManuales" :key="a.ProductId"
+                    <div v-for="(a, ai) in alternativasManuales" :key="a.ProductId"
                       class="d-flex align-items-center justify-content-between border rounded p-2 mb-1">
                       <div>
                         <span class="fw-semibold small">{{ a.ProductName }}</span>
+                        <span v-if="a.CurrentStock <= 0"
+                          class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1 fw-normal">
+                          Sin stock
+                        </span>
                         <small class="text-muted d-block">
                           <span v-if="a.Reason">{{ a.Reason }} · </span>Bs. {{ formatCurrency(a.SalePrice) }}
                         </small>
                       </div>
-                      <button v-if="!isReadOnly" type="button" class="btn btn-sm btn-outline-danger"
-                        title="Quitar" @click="quitarAlternativa(a.ProductId)">
-                        <i class="fal fa-trash-alt"></i>
+                      <div v-if="!isReadOnly" class="d-flex gap-1">
+                        <!--
+                          Mover fija el orden a mano. Solo aparece con más de una:
+                          con una sola no hay nada que ordenar.
+                        -->
+                        <template v-if="alternativasManuales.length > 1">
+                          <button type="button" class="btn btn-sm btn-outline-secondary"
+                            :disabled="ai === 0" title="Subir" @click="moverAlternativa(ai, -1)">
+                            <i class="fal fa-arrow-up"></i>
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-secondary"
+                            :disabled="ai === alternativasManuales.length - 1"
+                            title="Bajar" @click="moverAlternativa(ai, 1)">
+                            <i class="fal fa-arrow-down"></i>
+                          </button>
+                        </template>
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                          title="Quitar" @click="quitarAlternativa(a.ProductId)">
+                          <i class="fal fa-trash-alt"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!--
+                      El orden a mano envejece mal: cambian precios y stock y
+                      queda mintiendo. Por eso siempre hay forma de devolvérselo
+                      al sistema.
+                    -->
+                    <div v-if="!isReadOnly && hayOrdenFijado" class="mb-2">
+                      <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                        @click="ordenAutomatico">
+                        <i class="fal fa-wand-magic-sparkles me-1"></i>Volver al orden automático
                       </button>
+                      <small class="text-muted d-block">
+                        Hoy el orden lo fijaste vos. El automático ofrece primero lo que hay
+                        en stock y, entre esos, lo más económico.
+                      </small>
                     </div>
 
                     <!-- Equivalentes: no se cargan, se deducen de la composición. -->
@@ -808,7 +845,7 @@ const canSave = computed(() =>
 // El formulario queda bloqueado si ya se grabó o si el usuario no puede grabar.
 const isReadOnly = computed(() => isSaved.value || !canSave.value);
 
-const { getForms, getRoutes, searchSubstances, getByProduct: getPharma, savePharma, getLeaflet, saveLeaflet, getEquivalents, getSuggestedIn, addAlternative, removeAlternative } = usePharma();
+const { getForms, getRoutes, searchSubstances, getByProduct: getPharma, savePharma, getLeaflet, saveLeaflet, getEquivalents, getSuggestedIn, addAlternative, removeAlternative , setAlternativesOrder } = usePharma();
 
 const pharma = ref(new ProductPharma());
 const formas = ref<PharmaCatalogItem[]>([]);
@@ -833,6 +870,9 @@ const equivalentesAutomaticos = computed(() => equivalentes.value.filter(e => !e
 
 /** Solo las manuales: las automáticas se muestran aparte y no se administran. */
 const alternativasManuales = computed(() => equivalentes.value.filter(e => e.IsManual));
+
+/** Si alguna tiene posición, el orden dejó de ser automático. */
+const hayOrdenFijado = computed(() => alternativasManuales.value.some(a => (a.ShowOrder ?? 0) > 0));
 
 // ── Selector de alternativas ───────────────────────────────
 const selectorAbierto = ref(false);
@@ -875,6 +915,31 @@ const confirmarAlternativa = async (payload: { productId: string; reason: string
   if (!ok) return;
 
   await recargarRelaciones(product.value.Id);
+};
+
+/**
+ * Mueve una sugerencia en la lista. Al mover, el orden pasa a ser explícito:
+ * se guarda la posición de TODAS, porque a medias —unas fijadas y otras no— el
+ * resultado en pantalla sería difícil de predecir.
+ */
+const moverAlternativa = async (indice: number, salto: number) => {
+  const lista = [...alternativasManuales.value];
+  const destino = indice + salto;
+  if (destino < 0 || destino >= lista.length) return;
+
+  [lista[indice], lista[destino]] = [lista[destino], lista[indice]];
+
+  const { ok } = await setAlternativesOrder(
+    product.value.Id,
+    lista.map(a => a.ProductId),
+  );
+  if (ok) await recargarRelaciones(product.value.Id);
+};
+
+/** Devuelve la decisión al sistema: disponibilidad primero y después precio. */
+const ordenAutomatico = async () => {
+  const { ok } = await setAlternativesOrder(product.value.Id, []);
+  if (ok) await recargarRelaciones(product.value.Id);
 };
 
 const quitarAlternativa = async (alternativeId: string) => {

@@ -272,7 +272,9 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
         try
         {
             db.Open();
-            var r = await db.QueryAsync<ProductEquivalentResponse>(@"
+            // Literal sin procesar: una comilla doble dentro de una cadena
+            // verbatim la termina, y estos comentarios SQL las usan.
+            var r = await db.QueryAsync<ProductEquivalentResponse>("""
                 SELECT p.id            AS ProductId,
                        p.product_name,
                        p.sale_price,
@@ -280,15 +282,20 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                        COALESCE(pp.product_type, '') AS ProductType,
                        COALESCE(pp.presentation, '') AS Presentation,
                        true            AS IsManual,
-                       COALESCE(pa.reason, '')       AS Reason
+                       COALESCE(pa.reason, '')       AS Reason,
+                       pa.show_order
                   FROM product_alternatives pa
                        JOIN products p ON p.id = pa.alternative_id AND p.state AND p.is_active
                        LEFT JOIN product_pharma pp ON pp.product_id = p.id
                  WHERE pa.product_id = @ProductId AND pa.state
-                 -- Lo que hay en el estante primero: en el mostrador, sugerir
-                 -- algo agotado hace perder el tiempo de la venta. Recién
-                 -- después manda el precio.
-                 ORDER BY pa.show_order, (p.current_stock > 0) DESC, p.sale_price",
+                 -- show_order 0 significa "sin fijar": esas van al final del
+                 -- criterio automático, que es "lo que hay en el estante primero
+                 -- y después lo más barato". Sugerir algo agotado hace perder el
+                 -- tiempo de la venta.
+                 ORDER BY NULLIF(pa.show_order, 0) NULLS LAST,
+                          (p.current_stock > 0) DESC,
+                          p.sale_price
+                """,
                 new { ProductId = productId });
             return [.. r];
         }
@@ -327,6 +334,49 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                  ORDER BY p.product_name",
                 new { ProductId = productId });
             return [.. r];
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
+
+    /// <summary>
+    /// Fija el orden de las alternativas. La lista recibida son las fijadas, en
+    /// su posición; lo que no venga vuelve a 0, o sea al orden automático.
+    /// </summary>
+    /// <remarks>
+    /// Se permite volver atrás a propósito: un orden escrito a mano envejece mal
+    /// —cambian precios y stock y queda mintiendo—, así que tiene que haber
+    /// forma de devolverle la decisión al sistema.
+    /// </remarks>
+    public async Task SetAlternativesOrder(Guid productId, List<Guid> ordenadas, int userId)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            using var tx = db.BeginTransaction();
+            try
+            {
+                await db.ExecuteAsync(@"
+                    UPDATE product_alternatives
+                       SET show_order = 0, modified_by = @UserId, modified = now()
+                     WHERE product_id = @ProductId AND show_order <> 0",
+                    new { ProductId = productId, UserId = userId }, tx);
+
+                if (ordenadas.Count > 0)
+                {
+                    await db.ExecuteAsync(@"
+                        UPDATE product_alternatives pa
+                           SET show_order = o.pos, modified_by = @UserId, modified = now()
+                          FROM (SELECT * FROM unnest(@Ids::uuid[]) WITH ORDINALITY AS t(id, pos)) o
+                         WHERE pa.product_id = @ProductId
+                           AND pa.alternative_id = o.id",
+                        new { ProductId = productId, Ids = ordenadas.ToArray(), UserId = userId }, tx);
+                }
+
+                tx.Commit();
+            }
+            catch (Exception ex) { tx.Rollback(); throw new Exception(ex.Message, ex); }
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
         finally { db.Close(); }
