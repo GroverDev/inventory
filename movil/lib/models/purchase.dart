@@ -18,14 +18,22 @@ final apiDateFormat = DateFormat('yyyy-MM-dd');
 class PurchaseStatusIds {
   PurchaseStatusIds._();
 
+  /// Sentinela de filtro, no un estado real: el backend lo interpreta como
+  /// "sin filtrar por estado". El enum del servidor no define el 0, así que no
+  /// puede chocar con una orden de verdad.
+  static const int todos = 0;
+
   static const int requested = 1;
   static const int partiallyReceived = 2;
   static const int totallyReceived = 3;
   static const int cancelled = 4;
   static const int closed = 5;
 
-  /// Los cinco estados en el orden en que los recorre el usuario.
+  /// Los estados filtrables, en el orden en que los recorre el usuario. "Todos"
+  /// va primero porque es la vista más amplia y la que responde "¿qué pasó con
+  /// mi pedido?" cuando no se recuerda en qué estado quedó.
   static const List<int> all = [
+    todos,
     requested,
     partiallyReceived,
     totallyReceived,
@@ -38,6 +46,7 @@ class PurchaseStatusIds {
 /// webapp (`statusLabel`), porque el enum es fijo en el backend y así la lista
 /// no depende de una llamada extra al catálogo para poder filtrar.
 String purchaseStatusLabel(int statusId) => switch (statusId) {
+      PurchaseStatusIds.todos => 'Todos los estados',
       PurchaseStatusIds.requested => 'Solicitado',
       PurchaseStatusIds.partiallyReceived => 'Parc. recibido',
       PurchaseStatusIds.totallyReceived => 'Recibido',

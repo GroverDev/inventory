@@ -446,6 +446,74 @@
       </div><!-- /pos-cart-panel -->
 
       <!-- ════ MODAL: Aplicar Descuento ════ -->
+      <!-- ════ MODAL: elegir números de serie ════ -->
+      <div v-if="showSerialModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+
+            <div class="modal-header py-2">
+              <h6 class="modal-title fw-bold">
+                <i class="fal fa-barcode-read me-2"></i>Elegir unidad
+              </h6>
+              <button type="button" class="btn-close" @click="showSerialModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                <strong>{{ serialProduct?.ProductName }}</strong> se identifica por número
+                de serie. Marcá las unidades que entregás: la garantía queda atada a
+                ese número.
+              </p>
+
+              <div v-if="serialLoading" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Cargando...</span>
+                </div>
+              </div>
+
+              <div v-else-if="serialAvailable.length === 0" class="text-center py-4">
+                <i class="fal fa-box-open fa-2x text-muted d-block mb-2"></i>
+                <p class="text-muted mb-0">No hay unidades disponibles de este producto.</p>
+              </div>
+
+              <div v-else class="list-group" style="max-height:340px; overflow-y:auto">
+                <label
+                  v-for="u in serialAvailable"
+                  :key="u.StockItemId"
+                  class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+                >
+                  <input
+                    class="form-check-input m-0"
+                    type="checkbox"
+                    :checked="serialSelected.includes(u.SerialNumber)"
+                    @change="toggleSerial(u.SerialNumber)"
+                  />
+                  <span class="font-monospace flex-grow-1">{{ u.SerialNumber }}</span>
+                  <small v-if="u.ExpiryDate" class="text-muted">
+                    vence {{ new Date(u.ExpiryDate).toLocaleDateString('es-BO') }}
+                  </small>
+                </label>
+              </div>
+            </div>
+
+            <div class="modal-footer py-2 d-flex justify-content-between">
+              <small class="text-muted">
+                {{ serialSelected.length }} de {{ serialAvailable.length }} seleccionada(s)
+              </small>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" @click="showSerialModal = false">
+                  Cancelar
+                </button>
+                <button class="btn btn-primary btn-sm" @click="confirmSerials">
+                  Confirmar
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
       <div v-if="showDiscountModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
         <div class="modal-dialog modal-dialog-centered modal-sm">
           <div class="modal-content">
@@ -927,10 +995,29 @@
                   style="font-size:0.82rem; min-height:2.5em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical"
                 >{{ prod.ProductName }}</div>
 
-                <!-- Lab -->
-                <small class="text-muted mb-2" style="font-size:0.72rem">
-                  {{ prod.LaboratoryName || '—' }}
-                </small>
+                <!-- Lab + acceso a la ficha -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <small class="text-muted text-truncate" style="font-size:0.72rem">
+                    {{ prod.LaboratoryName || '—' }}
+                  </small>
+                  <!--
+                    La ficha se abre desde acá: es la pregunta del mostrador
+                    ("¿para qué sirve?", "¿hay algo más barato?") y no debería
+                    obligar a salir del punto de venta.
+                  -->
+                  <button type="button" class="btn btn-link p-0 text-muted"
+                    style="font-size:0.8rem; line-height:1"
+                    title="Ver composición, prospecto y alternativas"
+                    @click.stop="abrirFicha(prod)">
+                    <i class="fal fa-info-circle"></i>
+                  </button>
+                </div>
+                <!-- Lo que condiciona la venta se ve sin abrir nada. -->
+                <span v-if="prod.RequiresAuthorization"
+                  class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle mb-2"
+                  style="font-size:0.62rem">
+                  <i class="fal fa-file-medical me-1"></i>Con receta
+                </span>
 
                 <div class="mt-auto">
                   <!-- Precio + stock -->
@@ -990,6 +1077,12 @@
     </div><!-- /pos-split -->
     </template><!-- /v-else caja abierta -->
   </div>
+  <ProductInfoModal
+    :visible="fichaVisible"
+    :producto="productoFicha"
+    @cerrar="fichaVisible = false"
+    @agregar="agregarDesdeFicha"
+  />
 </template>
 
 <script setup lang="ts">
@@ -1000,6 +1093,7 @@ import { SaleDetail } from '@/modules/inventory/models/saleDetail.model';
 import { SalePayment, type PaymentMethod } from '@/modules/inventory/models/paymentMethod.model';
 import type { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
+import ProductInfoModal from '@/modules/inventory/components/ProductInfoModal.vue';
 import type { CashSession } from '@/modules/inventory/models/cashSession.model';
 import { CashMovementRequest } from '@/modules/inventory/models/cashMovement.model';
 import type { Discount } from '@/modules/inventory/models/discount.model';
@@ -1013,6 +1107,8 @@ import usePaymentMethod from '@/modules/inventory/composables/usePaymentMethod';
 import useCashSession from '@/modules/inventory/composables/useCashSession';
 import useCashMovement from '@/modules/inventory/composables/useCashMovement';
 import useDiscount from '@/modules/inventory/composables/useDiscount';
+import useStockMovement from '@/modules/inventory/composables/useStockMovement';
+import type { StockSerialResponse } from '@/modules/inventory/models/stockMovement.model';
 import utils from '@/utils/msg';
 
 const router = useRouter();
@@ -1110,6 +1206,73 @@ const supervisorAuthToken = ref('');
 
 // ── Modal venta completada ─────────────────────────────────
 const showCompletedModal = ref(false);
+
+// ── Selector de números de serie ───────────────────────────
+// Un producto serializado no se agrega tocándolo: hay que decir QUÉ unidad sale,
+// porque la garantía queda atada a ese número. El +/- del carrito no alcanza.
+const { getAvailableSerials } = useStockMovement();
+const showSerialModal = ref(false);
+const serialProduct = ref<Product | null>(null);
+const serialAvailable = ref<StockSerialResponse[]>([]);
+const serialSelected = ref<string[]>([]);
+const serialLoading = ref(false);
+
+const usesSerial = (prod: Product) => prod.TrackingMode === 'serial';
+
+const openSerialPicker = async (prod: Product) => {
+  serialProduct.value = prod;
+  serialSelected.value = [...(cart.value.find(l => l.ProductId === prod.Id)?.SerialNumbers ?? [])];
+  serialAvailable.value = [];
+  showSerialModal.value = true;
+  serialLoading.value = true;
+  try {
+    const { ok, Data } = await getAvailableSerials(prod.Id);
+    serialAvailable.value = ok ? Data : [];
+  } finally {
+    serialLoading.value = false;
+  }
+};
+
+const toggleSerial = (serie: string) => {
+  const i = serialSelected.value.indexOf(serie);
+  if (i >= 0) serialSelected.value.splice(i, 1);
+  else serialSelected.value.push(serie);
+};
+
+/**
+ * La cantidad la determina cuántas unidades se eligieron: no hay forma de
+ * vender 3 aparatos indicando 2 números.
+ */
+const confirmSerials = () => {
+  const prod = serialProduct.value;
+  if (!prod) return;
+
+  const idx = cart.value.findIndex((l: SaleDetail) => l.ProductId === prod.Id);
+
+  if (serialSelected.value.length === 0) {
+    if (idx >= 0) cart.value.splice(idx, 1);
+    showSerialModal.value = false;
+    return;
+  }
+
+  if (idx >= 0) {
+    cart.value[idx].SerialNumbers = [...serialSelected.value];
+    cart.value[idx].Quantity = serialSelected.value.length;
+    recalcLine(idx);
+  } else {
+    const line = new SaleDetail();
+    line.ProductId = prod.Id;
+    line.ProductName = prod.ProductName;
+    line.UnitPrice = prod.SalePrice;
+    line.Quantity = serialSelected.value.length;
+    line.SerialNumbers = [...serialSelected.value];
+    line.LineTotalDiscounts = 0;
+    line.LineSubtotal = +(prod.SalePrice * line.Quantity).toFixed(2);
+    line.LineTotal = line.LineSubtotal;
+    cart.value.push(line);
+  }
+  showSerialModal.value = false;
+};
 const completedSaleId = ref('');
 const completedCustomer = ref('');
 const completedTotal = ref(0);
@@ -1257,8 +1420,30 @@ const clearCustomer = () => {
   customerResults.value = [];
 };
 
+// ── Ficha del producto ─────────────────────────────────────
+const fichaVisible = ref(false);
+const productoFicha = ref<Product | null>(null);
+
+const abrirFicha = (prod: Product) => {
+  productoFicha.value = prod;
+  fichaVisible.value = true;
+};
+
+/**
+ * Agregar desde la ficha, que puede ser el producto mismo o una alternativa.
+ * Se cierra el modal: quien eligió la alternativa ya decidió, y dejarlo abierto
+ * lo obligaría a un clic más para volver a la grilla.
+ */
+const agregarDesdeFicha = (productId: string) => {
+  const prod = allProducts.value.find((p: Product) => p.Id === productId);
+  if (prod) addToCart(prod);
+  fichaVisible.value = false;
+};
+
 // ── Carrito ────────────────────────────────────────────────
 const addToCart = (prod: Product) => {
+  if (usesSerial(prod)) { openSerialPicker(prod); return; }
+
   const idx = cart.value.findIndex((l: SaleDetail) => l.ProductId === prod.Id);
   if (idx >= 0) {
     cart.value[idx].Quantity++;
@@ -1276,12 +1461,22 @@ const addToCart = (prod: Product) => {
   }
 };
 
+/** Una línea serializada no se ajusta con +/-: hay que decir qué unidad entra o sale. */
+const esLineaSerializada = (l: SaleDetail) => (l.SerialNumbers?.length ?? 0) > 0;
+
+const reabrirSelector = (l: SaleDetail) => {
+  const prod = allProducts.value.find((p: Product) => p.Id === l.ProductId);
+  if (prod) openSerialPicker(prod);
+};
+
 const increaseQty = (i: number) => {
+  if (esLineaSerializada(cart.value[i])) { reabrirSelector(cart.value[i]); return; }
   cart.value[i].Quantity++;
   recalcLine(i);
 };
 
 const decreaseQty = (i: number) => {
+  if (esLineaSerializada(cart.value[i])) { reabrirSelector(cart.value[i]); return; }
   if (cart.value[i].Quantity <= 1) {
     cart.value.splice(i, 1);
   } else {
@@ -1615,6 +1810,9 @@ const finalizeSale = async () => {
       d.DiscountId = l.DiscountId;
       d.DiscountType = l.DiscountType;
       d.DiscountValue = l.DiscountValue;
+      // Este detalle se arma campo por campo: lo que no se nombre acá no viaja,
+      // por más que el modelo y el carrito lo tengan.
+      d.SerialNumbers = l.SerialNumbers ?? [];
       return d;
     });
     sale.Payments = paymentLines.value.map((l) => {

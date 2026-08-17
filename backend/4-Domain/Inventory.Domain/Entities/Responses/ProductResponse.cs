@@ -14,6 +14,7 @@ public class ProductResponse
     public int CurrentStock { get; set; }
     public int MinReorderQuantity { get; set; }
     public bool AvailableInPos { get; set; }
+    public bool RequiresAuthorization { get; set; }
     public Guid UomId { get; set; }= Guid.Empty;
     public string UnitName { get; set; }="";
     public Guid? LaboratoryId { get; set; }

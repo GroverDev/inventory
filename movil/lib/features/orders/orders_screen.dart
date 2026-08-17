@@ -161,8 +161,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Sin pedidos en "${purchaseStatusLabel(_filters.statusId)}" '
-                'entre ${_filters.rangeLabel}.',
+                // Con "Todos" nombrar el estado sobra y suena a trabalenguas:
+                // ahí lo único que acota la búsqueda es el periodo.
+                _filters.statusId == PurchaseStatusIds.todos
+                    ? 'Sin pedidos entre ${_filters.rangeLabel}.'
+                    : 'Sin pedidos en "${purchaseStatusLabel(_filters.statusId)}" '
+                        'entre ${_filters.rangeLabel}.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),

@@ -101,6 +101,31 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
         finally { db.Close(); }
     }
 
+    public async Task<List<StockSerialResponse>> GetAvailableSerials(Guid productId)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            // Orden por vencimiento: aunque el mostrador elige, la sugerencia
+            // sensata sigue siendo entregar primero lo que vence antes. Las que
+            // no vencen van al final.
+            string sql = @"
+                SELECT id AS stock_item_id, serial_number, expiry_date
+                  FROM stock_items
+                 WHERE product_id = @ProductId
+                   AND serial_number IS NOT NULL
+                   AND quantity > 0
+                   AND state
+                 ORDER BY expiry_date NULLS LAST, serial_number;
+            ";
+            var result = await db.QueryAsync<StockSerialResponse>(sql, new { ProductId = productId });
+            return [.. result];
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<List<StockSerialResponse>>(ex); }
+        finally { db.Close(); }
+    }
+
     public async Task CreateAdjustment(StockMovement movement, int userId)
     {
         using var db = _DbContext.CreateConnection;

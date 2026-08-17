@@ -53,6 +53,13 @@ export class LotTraceabilityResponse {
   Cellphone: string | null = null
 }
 
+/** Una unidad serializada disponible para vender. */
+export class StockSerialResponse {
+  StockItemId: string = ''
+  SerialNumber: string = ''
+  ExpiryDate: string | null = null
+}
+
 export class StockAdjustmentRequest {
   ProductId: string = ''
   Quantity: number = 0

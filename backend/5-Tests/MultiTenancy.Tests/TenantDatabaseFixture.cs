@@ -92,6 +92,12 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // La API configura esto en Program.cs, y sin ello las columnas
+        // snake_case no mapean a las propiedades PascalCase: los repositorios
+        // devuelven el valor por defecto en silencio. Sin esta línea las pruebas
+        // que ejercitan repositorios estarían midiendo algo distinto de lo que
+        // corre en producción.
+        Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
         await using (var maestro = new NpgsqlConnection(_admin))
         {

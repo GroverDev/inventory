@@ -15,6 +15,13 @@ public class Product : Audit
         public bool IsActive { get; set; }
         public int MinReorderQuantity { get; set; }
         public bool AvailableInPos { get; set; }
+
+        /// <summary>
+        /// La venta exige un respaldo: receta médica en farmacia, permiso en una
+        /// ferretería con químicos controlados. Nombre genérico a propósito — el
+        /// comportamiento es del núcleo, no de un rubro.
+        /// </summary>
+        public bool RequiresAuthorization { get; set; }
         /// <summary>
         /// Laboratorio o proveedor. Opcional: no toda la mercadería que vende
         /// una farmacia tiene laboratorio (accesorios, limpieza, genéricos).

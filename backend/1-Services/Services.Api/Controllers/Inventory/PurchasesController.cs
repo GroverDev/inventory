@@ -56,6 +56,10 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     }
 
     // GET: api/Purchases
+    //
+    // purchaseStatus = 0 devuelve todos los estados. El enum no define el 0, así
+    // que no se confunde con un filtro real; es lo que usa la lista del móvil
+    // para el "Todos los estados".
     [HttpGet]
     public async Task<ActionResult<Response<List<PurchaseProductResponse>>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, PurchaseStatusEnum purchaseStatus)
     {

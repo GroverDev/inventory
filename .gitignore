@@ -4,3 +4,7 @@
 
 # Backups huérfanos en la raíz
 futbol_backup.sql
+
+# Basura de Finder en macOS. Entraron al repositorio por un `git add` amplio
+# y ensucian cada diff sin aportar nada.
+.DS_Store

@@ -41,6 +41,18 @@ public class StockMovementController(IStockMovementApplication _stockMovementApp
         return await _stockMovementApplication.GetTraceability(lote);
     }
 
+    // GET api/StockMovement/serials/{productId}
+    // Unidades serializadas disponibles, para que el mostrador elija cuál entrega.
+    //
+    // Dos segmentos, así que no compite con la ruta {productId} de abajo.
+    [HttpGet("serials/{productId}")]
+    public async Task<ActionResult<Response<List<StockSerialResponse>>>> GetAvailableSerials(string productId)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+
+        return await _stockMovementApplication.GetAvailableSerials(productId);
+    }
+
     // GET api/StockMovement/{productId}
     [HttpGet("{productId}")]
     public async Task<ActionResult<Response<List<StockMovementResponse>>>> GetMovements(string productId)

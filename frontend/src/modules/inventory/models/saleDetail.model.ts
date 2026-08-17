@@ -19,6 +19,12 @@ export class SaleDetail {
   public ExpiryDate: string | null = null;
   /** Número de serie de la unidad entregada. Responde un reclamo de garantía. */
   public SerialNumber: string | null = null;
+  /**
+   * Series elegidas en el mostrador al vender un producto serializado. Vacío
+   * significa que el servidor elige por FEFO, que es lo correcto para lo
+   * intercambiable pero no para una unidad con garantía.
+   */
+  public SerialNumbers: string[] = [];
   public isSelected: boolean = false;
   // Discount tracking (DiscountId is sent to the API)
   public DiscountId: string = '';

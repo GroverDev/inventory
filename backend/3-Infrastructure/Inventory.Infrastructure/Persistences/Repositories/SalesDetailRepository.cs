@@ -31,10 +31,15 @@ public class SalesDetailRepository : ISalesDetailRepository
     {
         try
         {
-            var asignaciones = (await db.QueryAsync<Asignacion>(
-                "SELECT stock_item_id AS StockItemId, cantidad AS Cantidad FROM fn_asignar_fefo(@ProductId, @Cantidad)",
-                new { detail.ProductId, Cantidad = (decimal)detail.Quantity },
-                transaction)).ToList();
+            // Con números de serie elegidos en el mostrador manda el mostrador:
+            // FEFO sirve para lo intercambiable, pero una unidad serializada se
+            // entrega en mano y la garantía queda atada a ESE número, no al que
+            // vencía antes. Sin series indicadas se sigue por FEFO como siempre.
+            var asignaciones = await ResolverSeries(detail, db, transaction)
+                ?? (await db.QueryAsync<Asignacion>(
+                    "SELECT stock_item_id AS StockItemId, cantidad AS Cantidad FROM fn_asignar_fefo(@ProductId, @Cantidad)",
+                    new { detail.ProductId, Cantidad = (decimal)detail.Quantity },
+                    transaction)).ToList();
 
             if (asignaciones.Count == 0)
                 throw new CustomException("No se pudo determinar de qué existencia sale la venta.");
@@ -86,6 +91,65 @@ public class SalesDetailRepository : ISalesDetailRepository
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+    }
+
+    /// <summary>
+    /// Convierte las series elegidas en el mostrador en asignaciones de stock.
+    /// Devuelve <c>null</c> cuando no se eligió ninguna, que es la señal de
+    /// seguir por FEFO.
+    /// </summary>
+    /// <remarks>
+    /// Valida contra la base y no contra lo que mandó el cliente: que cada serie
+    /// exista, sea de ESTE producto y siga disponible. Dos cajas cobrando a la
+    /// vez pueden elegir la misma unidad, y la segunda tiene que enterarse acá y
+    /// no dejar el inventario en negativo.
+    /// </remarks>
+    private static async Task<List<Asignacion>?> ResolverSeries(
+        SaleDetail detail, IDbConnection db, IDbTransaction transaction)
+    {
+        var series = (detail.SerialNumbers ?? [])
+            .Select(s => (s ?? "").Trim())
+            .Where(s => s.Length > 0)
+            .ToList();
+
+        if (series.Count == 0) return null;
+
+        if (series.Count != detail.Quantity)
+            throw new CustomException(
+                $"Se indicaron {series.Count} número(s) de serie para una cantidad de {detail.Quantity}: " +
+                "cada unidad se entrega con su número.");
+
+        if (series.Distinct(StringComparer.OrdinalIgnoreCase).Count() != series.Count)
+            throw new CustomException(
+                "Hay números de serie repetidos: cada uno identifica una unidad distinta.");
+
+        var encontradas = (await db.QueryAsync<(Guid Id, string Serie)>(
+            @"SELECT id, serial_number
+                FROM stock_items
+               WHERE product_id = @ProductId
+                 AND state
+                 AND quantity > 0
+                 AND upper(trim(serial_number)) = ANY(@Series)",
+            new
+            {
+                detail.ProductId,
+                Series = series.Select(s => s.ToUpperInvariant()).ToArray()
+            },
+            transaction)).ToList();
+
+        if (encontradas.Count != series.Count)
+        {
+            var faltantes = series
+                .Where(s => !encontradas.Any(e =>
+                    string.Equals(e.Serie?.Trim(), s, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            throw new CustomException(
+                $"No hay stock disponible de la(s) serie(s): {string.Join(", ", faltantes)}. " +
+                "Puede que ya se hayan vendido.");
+        }
+
+        return [.. encontradas.Select(e => new Asignacion(e.Id, 1m))];
     }
 
     /// <summary>Reparte un importe en proporción a la cantidad, a dos decimales.</summary>

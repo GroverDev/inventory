@@ -19,6 +19,9 @@ public interface IStockMovementRepository
     /// </summary>
     Task<List<LotTraceabilityResponse>> GetTraceability(string lotCode);
 
+    /// <summary>Unidades serializadas disponibles de un producto, para elegir en el mostrador.</summary>
+    Task<List<StockSerialResponse>> GetAvailableSerials(Guid productId);
+
     Task CreateAdjustment(StockMovement movement, int userId);
     Task InsertMovement(StockMovement movement, IDbConnection db, IDbTransaction transaction);
 }

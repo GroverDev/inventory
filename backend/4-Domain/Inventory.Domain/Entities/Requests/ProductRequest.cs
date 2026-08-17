@@ -13,6 +13,9 @@ public class ProductRequest
     public bool IsActive { get; set; }
     public int MinReorderQuantity { get; set; }
     public bool AvailableInPos { get; set; }
+
+    /// <summary>La venta exige respaldo (receta, permiso).</summary>
+    public bool RequiresAuthorization { get; set; }
     public string LaboratoryId { get; set; }="";
     public string CategoryId { get; set; }="";
     public string BarCode { get; set; } = "";

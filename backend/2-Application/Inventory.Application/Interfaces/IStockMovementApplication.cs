@@ -10,5 +10,6 @@ public interface IStockMovementApplication
 
     Task<Response<List<StockExpiryResponse>>> GetExpiring(int dias);
     Task<Response<List<LotTraceabilityResponse>>> GetTraceability(string lotCode);
+    Task<Response<List<StockSerialResponse>>> GetAvailableSerials(string productId);
     Task<Response<bool>> CreateAdjustment(StockAdjustmentRequest request, int userId);
 }

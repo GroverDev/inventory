@@ -45,6 +45,22 @@ public class StockMovementApplication(IStockMovementRepository _stockMovementRep
         return resp;
     }
 
+    public async Task<Response<List<StockSerialResponse>>> GetAvailableSerials(string productId)
+    {
+        var resp = new Response<List<StockSerialResponse>>() { Data = [] };
+        try
+        {
+            if (!Guid.TryParse(productId, out var id) || id == Guid.Empty)
+                throw new CustomException("El identificador del producto no es válido.", MessageTypes.Warning);
+
+            resp.Data = await _stockMovementRepository.GetAvailableSerials(id);
+            resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
     public async Task<Response<List<StockExpiryResponse>>> GetExpiring(int dias)
     {
         var resp = new Response<List<StockExpiryResponse>>() { Data = [] };

@@ -21,5 +21,12 @@ public class SaleDetail : Audit
     public decimal LineTotalDiscounts { get; set; }
     public decimal LineTotal { get; set; }
     public Guid? DiscountId { get; set; }
+
+    /// <summary>
+    /// Series elegidas en el mostrador. Vacío significa "elegí vos por FEFO".
+    /// No se persiste en la línea: determina de qué existencias sale, y cada
+    /// una queda registrada en su propia porción vía <c>StockItemId</c>.
+    /// </summary>
+    public List<string> SerialNumbers { get; set; } = [];
 }
 

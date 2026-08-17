@@ -444,7 +444,10 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                            AND p.is_active
                            AND p.purchase_date >= @PurchaseDateInitial
                            AND p.purchase_date <= @PurchaseDateEnd
-                           AND p.purchase_status_id = @PurchaseStatusId
+                           -- 0 significa: todos los estados. Es un valor que el
+                           -- enum no define, así que ninguna orden lo tiene y no
+                           -- se pisa con un filtro real.
+                           AND (@PurchaseStatusId = 0 OR p.purchase_status_id = @PurchaseStatusId)
                            AND EXISTS (SELECT 1 FROM purchases_detail pd
                                         WHERE pd.purchase_id = p.id AND pd.state)
                          ORDER BY p.purchase_date DESC;

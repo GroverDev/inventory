@@ -81,7 +81,8 @@
                 <span v-if="ventas[0].ExpiryDate"> · vence {{ formatDate(ventas[0].ExpiryDate) }}</span>
               </div>
 
-              <div class="table-responsive">
+              <!-- Tabla escritorio -->
+              <div class="d-none d-md-block">
                 <table class="table table-hover table-sm align-middle mb-0">
                   <thead>
                     <tr>
@@ -114,6 +115,43 @@
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <!--
+                Tarjetas en móvil, como el resto de los listados. Acá importa
+                más que en otros: quien llama a los clientes de un retiro suele
+                estar con el teléfono en la mano, y el número tiene que ser
+                tocable sin pelear con un scroll horizontal.
+              -->
+              <div class="d-md-none">
+                <div class="row g-2">
+                  <div class="col-12" v-for="v in ventas" :key="'m' + v.SaleId + v.SaleDate">
+                    <div class="card shadow-sm">
+                      <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <span class="fw-semibold">{{ v.Cliente }}</span>
+                          <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                            {{ v.Quantity }} u.
+                          </span>
+                        </div>
+                        <small class="text-muted d-block">
+                          {{ formatDate(v.SaleDate) }}
+                          <span v-if="v.DocumentNumber"> · {{ v.DocumentNumber }}</span>
+                        </small>
+                        <div class="d-flex gap-2 mt-2">
+                          <a v-if="v.Cellphone" :href="`tel:${v.Cellphone}`"
+                            class="btn btn-sm btn-outline-success flex-grow-1">
+                            <span class="fal fa-phone me-1"></span>{{ v.Cellphone }}
+                          </a>
+                          <button type="button" class="btn btn-sm btn-outline-info"
+                            :class="{ 'flex-grow-1': !v.Cellphone }" @click="verVenta(v)">
+                            <span class="fal fa-receipt me-1"></span>Venta
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </template>
 

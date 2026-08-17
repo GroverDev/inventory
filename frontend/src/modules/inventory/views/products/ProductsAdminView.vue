@@ -91,7 +91,17 @@
                   <tbody>
                     <tr v-for="product in products" :key="product.Id">
                       <td><small class="text-muted">{{ product.ProductCode }}</small></td>
-                      <td class="fw-semibold">{{ product.ProductName }}</td>
+                      <td class="fw-semibold">
+                        {{ product.ProductName }}
+                        <!--
+                          Va junto al nombre y no en columna propia: solo lo lleva
+                          una minoría de productos, y esta tabla ya esconde
+                          columnas por ancho.
+                        -->
+                        <span v-if="trackingLabel(product)" :class="trackingBadge(product)">
+                          {{ trackingLabel(product) }}
+                        </span>
+                      </td>
                       <td class="d-none d-xl-table-cell">
                         <small class="text-muted">{{ product.LaboratoryName }}</small>
                       </td>
@@ -159,7 +169,12 @@
 
                         <!-- Fila 2: nombre -->
                         <div>
-                          <p class="fw-semibold mb-0 lh-sm">{{ product.ProductName }}</p>
+                          <p class="fw-semibold mb-0 lh-sm">
+                            {{ product.ProductName }}
+                            <span v-if="trackingLabel(product)" :class="trackingBadge(product)">
+                              {{ trackingLabel(product) }}
+                            </span>
+                          </p>
                         </div>
 
                         <!-- Fila 3: laboratorio + categoría + unidad -->
@@ -236,6 +251,25 @@ import { useRouter } from "vue-router";
 import usePermissions from '@/modules/common/composables/usePermissions';
 
 const { getProductsByName, getAllProducts, bulkUpdateProducts } = useProduct();
+
+/**
+ * Qué productos se manejan por lote o por serie. Antes había que entrar a la
+ * ficha de cada uno para saberlo, y es justo el dato que decide si una
+ * recepción va a pedir datos extra.
+ */
+const trackingLabel = (product: Product): string => {
+  if (product.TrackingMode === 'lot') return 'Lote';
+  if (product.TrackingMode === 'serial') return 'Serie';
+  return '';
+};
+
+/** `subtle` + `emphasis`: son las variantes que el tema oscuro redefine. */
+const trackingBadge = (product: Product): string => {
+  const base = 'badge border ms-1 fw-normal';
+  return product.TrackingMode === 'serial'
+    ? `${base} bg-secondary-subtle text-secondary-emphasis border-secondary-subtle`
+    : `${base} bg-info-subtle text-info-emphasis border-info-subtle`;
+};
 const router = useRouter();
 
 const { can } = usePermissions();

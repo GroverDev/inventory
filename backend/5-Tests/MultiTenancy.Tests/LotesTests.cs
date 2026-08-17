@@ -624,6 +624,129 @@ public class LotesTests(TenantDatabaseFixture db)
         tx.Rollback();
     }
 
+    /// <summary>
+    /// Al vender una unidad serializada manda el mostrador, no FEFO. La garantía
+    /// queda atada al número que se entrega en mano, así que entregar «la que
+    /// vencía antes» en lugar de la elegida deja el registro mintiendo.
+    /// </summary>
+    [Fact]
+    public async Task La_serie_elegida_en_el_mostrador_gana_sobre_FEFO()
+    {
+        using var cn = db.AbrirComoAdmin();
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+
+        var producto = CrearProductoConSeries(cn, "TEST VENTA SERIE");
+        // FEFO elegiría la primera; el mostrador va a entregar la segunda.
+        cn.Execute("SELECT fn_recibir_serie(@p, 'SN-VENCE-ANTES',   '2027-01-01', 1)", new { p = producto });
+        cn.Execute("SELECT fn_recibir_serie(@p, 'SN-VENCE-DESPUES', '2029-01-01', 1)", new { p = producto });
+
+        var venta = Guid.NewGuid();
+        cn.Execute(@"
+            INSERT INTO sales
+                (id, customer_id, sale_date, is_active, state, created_by, created,
+                 modified_by, modified, header_discount_amount, tenant_id)
+            SELECT @id, (SELECT id FROM customers WHERE tenant_id = @t LIMIT 1),
+                   now(), true, true, 1, now(), 1, now(), 0, @t",
+            new { id = venta, t = TenantDatabaseFixture.TenantUno });
+
+        using (var tx = cn.BeginTransaction())
+        {
+            await new Inventory.Infrastructure.SalesDetailRepository().CreateSaleDetail(
+                new Inventory.Domain.SaleDetail
+                {
+                    SaleId = venta,
+                    ProductId = producto,
+                    Quantity = 1,
+                    UnitPrice = 100m,
+                    LineSubtotal = 100m,
+                    LineTotalDiscounts = 0m,
+                    LineTotal = 100m,
+                    SerialNumbers = ["sn-vence-despues"], // tal como se teclea
+                    State = true,
+                    CreatedBy = 1,
+                    ModifiedBy = 1,
+                    Created = DateTime.Now,
+                    Modified = DateTime.Now,
+                }, cn, tx);
+            tx.Commit();
+        }
+
+        var vendida = cn.QueryFirst<string>(@"
+            SELECT si.serial_number
+              FROM sales_detail sd
+                   INNER JOIN stock_items si ON si.id = sd.stock_item_id
+             WHERE sd.sale_id = @v", new { v = venta });
+
+        Assert.Equal("SN-VENCE-DESPUES", vendida);
+
+        // Y la que FEFO habría elegido sigue en el estante.
+        Assert.Equal(1m, cn.ExecuteScalar<decimal>(
+            "SELECT quantity FROM stock_items WHERE product_id = @p AND serial_number = 'SN-VENCE-ANTES'",
+            new { p = producto }));
+    }
+
+    [Fact]
+    public async Task No_se_puede_vender_una_serie_que_ya_no_esta()
+    {
+        using var cn = db.AbrirComoAdmin();
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+
+        var producto = CrearProductoConSeries(cn, "TEST SERIE AGOTADA");
+        cn.Execute("SELECT fn_recibir_serie(@p, 'SN-UNICA', '2027-01-01', 1)", new { p = producto });
+
+        var venta = Guid.NewGuid();
+        cn.Execute(@"
+            INSERT INTO sales
+                (id, customer_id, sale_date, is_active, state, created_by, created,
+                 modified_by, modified, header_discount_amount, tenant_id)
+            SELECT @id, (SELECT id FROM customers WHERE tenant_id = @t LIMIT 1),
+                   now(), true, true, 1, now(), 1, now(), 0, @t",
+            new { id = venta, t = TenantDatabaseFixture.TenantUno });
+
+        Inventory.Domain.SaleDetail Linea(string serie) => new()
+        {
+            SaleId = venta,
+            ProductId = producto,
+            Quantity = 1,
+            UnitPrice = 100m,
+            LineSubtotal = 100m,
+            LineTotalDiscounts = 0m,
+            LineTotal = 100m,
+            SerialNumbers = [serie],
+            State = true,
+            CreatedBy = 1,
+            ModifiedBy = 1,
+            Created = DateTime.Now,
+            Modified = DateTime.Now,
+        };
+
+        // Una serie inventada no puede pasar como stock.
+        using (var tx = cn.BeginTransaction())
+        {
+            await Assert.ThrowsAsync<Common.Utilities.Exceptions.CustomException>(() =>
+                new Inventory.Infrastructure.SalesDetailRepository()
+                    .CreateSaleDetail(Linea("SN-QUE-NO-EXISTE"), cn, tx));
+            tx.Rollback();
+        }
+
+        // Y la misma unidad no se puede vender dos veces: es el caso de dos cajas
+        // cobrando a la vez, donde la segunda tiene que enterarse.
+        using (var tx = cn.BeginTransaction())
+        {
+            await new Inventory.Infrastructure.SalesDetailRepository()
+                .CreateSaleDetail(Linea("SN-UNICA"), cn, tx);
+            tx.Commit();
+        }
+
+        using (var tx = cn.BeginTransaction())
+        {
+            await Assert.ThrowsAsync<Common.Utilities.Exceptions.CustomException>(() =>
+                new Inventory.Infrastructure.SalesDetailRepository()
+                    .CreateSaleDetail(Linea("SN-UNICA"), cn, tx));
+            tx.Rollback();
+        }
+    }
+
     [Fact]
     public void Los_lotes_de_una_farmacia_no_son_visibles_para_otra()
     {

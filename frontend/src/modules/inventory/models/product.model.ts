@@ -9,6 +9,8 @@ export class Product {
   public CurrentStock: number = 0;
   public MinReorderQuantity: number = 0;
   public AvailableInPos: boolean = false;
+  /** La venta exige respaldo: receta, permiso. Del núcleo, no de un rubro. */
+  public RequiresAuthorization: boolean = false;
   public UomId: string = '';
   public UnitName: string = '';
   public LaboratoryId: string = '';

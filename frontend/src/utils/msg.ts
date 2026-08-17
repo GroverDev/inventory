@@ -2,6 +2,17 @@ import router from '@/router';
 import { useDialogStore } from '@/stores/dialogStore';
 import { Message } from '@/modules/common/models/message.model';
 
+/** Primer detalle del ProblemDetails de ASP.NET, si lo hay. */
+const primerErrorDeValidacion = (data: unknown): string | undefined => {
+  const errores = (data as { errors?: Record<string, unknown> })?.errors;
+  if (!errores || typeof errores !== 'object') return undefined;
+
+  const primero = Object.values(errores)[0];
+  if (Array.isArray(primero) && primero.length > 0) return String(primero[0]);
+  if (typeof primero === 'string') return primero;
+  return undefined;
+};
+
 export default {
   async showErrorMessageApi(error: unknown, recargar: boolean = false): Promise<void> {
     const dialog = useDialogStore();
@@ -13,7 +24,15 @@ export default {
     if (axiosError?.response) {
       switch (axiosError.response.status) {
         case 400:
-          mensaje = axiosError.response.data.Message?.Description || mensaje;
+          // Dos formas distintas de 400. La del backend viene envuelta en
+          // Response<T> con su Message; la validación de modelo de ASP.NET
+          // responde un ProblemDetails, sin sobre, y el detalle real está en
+          // `errors`. Sin leerlo, un campo mal enviado se veía como
+          // "Has experimentado un error técnico" y no había forma de saber cuál.
+          mensaje = axiosError.response.data?.Message?.Description
+                 || primerErrorDeValidacion(axiosError.response.data)
+                 || axiosError.response.data?.title
+                 || mensaje;
           break;
         case 401:
           mensaje = 'Su sesión ha expirado. Por favor vuelva a iniciar sesión.';

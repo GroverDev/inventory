@@ -93,9 +93,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('la hoja muestra los cinco estados completos', (tester) async {
+  testWidgets('la hoja muestra todas las opciones de estado completas',
+      (tester) async {
     // El motivo de existir de la hoja: como fila de chips horizontales, dos de
-    // los cinco quedaban fuera de pantalla sin ninguna pista.
+    // las opciones quedaban fuera de pantalla sin ninguna pista.
     _useNarrowScreen(tester);
     final svc = _FakePurchaseService(ApiClient(AuthStorage()));
 
@@ -131,6 +132,51 @@ void main() {
     expect(svc.calls, hasLength(2));
     expect(svc.calls.last.statusId, PurchaseStatusIds.partiallyReceived);
     expect(find.textContaining('Parc. recibido ·'), findsOneWidget);
+  });
+
+  testWidgets('"Todos los estados" consulta sin filtrar por estado',
+      (tester) async {
+    // Es la consulta de "¿qué pasó con mi pedido?", cuando no se recuerda en
+    // qué estado quedó. El 0 es el sentinela que el backend lee como "todos".
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()));
+
+    await tester.pumpWidget(_app(svc));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.tune).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(purchaseStatusLabel(PurchaseStatusIds.todos)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pumpAndSettle();
+
+    expect(svc.calls.last.statusId, PurchaseStatusIds.todos);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sin resultados con "Todos" el mensaje no nombra el estado',
+      (tester) async {
+    // "Sin pedidos en \"Todos los estados\"" es un trabalenguas: ahí lo único
+    // que acota la búsqueda es el periodo.
+    _useNarrowScreen(tester);
+    final svc = _FakePurchaseService(ApiClient(AuthStorage()));
+
+    await tester.pumpWidget(_app(svc));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.tune).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(purchaseStatusLabel(PurchaseStatusIds.todos)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pumpAndSettle();
+
+    // La barra de filtros sí nombra "Todos los estados"; lo que no debe hacerlo
+    // es el mensaje de vacío.
+    // Con la comilla, porque 'Sin pedidos en' también casa con 'entre'.
+    expect(find.textContaining('Sin pedidos en "'), findsNothing);
+    expect(find.textContaining('Sin pedidos entre'), findsOneWidget);
   });
 
   testWidgets('descartar la hoja no cambia nada', (tester) async {

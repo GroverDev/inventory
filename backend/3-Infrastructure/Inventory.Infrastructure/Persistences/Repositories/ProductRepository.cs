@@ -36,9 +36,9 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                 sqlQuery = @"
                         INSERT INTO products
                               (id, product_name, description, sale_price, bar_code, product_code, current_stock, min_reorder_quantity,
-                               available_in_pos, laboratory_id, category_id, uom_id, is_active, state, created_by, created, modified_by, modified)
+                               available_in_pos, requires_authorization, laboratory_id, category_id, uom_id, is_active, state, created_by, created, modified_by, modified)
                        VALUES(@Id, @ProductName, @Description, @SalePrice, @BarCode, @ProductCode, @CurrentStock, @MinReorderQuantity,
-                               @AvailableInPos, @LaboratoryId, @CategoryId, @UomId, @IsActive, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
+                               @AvailableInPos, @RequiresAuthorization, @LaboratoryId, @CategoryId, @UomId, @IsActive, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                     ";
 
                 var result = await db.ExecuteAsync(sqlQuery, product);
@@ -75,6 +75,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                                sale_price = @SalePrice,
                                min_reorder_quantity = @MinReorderQuantity,
                                available_in_pos = @AvailableInPos,
+                               requires_authorization = @RequiresAuthorization,
                                bar_code = @BarCode,
                                laboratory_id = @LaboratoryId,
                                category_id = @CategoryId,
@@ -153,11 +154,14 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.current_stock,
                               p.min_reorder_quantity,
                               p.bar_code,
+                              p.available_in_pos,
+                              p.requires_authorization,
                               p.laboratory_id,
                               l.laboratory_name,
                               p.category_id,
                               c.category_name,
                               p.uom_id,
+                              p.tracking_mode,
                               uom.unit_name
                          FROM products p
                               LEFT  JOIN laboratories l ON p.laboratory_id = l.id
@@ -198,6 +202,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                        p.sale_price,
                        p.bar_code,
                        p.available_in_pos,
+                       p.requires_authorization,
                        p.is_active,
                        p.current_stock,
                        p.min_reorder_quantity,
@@ -206,6 +211,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                        p.category_id,
                        c.category_name,
                        p.uom_id,
+                       p.tracking_mode,
                        uom.unit_name
                   FROM products p
                        LEFT  JOIN laboratories l   ON l.id  = p.laboratory_id
@@ -246,6 +252,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.bar_code,
                               p.laboratory_id,
                               p.available_in_pos,
+                              p.requires_authorization,
                               l.laboratory_name,
                               p.category_id,
                               c.category_name,

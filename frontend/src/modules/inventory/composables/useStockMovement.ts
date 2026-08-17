@@ -1,6 +1,6 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseArray, ResponseObject } from '@/modules/common/models/response.model';
-import type { StockMovementResponse, StockAdjustmentRequest, StockExpiryResponse, LotTraceabilityResponse } from '@/modules/inventory/models/stockMovement.model';
+import type { StockMovementResponse, StockAdjustmentRequest, StockExpiryResponse, LotTraceabilityResponse, StockSerialResponse } from '@/modules/inventory/models/stockMovement.model';
 
 const { get, post } = useApi();
 
@@ -31,7 +31,12 @@ const useStockMovement = () => {
       `StockMovement/traceability?lote=${encodeURIComponent(lote)}`);
   };
 
-  return { getMovementsByProduct, createAdjustment, getExpiring, getTraceability };
+  /** Unidades serializadas disponibles, para que el mostrador elija cuál entrega. */
+  const getAvailableSerials = async (productId: string): Promise<ResponseArray<StockSerialResponse>> => {
+    return await get<ResponseArray<StockSerialResponse>>(`StockMovement/serials/${productId}`);
+  };
+
+  return { getMovementsByProduct, createAdjustment, getExpiring, getTraceability, getAvailableSerials };
 };
 
 export default useStockMovement;
