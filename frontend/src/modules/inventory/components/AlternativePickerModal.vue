@@ -80,7 +80,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="p in resultados" :key="p.Id">
+                    <tr v-for="p in resultados" :key="p.Id" :class="{ 'opacity-50': p.CurrentStock <= 0 }">
                       <td>
                         <span class="fw-semibold">{{ p.ProductName }}</span>
                         <small class="d-block text-muted">{{ p.LaboratoryName || '—' }}</small>
@@ -100,8 +100,20 @@
                         </span>
                       </td>
                       <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-primary" @click="elegir(p)">
-                          Elegir
+                        <!--
+                          Sin stock no se puede elegir: una sugerencia que no se
+                          puede entregar le hace perder la venta a quien atiende.
+                          Se muestra igual, para que se vea que existe.
+                        -->
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          :class="p.CurrentStock > 0 ? 'btn-outline-primary' : 'btn-outline-secondary'"
+                          :disabled="p.CurrentStock <= 0"
+                          :title="p.CurrentStock > 0 ? '' : 'Sin stock: no se puede sugerir'"
+                          @click="elegir(p)"
+                        >
+                          {{ p.CurrentStock > 0 ? 'Elegir' : 'Sin stock' }}
                         </button>
                       </td>
                     </tr>
@@ -268,6 +280,7 @@ const buscar = async () => {
 };
 
 const elegir = (p: Product) => {
+  if (p.CurrentStock <= 0) return;
   elegido.value = p;
   if (!motivo.value) motivo.value = p.SalePrice < props.productPrice ? 'Más económico' : '';
 };

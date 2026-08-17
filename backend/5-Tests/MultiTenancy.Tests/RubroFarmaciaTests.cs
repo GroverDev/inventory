@@ -261,4 +261,68 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
         Assert.Single(todas, e => e.IsManual && e.ProductName == "TEST CONVIVE OTRO");
         Assert.Single(todas, e => !e.IsManual && e.ProductName == "TEST CONVIVE MISMO");
     }
+
+    /// <summary>
+    /// En el mostrador manda lo que hay en el estante: primero lo disponible y
+    /// recién después lo más barato. Sugerir algo agotado hace perder la venta.
+    /// </summary>
+    [Fact]
+    public async Task Lo_disponible_se_sugiere_antes_que_lo_barato_pero_agotado()
+    {
+        using var cn = db.AbrirComoAdmin();
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+
+        var repo = new Inventory.Infrastructure.PharmaRepository(
+            db.ContextoApp(TenantDatabaseFixture.TenantUno));
+
+        var producto = CrearProducto(cn, "TEST ORDEN BASE", 20m);
+        var agotado  = CrearProducto(cn, "TEST ORDEN AGOTADO", 3m);
+        var hayStock = CrearProducto(cn, "TEST ORDEN CON STOCK", 12m);
+
+        // Por fn_mover_stock y no con UPDATE: escribir el stock a mano deja la
+        // caché desalineada del libro mayor, que es justo lo que vigila
+        // ExistenciasTests.La_cache_de_stock_coincide_con_el_libro_mayor.
+        cn.Execute("SELECT fn_mover_stock(@p, -10, 1)", new { p = agotado });
+
+        await repo.AddAlternative(producto, agotado,  "Más económico", 1);
+        await repo.AddAlternative(producto, hayStock, "Hay stock", 1);
+
+        var lista = await repo.GetManualAlternatives(producto);
+
+        // El agotado es más barato y aun así va último.
+        Assert.Equal(2, lista.Count);
+        Assert.Equal("TEST ORDEN CON STOCK", lista[0].ProductName);
+        Assert.Equal("TEST ORDEN AGOTADO", lista[1].ProductName);
+    }
+
+    /// <summary>
+    /// La relación se guarda en un solo sentido, así que hay que poder verla
+    /// desde el otro lado: si no, un producto se ofrece en varias fichas sin que
+    /// desde la suya se note.
+    /// </summary>
+    [Fact]
+    public async Task Se_puede_ver_en_que_fichas_se_ofrece_un_producto()
+    {
+        using var cn = db.AbrirComoAdmin();
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+
+        var repo = new Inventory.Infrastructure.PharmaRepository(
+            db.ContextoApp(TenantDatabaseFixture.TenantUno));
+
+        var ofrecido = CrearProducto(cn, "TEST INVERSA OFRECIDO", 5m);
+        var ficha1   = CrearProducto(cn, "TEST INVERSA FICHA UNO", 20m);
+        var ficha2   = CrearProducto(cn, "TEST INVERSA FICHA DOS", 25m);
+
+        await repo.AddAlternative(ficha1, ofrecido, "Más económico", 1);
+        await repo.AddAlternative(ficha2, ofrecido, "Cuando no hay stock", 1);
+
+        var donde = await repo.GetSuggestedIn(ofrecido);
+
+        Assert.Equal(2, donde.Count);
+        Assert.Contains(donde, d => d.ProductName == "TEST INVERSA FICHA UNO" && d.Reason == "Más económico");
+        Assert.Contains(donde, d => d.ProductName == "TEST INVERSA FICHA DOS" && d.Reason == "Cuando no hay stock");
+
+        // Y NO es simétrica: desde la ficha uno, el ofrecido no la sugiere a ella.
+        Assert.Empty(await repo.GetSuggestedIn(ficha1));
+    }
 }

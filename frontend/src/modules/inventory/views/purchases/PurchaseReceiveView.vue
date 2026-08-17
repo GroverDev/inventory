@@ -72,7 +72,7 @@
               </div>
               <div class="col-6 col-md-2 mb-2">
                 <small class="text-muted d-block">Fecha de Compra</small>
-                <strong>{{ formatDate(purchase.PurchaseDate) }}</strong>
+                <strong>{{ formatDateOnly(purchase.PurchaseDate) }}</strong>
               </div>
               <div class="col-6 col-md-3 mb-2">
                 <small class="text-muted d-block">Estado actual</small>
@@ -281,7 +281,7 @@ import {
   Purchase, PurchaseDelivery, PurchaseDeliveryDetail, PURCHASE_STATUS,
 } from '@/modules/inventory/models/purchase.model';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
-import { todayIso } from '@/utils/dateHelper';
+import { todayIso, formatDateOnly } from '@/utils/dateHelper';
 
 const router = useRouter();
 const route = useRoute();
@@ -299,11 +299,6 @@ const serialErrors = ref<boolean[]>([]);
  * recepción por futura y no se podía recepcionar nada hasta la medianoche.
  */
 const today = todayIso();
-
-const formatDate = (val: string | Date): string => {
-  if (!val) return '—';
-  return new Date(val).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
 
 const formatCurrency = (val: number): string =>
   (val ?? 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

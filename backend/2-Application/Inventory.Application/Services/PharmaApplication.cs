@@ -176,6 +176,27 @@ public class PharmaApplication(IPharmaRepository _pharmaRepository) : IPharmaApp
         return resp;
     }
 
+    /// <summary>
+    /// Dónde se está ofreciendo este producto. Es la vuelta que le falta a una
+    /// relación de una sola vía: sin esto, un producto puede estar sugerido en
+    /// diez fichas y desde la suya no se nota.
+    /// </summary>
+    public async Task<Response<List<ProductEquivalentResponse>>> GetSuggestedIn(string productId)
+    {
+        var resp = new Response<List<ProductEquivalentResponse>> { Data = [] };
+        try
+        {
+            if (!Guid.TryParse(productId, out var id) || id == Guid.Empty)
+                throw new CustomException("El identificador del producto no es válido.", MessageTypes.Warning);
+
+            resp.Data = await _pharmaRepository.GetSuggestedIn(id);
+            resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Sistemas.", ex); }
+        return resp;
+    }
+
     public async Task<Response<bool>> AddAlternative(string productId, string alternativeId, string? motivo, int userId)
     {
         var resp = new Response<bool>();

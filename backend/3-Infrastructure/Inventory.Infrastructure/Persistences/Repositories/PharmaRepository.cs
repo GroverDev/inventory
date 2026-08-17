@@ -285,7 +285,46 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                        JOIN products p ON p.id = pa.alternative_id AND p.state AND p.is_active
                        LEFT JOIN product_pharma pp ON pp.product_id = p.id
                  WHERE pa.product_id = @ProductId AND pa.state
-                 ORDER BY pa.show_order, p.sale_price",
+                 -- Lo que hay en el estante primero: en el mostrador, sugerir
+                 -- algo agotado hace perder el tiempo de la venta. Recién
+                 -- después manda el precio.
+                 ORDER BY pa.show_order, (p.current_stock > 0) DESC, p.sale_price",
+                new { ProductId = productId });
+            return [.. r];
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
+
+    /// <summary>
+    /// Los productos que sugieren a ESTE, o sea la relación al revés.
+    /// </summary>
+    /// <remarks>
+    /// La relación es de una sola vía a propósito —ofrecer el genérico barato a
+    /// quien pide la marca no es lo mismo que ofrecer la marca a quien pide el
+    /// genérico—, pero sin poder verla desde el otro lado es invisible: nadie
+    /// sabe que su producto está siendo ofrecido en otra ficha.
+    /// </remarks>
+    public async Task<List<ProductEquivalentResponse>> GetSuggestedIn(Guid productId)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            var r = await db.QueryAsync<ProductEquivalentResponse>(@"
+                SELECT p.id            AS ProductId,
+                       p.product_name,
+                       p.sale_price,
+                       p.current_stock,
+                       COALESCE(pp.product_type, '') AS ProductType,
+                       COALESCE(pp.presentation, '') AS Presentation,
+                       true            AS IsManual,
+                       COALESCE(pa.reason, '')       AS Reason
+                  FROM product_alternatives pa
+                       JOIN products p ON p.id = pa.product_id AND p.state AND p.is_active
+                       LEFT JOIN product_pharma pp ON pp.product_id = p.id
+                 WHERE pa.alternative_id = @ProductId AND pa.state
+                 ORDER BY p.product_name",
                 new { ProductId = productId });
             return [.. r];
         }
@@ -366,7 +405,7 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                        JOIN products p ON p.id = otro.product_id AND p.state AND p.is_active
                        LEFT JOIN product_pharma pp ON pp.product_id = p.id
                  WHERE base.product_id = @ProductId
-                 ORDER BY p.sale_price",
+                 ORDER BY (p.current_stock > 0) DESC, p.sale_price",
                 new { ProductId = productId });
             return [.. r];
         }

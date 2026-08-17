@@ -81,7 +81,7 @@
                   </thead>
                   <tbody>
                     <tr v-for="(purchase, index) in purchases" :key="index">
-                      <td>{{ formatDate(purchase.PurchaseDate) }}</td>
+                      <td>{{ formatDateOnly(purchase.PurchaseDate) }}</td>
                       <td class="fw-semibold">{{ purchase.ProviderName }}</td>
                       <td class="text-center">
                         <span :class="statusBadge(purchase.PurchaseStatusId)">
@@ -89,7 +89,7 @@
                         </span>
                       </td>
                       <td class="d-none d-lg-table-cell">
-                        <small class="text-muted">{{ formatDate(purchase.EstimatedDeliveryDate) }}</small>
+                        <small class="text-muted">{{ formatDateOnly(purchase.EstimatedDeliveryDate) }}</small>
                       </td>
                       <td class="text-end fw-semibold">{{ formatCurrency(purchase.Total) }}</td>
                       <td class="text-center text-nowrap">
@@ -159,7 +159,7 @@
                             {{ purchase.PurchaseStatusName || statusLabel(purchase.PurchaseStatusId) }}
                           </span>
                         </div>
-                        <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(purchase.PurchaseDate) }}</small>
+                        <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDateOnly(purchase.PurchaseDate) }}</small>
                         <div class="fs-6 fw-bold">{{ formatCurrency(purchase.Total) }}</div>
                         <div class="d-flex gap-2 pt-1 flex-wrap">
                           <button v-if="canReceive(purchase.PurchaseStatusId)"
@@ -212,7 +212,7 @@ import { useRouter } from 'vue-router';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
 import { PURCHASE_STATUS, type Purchase } from '@/modules/inventory/models/purchase.model';
 import utils from '@/utils/msg';
-import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
+import { todayIso, firstOfMonthIso, formatDateOnly } from '@/utils/dateHelper';
 
 const purchases = ref<Purchase[]>([]);
 const { getPurchases, deletePurchase, closePurchase, cancelPurchase } = usePurchase();
@@ -222,11 +222,6 @@ const today = todayIso();
 const firstOfMonth = firstOfMonthIso();
 
 const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today, statusId: 1 });
-
-const formatDate = (val: string | Date): string => {
-  if (!val) return '—';
-  return new Date(val).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
 
 const formatCurrency = (val: number): string =>
   val?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' }) ?? 'Bs. 0.00';

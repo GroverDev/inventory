@@ -11,6 +11,20 @@ import 'product.dart';
 /// ISO (viene de un `<input type="date">`); esto hace lo mismo.
 final apiDateFormat = DateFormat('yyyy-MM-dd');
 
+final _formatoVisible = DateFormat('dd/MM/yyyy');
+
+/// Fecha de la API lista para mostrar.
+///
+/// NO se convierte a hora local a propósito. El backend guarda estas fechas
+/// como medianoche UTC —son fechas, no instantes—, así que pasarlas a local en
+/// Bolivia (UTC−4) las corre un día atrás: un pedido del 28/07 se leería 27/07.
+/// `DateTime.parse` conserva la marca UTC y `DateFormat` usa esos mismos
+/// componentes, sin desplazar nada.
+String formatApiDate(String iso) {
+  final fecha = DateTime.tryParse(iso);
+  return fecha == null ? iso : _formatoVisible.format(fecha);
+}
+
 /// Estados de una orden de compra (`PurchaseStatusEnum` del backend).
 ///
 /// Los deriva el servidor a partir de los saldos recibidos; el cliente nunca

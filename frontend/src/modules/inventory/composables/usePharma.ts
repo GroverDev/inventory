@@ -72,7 +72,15 @@ const usePharma = () => {
   const getEquivalents = async (productId: string): Promise<ResponseArray<ProductEquivalent>> =>
     await get<ResponseArray<ProductEquivalent>>(`Pharma/product/${productId}/equivalents`);
 
-  return { getForms, getRoutes, searchSubstances, getByProduct, savePharma, getLeaflet, saveLeaflet, getEquivalents, addAlternative, removeAlternative };
+  /**
+   * En qué fichas se está ofreciendo este producto. Es la vuelta de una
+   * relación que se guarda en un solo sentido, y sin ella un producto puede
+   * estar sugerido en diez lados sin que se note desde el suyo.
+   */
+  const getSuggestedIn = async (productId: string): Promise<ResponseArray<ProductEquivalent>> =>
+    await get<ResponseArray<ProductEquivalent>>(`Pharma/product/${productId}/suggested-in`);
+
+  return { getForms, getRoutes, searchSubstances, getByProduct, savePharma, getLeaflet, saveLeaflet, getEquivalents, getSuggestedIn, addAlternative, removeAlternative };
 };
 
 export default usePharma;

@@ -619,6 +619,28 @@
                         </div>
                       </div>
                     </div>
+                    <!--
+                      La vuelta de la relación. Se guarda en un solo sentido a
+                      propósito —ofrecer el genérico barato a quien pide la marca
+                      no es lo mismo que lo inverso—, pero sin verla desde acá un
+                      producto puede estar ofreciéndose en diez fichas sin que su
+                      dueño lo sepa.
+                    -->
+                    <div v-if="sugeridoEn.length > 0" class="border rounded p-2 mb-3">
+                      <label class="form-label mb-1">
+                        <i class="fal fa-arrow-turn-down-left me-1"></i>Este producto se sugiere en
+                      </label>
+                      <div class="d-flex flex-wrap gap-2">
+                        <span v-for="s in sugeridoEn" :key="s.ProductId"
+                          class="badge bg-body-secondary text-body border fw-normal">
+                          {{ s.ProductName }}
+                          <span v-if="s.Reason" class="text-muted">· {{ s.Reason }}</span>
+                        </span>
+                      </div>
+                      <small class="text-muted d-block mt-1">
+                        Se administra desde la ficha de cada uno de esos productos.
+                      </small>
+                    </div>
                   </template>
 
                   <!-- Sección 5: Trazabilidad -->
@@ -786,13 +808,15 @@ const canSave = computed(() =>
 // El formulario queda bloqueado si ya se grabó o si el usuario no puede grabar.
 const isReadOnly = computed(() => isSaved.value || !canSave.value);
 
-const { getForms, getRoutes, searchSubstances, getByProduct: getPharma, savePharma, getLeaflet, saveLeaflet, getEquivalents, addAlternative, removeAlternative } = usePharma();
+const { getForms, getRoutes, searchSubstances, getByProduct: getPharma, savePharma, getLeaflet, saveLeaflet, getEquivalents, getSuggestedIn, addAlternative, removeAlternative } = usePharma();
 
 const pharma = ref(new ProductPharma());
 const formas = ref<PharmaCatalogItem[]>([]);
 const vias = ref<PharmaCatalogItem[]>([]);
 const sustancias = ref<PharmaSubstance[]>([]);
 const equivalentes = ref<ProductEquivalent[]>([]);
+/** La vuelta de la relación: fichas donde ESTE producto se ofrece. */
+const sugeridoEn = ref<ProductEquivalent[]>([]);
 
 /** Un registro vencido no debería venderse; se avisa al editar. */
 const registroVencido = computed(() =>
@@ -850,15 +874,13 @@ const confirmarAlternativa = async (payload: { productId: string; reason: string
   selectorAbierto.value = false;
   if (!ok) return;
 
-  const eq = await getEquivalents(product.value.Id);
-  if (eq.ok) equivalentes.value = eq.Data;
+  await recargarRelaciones(product.value.Id);
 };
 
 const quitarAlternativa = async (alternativeId: string) => {
   const { ok } = await removeAlternative(product.value.Id, alternativeId);
   if (!ok) return;
-  const eq = await getEquivalents(product.value.Id);
-  if (eq.ok) equivalentes.value = eq.Data;
+  await recargarRelaciones(product.value.Id);
 };
 
 const prospecto = ref('');
@@ -919,8 +941,17 @@ const cargarRubroFarmacia = async (productId: string) => {
     });
   }
 
-  const eq = await getEquivalents(productId);
+  await recargarRelaciones(productId);
+};
+
+/** Las dos direcciones se leen juntas: una sin la otra cuenta media historia. */
+const recargarRelaciones = async (productId: string) => {
+  const [eq, inv] = await Promise.all([
+    getEquivalents(productId),
+    getSuggestedIn(productId),
+  ]);
   if (eq.ok) equivalentes.value = eq.Data;
+  if (inv.ok) sugeridoEn.value = inv.Data;
 };
 
 const trackingLabel = computed(() => {

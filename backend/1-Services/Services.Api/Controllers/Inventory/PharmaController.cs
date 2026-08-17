@@ -65,6 +65,15 @@ public class PharmaController(IPharmaApplication _pharmaApplication, IRolesAppli
         return await _pharmaApplication.GetEquivalents(productId);
     }
 
+    // GET api/Pharma/product/{id}/suggested-in
+    // La vuelta de la relación: en qué fichas se está ofreciendo este producto.
+    [HttpGet("product/{productId}/suggested-in")]
+    public async Task<ActionResult<Response<List<ProductEquivalentResponse>>>> GetSuggestedIn(string productId)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        return await _pharmaApplication.GetSuggestedIn(productId);
+    }
+
     // POST api/Pharma/product/{id}/alternatives
     // Alternativa definida a mano. Las equivalentes por composición NO se cargan
     // acá: se deducen solas.

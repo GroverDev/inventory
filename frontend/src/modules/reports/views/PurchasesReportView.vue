@@ -89,12 +89,12 @@
                   </thead>
                   <tbody>
                     <tr v-for="p in purchases" :key="p.Id">
-                      <td class="text-nowrap">{{ fmtDate(p.PurchaseDate) }}</td>
+                      <td class="text-nowrap">{{ formatDateOnly(p.PurchaseDate) }}</td>
                       <td>{{ p.ProviderName }}</td>
                       <td class="text-center">
                         <span :class="statusBadge(p.PurchaseStatusId)">{{ statusLabel(p.PurchaseStatusId) }}</span>
                       </td>
-                      <td><small class="text-muted">{{ p.EstimatedDeliveryDate ? fmtDate(p.EstimatedDeliveryDate) : '—' }}</small></td>
+                      <td><small class="text-muted">{{ p.EstimatedDeliveryDate ? formatDateOnly(p.EstimatedDeliveryDate) : '—' }}</small></td>
                       <td class="text-end fw-semibold">{{ fmt(p.Total) }}</td>
                     </tr>
                   </tbody>
@@ -115,7 +115,7 @@
                       <span class="fw-bold">{{ fmt(p.Total) }}</span>
                     </div>
                     <div class="d-flex gap-2 mt-1">
-                      <small class="text-muted">{{ fmtDate(p.PurchaseDate) }}</small>
+                      <small class="text-muted">{{ formatDateOnly(p.PurchaseDate) }}</small>
                       <span :class="statusBadge(p.PurchaseStatusId)" style="font-size:.7rem">{{ statusLabel(p.PurchaseStatusId) }}</span>
                     </div>
                   </div>
@@ -135,7 +135,7 @@ import { ref, computed } from 'vue';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
 import type { Purchase } from '@/modules/inventory/models/purchase.model';
 import { exportToExcel } from '@/utils/excelHelper';
-import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
+import { todayIso, firstOfMonthIso, formatDateOnly } from '@/utils/dateHelper';
 
 const { getPurchases } = usePurchase();
 const purchases = ref<Purchase[]>([]);
@@ -148,11 +148,6 @@ const totalAmount    = computed(() => purchases.value.reduce((s, p) => s + p.Tot
 const uniqueProviders = computed(() => new Set(purchases.value.map(p => p.ProviderId)).size);
 
 const fmt     = (v: number) => v.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' });
-const fmtDate = (v: string | Date) => {
-  if (!v) return '—';
-  return new Date(v).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
 const statusBadge = (id: number) => id === 3 ? 'badge bg-success' : id === 2 ? 'badge bg-warning text-dark' : 'badge bg-info text-dark';
 const statusLabel = (id: number) => id === 3 ? 'Tot. Recibido' : id === 2 ? 'Parc. Recibido' : 'Solicitado';
 
@@ -163,10 +158,10 @@ const load = async () => {
 
 const exportar = () => {
   const rows = purchases.value.map(p => ({
-    Fecha:            fmtDate(p.PurchaseDate),
+    Fecha:            formatDateOnly(p.PurchaseDate),
     Proveedor:        p.ProviderName,
     Estado:           statusLabel(p.PurchaseStatusId),
-    Entrega_Estimada: p.EstimatedDeliveryDate ? fmtDate(p.EstimatedDeliveryDate) : '',
+    Entrega_Estimada: p.EstimatedDeliveryDate ? formatDateOnly(p.EstimatedDeliveryDate) : '',
     Total:            p.Total,
   }));
   rows.push({ Fecha: 'TOTAL', Proveedor: '', Estado: '', Entrega_Estimada: '', Total: totalAmount.value });

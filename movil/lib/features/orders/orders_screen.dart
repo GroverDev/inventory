@@ -194,7 +194,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   p.providerName.isEmpty ? 'Proveedor' : p.providerName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
-              subtitle: Text('${p.purchaseDate}  ·  ${p.statusName}'),
+              subtitle: Text('${formatApiDate(p.purchaseDate)}  ·  ${p.statusName}'),
               trailing: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,

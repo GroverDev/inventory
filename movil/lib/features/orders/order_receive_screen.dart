@@ -285,7 +285,7 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
 
   Widget _buildHeader(PurchaseOrder order) {
     final theme = Theme.of(context);
-    final purchaseDate = DateTime.tryParse(order.purchaseDate);
+
 
     return Card(
       margin: EdgeInsets.zero,
@@ -301,7 +301,7 @@ class _OrderReceiveScreenState extends State<OrderReceiveScreen> {
             const SizedBox(height: 4),
             Text(
               'Pedido del '
-              '${purchaseDate != null ? _display.format(purchaseDate) : order.purchaseDate}',
+              '${formatApiDate(order.purchaseDate)}',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 12),

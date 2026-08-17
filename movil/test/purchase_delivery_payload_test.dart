@@ -263,6 +263,28 @@ void main() {
     });
   });
 
+  group('fechas para mostrar', () {
+    test('una fecha de medianoche UTC no se corre un día', () {
+      // El backend guarda las fechas de pedido como medianoche UTC: son fechas,
+      // no instantes. Convertirlas a local en Bolivia (UTC−4) las mueve al día
+      // anterior, que es justo el error que se ve en la webapp: un pedido del
+      // 28/07 se lee 27/07.
+      expect(formatApiDate('2026-07-28T00:00:00Z'), '28/07/2026');
+      expect(formatApiDate('2026-01-01T00:00:00Z'), '01/01/2026');
+    });
+
+    test('una marca de tiempo real muestra su día', () {
+      // Los pedidos creados desde la app viajan con hora, no con medianoche.
+      expect(formatApiDate('2026-08-16T19:25:04.253522Z'), '16/08/2026');
+    });
+
+    test('lo que no se puede parsear se muestra tal cual', () {
+      // Antes que romper la lista, mostrar el crudo.
+      expect(formatApiDate('sin fecha'), 'sin fecha');
+      expect(formatApiDate(''), '');
+    });
+  });
+
   test('el pendiente se deriva si el API no lo manda', () {
     // Defensa: una línea con saldo real no puede presentarse como completa,
     // porque la pantalla desactivaría sus campos.
