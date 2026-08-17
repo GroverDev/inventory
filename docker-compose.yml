@@ -10,7 +10,7 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: punto_venta_pg
+      POSTGRES_DB: punto_venta
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db:/backups          # los backups quedan accesibles dentro del contenedor en /backups
@@ -40,7 +40,7 @@ services:
       # Row-Level Security NO se aplica a superusuarios. Si la API se conecta con
       # DB_USER, las políticas de aislamiento entre farmacias quedan inertes y
       # cada cliente vería los datos de los demás, sin ningún error visible.
-      ConnectionStrings__DefaultConnection: "Host=db;Database=punto_venta_pg;Username=${APP_DB_USER};Password=${APP_DB_PASSWORD};Port=5432;"
+      ConnectionStrings__DefaultConnection: "Host=db;Database=punto_venta;Username=${APP_DB_USER};Password=${APP_DB_PASSWORD};Port=5432;"
       # JWT
       JwtSettings__Secret:    ${JWT_SECRET}
       JwtSettings__Issuer:    ${JWT_ISSUER}

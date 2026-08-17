@@ -36,7 +36,7 @@ services:
       #ASPNETCORE_URLS: http://+:5000
       # Cadena de conexión única. APP_DB_USER es el rol de la aplicación (app_pos),
       # distinto del superusuario DB_USER: RLS no se aplica a superusuarios.
-      ConnectionStrings__DefaultConnection: "Host=db;Database=punto_venta_pg;Username=${APP_DB_USER};Password=${APP_DB_PASSWORD};Port=5432;"
+      ConnectionStrings__DefaultConnection: "Host=db;Database=punto_venta;Username=${APP_DB_USER};Password=${APP_DB_PASSWORD};Port=5432;"
     ports:
       - "6001:6001"
     depends_on:
