@@ -240,7 +240,7 @@ const pageWindow = computed<number[]>(() => {
   const total = totalPages.value;
   const cur = currentPage.value;
   let start = Math.max(1, cur - 2);
-  let end = Math.min(total, start + 4);
+  const end = Math.min(total, start + 4);
   start = Math.max(1, end - 4);
   const pages: number[] = [];
   for (let i = start; i <= end; i++) pages.push(i);
