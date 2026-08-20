@@ -6,7 +6,8 @@ namespace Inventory.Infrastructure;
 
 public interface IStockMovementRepository
 {
-    Task<List<StockMovementResponse>> GetMovementsByProduct(Guid productId);
+    /// <summary>Historial de movimientos del producto. Con <paramref name="stockItemId"/> se acota a un lote/existencia puntual.</summary>
+    Task<List<StockMovementResponse>> GetMovementsByProduct(Guid productId, Guid? stockItemId);
 
     /// <summary>
     /// Existencias con vencimiento, de la más urgente a la menos. Solo devuelve las
@@ -23,5 +24,15 @@ public interface IStockMovementRepository
     Task<List<StockSerialResponse>> GetAvailableSerials(Guid productId);
 
     Task CreateAdjustment(StockMovement movement, int userId);
+
+    /// <summary>
+    /// Da de baja una existencia puntual (lote vencido/dañado/retirado). A
+    /// diferencia de <see cref="CreateAdjustment"/>, exige un lote explícito.
+    /// </summary>
+    Task CreateWriteOff(StockMovement movement, Guid stockItemId, int userId);
+
+    /// <summary>Mermas por vencimiento en un rango de fechas, agregadas y en detalle.</summary>
+    Task<WriteOffReportResponse> GetWriteOffs(DateTime desde, DateTime hasta, Guid? productId);
+
     Task InsertMovement(StockMovement movement, IDbConnection db, IDbTransaction transaction);
 }

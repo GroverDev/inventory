@@ -9,17 +9,23 @@ namespace Inventory.Infrastructure;
 
 public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMovementRepository
 {
-    public async Task<List<StockMovementResponse>> GetMovementsByProduct(Guid productId)
+    public async Task<List<StockMovementResponse>> GetMovementsByProduct(Guid productId, Guid? stockItemId)
     {
         using var db = _DbContext.CreateConnection;
         try
         {
             db.Open();
+            // LEFT JOIN, no INNER: un movimiento nunca debería quedar sin su
+            // existencia, pero si algo estuviera inconsistente preferimos mostrar
+            // la fila igual (lote vacío) a que desaparezca del historial.
             string sql = @"
                 SELECT sm.id,
                        sm.product_id,
                        p.product_name,
                        p.product_code,
+                       sm.stock_item_id,
+                       si.lot_code,
+                       si.expiry_date,
                        sm.movement_type,
                        sm.quantity,
                        sm.stock_before,
@@ -32,11 +38,13 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                        sm.created_by
                   FROM stock_movements sm
                        INNER JOIN products p ON p.id = sm.product_id
+                       LEFT JOIN stock_items si ON si.id = sm.stock_item_id
                  WHERE sm.product_id = @ProductId
                    AND sm.state
+                   AND (@StockItemId::uuid IS NULL OR sm.stock_item_id = @StockItemId)
                  ORDER BY sm.created DESC;
             ";
-            var result = await db.QueryAsync<StockMovementResponse>(sql, new { ProductId = productId });
+            var result = await db.QueryAsync<StockMovementResponse>(sql, new { ProductId = productId, StockItemId = stockItemId });
             return [.. result];
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<List<StockMovementResponse>>(ex); }
@@ -165,6 +173,107 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task CreateWriteOff(StockMovement movement, Guid stockItemId, int userId)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            using var transaction = db.BeginTransaction();
+            try
+            {
+                // A diferencia del ajuste genérico, acá el lote es explícito: dar
+                // de baja "el producto en general" no tiene sentido cuando lo que
+                // venció es una existencia puntual. Se valida que pertenezca al
+                // producto para no dar de baja el lote de otro por un id mal armado.
+                bool perteneceAlProducto = await db.ExecuteScalarAsync<bool>(
+                    "SELECT EXISTS(SELECT 1 FROM stock_items WHERE id = @StockItemId AND product_id = @ProductId)",
+                    new { StockItemId = stockItemId, movement.ProductId }, transaction);
+
+                if (!perteneceAlProducto)
+                    throw new CustomException("La existencia indicada no pertenece a este producto.");
+
+                var saldo = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
+                    "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId, @StockItemId)",
+                    new { movement.ProductId, Delta = -(decimal)movement.Quantity, UserId = userId, StockItemId = stockItemId },
+                    transaction);
+
+                if (saldo.StockAfter < 0)
+                    throw new CustomException("No se puede dar de baja más cantidad de la que hay en esta existencia.");
+
+                movement.Id = Guid.NewGuid();
+                movement.StockItemId = saldo.StockItemId;
+                movement.Quantity = -movement.Quantity;
+                movement.StockBefore = (int)saldo.StockBefore;
+                movement.StockAfter = (int)saldo.StockAfter;
+                movement.MovementType = "MERMA";
+                movement.ReferenceType = "EXPIRY";
+                movement.State = true;
+                movement.CreatedBy = movement.ModifiedBy = userId;
+                movement.Created = movement.Modified = DateTime.Now;
+
+                await InsertMovement(movement, db, transaction);
+
+                transaction.Commit();
+            }
+            catch (CustomException ex) { transaction.Rollback(); throw new CustomException(ex.Message, ex); }
+            catch (Exception ex) { transaction.Rollback(); throw new Exception(ex.Message, ex); }
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<WriteOffReportResponse> GetWriteOffs(DateTime desde, DateTime hasta, Guid? productId)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            // Rango calculado acá, no en SQL con DATE(created), por la misma razón
+            // que en DashboardRepository: evitar diferencias de zona horaria entre
+            // la app y la base.
+            var inicio = desde.Date;
+            var fin = hasta.Date.AddDays(1);
+
+            string sqlDetalle = @"
+                SELECT product_id, product_code, product_name, lot_code, expiry_date,
+                       cantidad, valor_perdido, reason, observation, created, created_by
+                  FROM v_mermas
+                 WHERE created >= @Inicio AND created < @Fin
+                   AND (@ProductId::uuid IS NULL OR product_id = @ProductId)
+                 ORDER BY created DESC;
+            ";
+            var detalle = (await db.QueryAsync<WriteOffDetailResponse>(
+                sqlDetalle, new { Inicio = inicio, Fin = fin, ProductId = productId })).ToList();
+
+            string sqlPorProducto = @"
+                SELECT product_id, product_code, product_name,
+                       sum(cantidad)      AS Unidades,
+                       sum(valor_perdido) AS ValorPerdido,
+                       count(*)           AS Eventos
+                  FROM v_mermas
+                 WHERE created >= @Inicio AND created < @Fin
+                   AND (@ProductId::uuid IS NULL OR product_id = @ProductId)
+                 GROUP BY product_id, product_code, product_name
+                 ORDER BY ValorPerdido DESC;
+            ";
+            var porProducto = (await db.QueryAsync<WriteOffByProductResponse>(
+                sqlPorProducto, new { Inicio = inicio, Fin = fin, ProductId = productId })).ToList();
+
+            return new WriteOffReportResponse
+            {
+                TotalUnidades = detalle.Sum(d => d.Cantidad),
+                TotalValorPerdido = detalle.Sum(d => d.ValorPerdido),
+                TotalEventos = detalle.Count,
+                PorProducto = porProducto,
+                Detalle = detalle,
+            };
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<WriteOffReportResponse>(ex); }
         finally { db.Close(); }
     }
 

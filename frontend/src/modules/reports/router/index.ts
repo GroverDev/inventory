@@ -25,5 +25,12 @@ export default {
       beforeEnter: [isAuthenticatedGuard],
       meta: { requiresAuth: true, title: 'PV - Reporte de Compras', titleForm: 'Reporte de Compras' },
     },
+    {
+      path: 'write-offs',
+      name: 'report-write-offs',
+      component: () => import('@/modules/reports/views/WriteOffReportView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Reporte de Mermas', titleForm: 'Reporte de Mermas' },
+    },
   ],
 };

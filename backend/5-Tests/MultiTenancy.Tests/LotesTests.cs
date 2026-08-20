@@ -760,4 +760,48 @@ public class LotesTests(TenantDatabaseFixture db)
         Assert.Equal(0, otra.ExecuteScalar<int>(
             "SELECT count(*) FROM v_stock_por_vencer WHERE lot_code = 'SECRETO'"));
     }
+
+    /// <summary>
+    /// El kardex por lote (pantalla "Historial" desde Vencimientos): filtrar por
+    /// stock_item_id no debe traer movimientos de otro lote del mismo producto,
+    /// aunque ambos compartan product_id.
+    /// </summary>
+    [Fact]
+    public async Task El_historial_por_lote_no_mezcla_movimientos_de_otros_lotes_del_mismo_producto()
+    {
+        using var cn = db.AbrirComoAdmin();
+        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        var producto = CrearProductoConLotes(cn, "TEST KARDEX POR LOTE");
+        cn.Execute("SELECT fn_recibir_lote(@p, 10, 'KARDEX-A', '2027-01-01', 1)", new { p = producto });
+        cn.Execute("SELECT fn_recibir_lote(@p, 10, 'KARDEX-B', '2027-02-01', 1)", new { p = producto });
+
+        var itemA = cn.QueryFirst<Guid>(
+            "SELECT id FROM stock_items WHERE product_id = @p AND lot_code = 'KARDEX-A'", new { p = producto });
+        var itemB = cn.QueryFirst<Guid>(
+            "SELECT id FROM stock_items WHERE product_id = @p AND lot_code = 'KARDEX-B'", new { p = producto });
+
+        void RegistrarMovimiento(Guid stockItemId, string reason)
+        {
+            cn.Execute(@"
+                INSERT INTO stock_movements
+                    (id, product_id, stock_item_id, movement_type, quantity, stock_before, stock_after,
+                     reason, state, created_by, created, modified_by, modified)
+                VALUES (gen_random_uuid(), @p, @item, 'AJUSTE', -1, 10, 9,
+                        @reason, true, 1, now(), 1, now())",
+                new { p = producto, item = stockItemId, reason });
+        }
+
+        RegistrarMovimiento(itemA, "MOVIMIENTO DE A");
+        RegistrarMovimiento(itemB, "MOVIMIENTO DE B");
+
+        var repo = new Inventory.Infrastructure.StockMovementRepository(db.ContextoApp(TenantDatabaseFixture.TenantUno));
+
+        var soloA = await repo.GetMovementsByProduct(producto, itemA);
+        Assert.Single(soloA);
+        Assert.Equal("MOVIMIENTO DE A", soloA[0].Reason);
+        Assert.Equal("KARDEX-A", soloA[0].LotCode);
+
+        var todos = await repo.GetMovementsByProduct(producto, null);
+        Assert.Equal(2, todos.Count);
+    }
 }

@@ -6,6 +6,10 @@ public class StockMovementResponse
     public Guid ProductId { get; set; }
     public string ProductName { get; set; } = "";
     public string ProductCode { get; set; } = "";
+    public Guid StockItemId { get; set; }
+    /// <summary>Vacío cuando el movimiento es de la existencia implícita (sin lote).</summary>
+    public string? LotCode { get; set; }
+    public DateTime? ExpiryDate { get; set; }
     public string MovementType { get; set; } = "";
     public int Quantity { get; set; }
     public int StockBefore { get; set; }

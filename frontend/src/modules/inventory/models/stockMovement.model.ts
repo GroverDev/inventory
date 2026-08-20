@@ -3,6 +3,10 @@ export class StockMovementResponse {
   ProductId: string = ''
   ProductName: string = ''
   ProductCode: string = ''
+  StockItemId: string = ''
+  /** Vacío cuando el movimiento es de la existencia implícita (sin lote). */
+  LotCode: string | null = null
+  ExpiryDate: string | null = null
   MovementType: string = ''
   Quantity: number = 0
   StockBefore: number = 0
@@ -65,4 +69,47 @@ export class StockAdjustmentRequest {
   Quantity: number = 0
   Reason: string = ''
   Observation: string = ''
+}
+
+/** Dar de baja una existencia puntual (lote vencido/dañado/retirado). */
+export class StockWriteOffRequest {
+  ProductId: string = ''
+  StockItemId: string = ''
+  Quantity: number = 0
+  Reason: string = ''
+  Observation: string = ''
+}
+
+/** Un evento de baja por vencimiento/pérdida, tal como lo devuelve el reporte de mermas. */
+export class WriteOffDetailResponse {
+  ProductId: string = ''
+  ProductCode: string = ''
+  ProductName: string = ''
+  LotCode: string | null = null
+  ExpiryDate: string | null = null
+  Cantidad: number = 0
+  ValorPerdido: number = 0
+  Reason: string | null = null
+  Observation: string | null = null
+  Created: string = ''
+  CreatedBy: number = 0
+}
+
+/** Mermas acumuladas de un producto en el período consultado. */
+export class WriteOffByProductResponse {
+  ProductId: string = ''
+  ProductCode: string = ''
+  ProductName: string = ''
+  Unidades: number = 0
+  ValorPerdido: number = 0
+  Eventos: number = 0
+}
+
+/** Reporte de mermas por vencimiento en un período. */
+export class WriteOffReportResponse {
+  TotalUnidades: number = 0
+  TotalValorPerdido: number = 0
+  TotalEventos: number = 0
+  PorProducto: WriteOffByProductResponse[] = []
+  Detalle: WriteOffDetailResponse[] = []
 }

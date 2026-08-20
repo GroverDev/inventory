@@ -158,11 +158,20 @@
                         <button
                           v-if="item.LotCode"
                           type="button"
-                          class="btn btn-outline-secondary btn-sm"
+                          class="btn btn-outline-secondary btn-sm me-1"
                           title="A quién se le vendió este lote"
                           @click="goTraceability(item)"
                         >
                           <span class="fal fa-route"></span>
+                        </button>
+                        <button
+                          v-if="item.Estado === 'VENCIDO'"
+                          type="button"
+                          class="btn btn-outline-danger btn-sm"
+                          title="Dar de baja esta existencia"
+                          @click="goWriteOff(item)"
+                        >
+                          <span class="fal fa-trash-alt"></span>
                         </button>
                       </td>
                     </tr>
@@ -197,9 +206,20 @@
                             <div class="text-muted" style="font-size:0.7rem;">En riesgo</div>
                           </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-info mt-auto" @click="goHistory(item)">
-                          <span class="fal fa-history me-1"></span>Historial
-                        </button>
+                        <div class="d-flex gap-1 mt-auto">
+                          <button type="button" class="btn btn-sm btn-outline-info flex-grow-1" @click="goHistory(item)">
+                            <span class="fal fa-history me-1"></span>Historial
+                          </button>
+                          <button
+                            v-if="item.Estado === 'VENCIDO'"
+                            type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            title="Dar de baja"
+                            @click="goWriteOff(item)"
+                          >
+                            <span class="fal fa-trash-alt"></span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -317,11 +337,25 @@ async function loadExpiring() {
 }
 
 const goHistory = (item: StockExpiryResponse) =>
-  router.push({ name: 'stock-history', params: { id: item.ProductId } });
+  router.push({
+    name: 'stock-history',
+    params: { id: item.ProductId },
+    query: { stockItemId: item.StockItemId, lot: item.LotCode, name: item.ProductName, code: item.ProductCode },
+  });
 
 /** Desde acá se llega con el lote ya cargado; la pantalla también acepta buscarlo. */
 const goTraceability = (item: StockExpiryResponse) =>
   router.push({ name: 'stock-traceability', query: { lote: item.LotCode } });
+
+const goWriteOff = (item: StockExpiryResponse) =>
+  router.push({
+    name: 'stock-write-off',
+    params: { id: item.StockItemId },
+    query: {
+      productId: item.ProductId, name: item.ProductName, code: item.ProductCode,
+      lot: item.LotCode, expiry: item.ExpiryDate, quantity: item.Quantity,
+    },
+  });
 
 /** Se exporta lo que el usuario está viendo, con los encabezados de la pantalla. */
 const exportList = () => {

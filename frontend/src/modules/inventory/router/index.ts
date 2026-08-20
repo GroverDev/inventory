@@ -218,6 +218,13 @@ export default {
       meta: { requiresAuth: true, title: 'PV - Ajuste de Stock', titleForm: 'Ajuste de Stock' },
     },
     {
+      path: 'stock-write-off/:id',
+      name: 'stock-write-off',
+      component: () => import(/* webpackChunkName: "stock-write-off" */ '@/modules/inventory/views/stock-inventory/StockWriteOffView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Dar de Baja por Vencimiento', titleForm: 'Dar de Baja por Vencimiento' },
+    },
+    {
       path: 'point-of-sale',
       name: 'point-sale-admin',
       component: () => import(/* webpackChunkName: "point-of-sale" */ '@/modules/inventory/views/point-of-sale/PointOfSaleView.vue'),

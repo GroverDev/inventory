@@ -24,11 +24,18 @@
 
             <!-- Info del producto -->
             <div class="alert alert-light border mb-3 py-2">
-              <div class="d-flex align-items-center gap-3">
+              <div class="d-flex align-items-center gap-3 flex-wrap">
                 <i class="fal fa-box fa-2x text-primary"></i>
                 <div>
                   <div class="fw-semibold">{{ productName }}</div>
                   <small class="text-muted font-monospace">{{ productCode }}</small>
+                </div>
+                <div v-if="stockItemId" class="ms-auto text-end">
+                  <small class="text-muted d-block">Filtrado por lote</small>
+                  <code class="bg-body-secondary rounded px-2 py-1">{{ lot || '(sin lote)' }}</code>
+                  <a href="#" class="d-block small mt-1" @click.prevent="verTodos">
+                    Ver todos los movimientos del producto
+                  </a>
                 </div>
               </div>
             </div>
@@ -149,6 +156,13 @@ const loading = ref(false);
 const productId = route.params.id as string;
 const productName = route.query.name as string ?? '';
 const productCode = route.query.code as string ?? '';
+const stockItemId = ref(route.query.stockItemId as string ?? '');
+const lot = route.query.lot as string ?? '';
+
+const verTodos = () => {
+  stockItemId.value = '';
+  loadMovements();
+};
 
 const formatDate = (dateStr: string): string => {
   const d = new Date(dateStr);
@@ -183,12 +197,14 @@ const movCardBorder = (type: string): string => {
   }
 };
 
-onMounted(async () => {
+const loadMovements = async () => {
   loading.value = true;
-  const { Data } = await getMovementsByProduct(productId);
+  const { Data } = await getMovementsByProduct(productId, stockItemId.value || undefined);
   movements.value = Data ?? [];
   loading.value = false;
-});
+};
+
+onMounted(loadMovements);
 </script>
 
 <style scoped></style>

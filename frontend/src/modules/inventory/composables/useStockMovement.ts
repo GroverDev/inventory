@@ -1,17 +1,31 @@
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseArray, ResponseObject } from '@/modules/common/models/response.model';
-import type { StockMovementResponse, StockAdjustmentRequest, StockExpiryResponse, LotTraceabilityResponse, StockSerialResponse } from '@/modules/inventory/models/stockMovement.model';
+import type { StockMovementResponse, StockAdjustmentRequest, StockExpiryResponse, LotTraceabilityResponse, StockSerialResponse, StockWriteOffRequest, WriteOffReportResponse } from '@/modules/inventory/models/stockMovement.model';
 
 const { get, post } = useApi();
 
 const useStockMovement = () => {
 
-  const getMovementsByProduct = async (productId: string): Promise<ResponseArray<StockMovementResponse>> => {
-    return await get<ResponseArray<StockMovementResponse>>(`StockMovement/${productId}`);
+  /** Sin `stockItemId`: historial completo del producto. Con él: kardex de un lote puntual. */
+  const getMovementsByProduct = async (productId: string, stockItemId?: string): Promise<ResponseArray<StockMovementResponse>> => {
+    const query = stockItemId ? `?stockItemId=${encodeURIComponent(stockItemId)}` : '';
+    return await get<ResponseArray<StockMovementResponse>>(`StockMovement/${productId}${query}`);
   };
 
   const createAdjustment = async (request: StockAdjustmentRequest): Promise<ResponseObject<boolean>> => {
     return await post<ResponseObject<boolean>>('StockMovement/adjust', request);
+  };
+
+  /** Dar de baja una existencia puntual (lote vencido/dañado/retirado). */
+  const createWriteOff = async (request: StockWriteOffRequest): Promise<ResponseObject<boolean>> => {
+    return await post<ResponseObject<boolean>>('StockMovement/write-off', request);
+  };
+
+  /** Reporte de mermas por vencimiento: cuánto se perdió en el período, por producto y en detalle. */
+  const getWriteOffs = async (desde: string, hasta: string, productId?: string): Promise<ResponseObject<WriteOffReportResponse>> => {
+    const query = productId ? `&productId=${encodeURIComponent(productId)}` : '';
+    return await get<ResponseObject<WriteOffReportResponse>>(
+      `StockMovement/write-offs?desde=${desde}&hasta=${hasta}${query}`);
   };
 
   /**
@@ -36,7 +50,7 @@ const useStockMovement = () => {
     return await get<ResponseArray<StockSerialResponse>>(`StockMovement/serials/${productId}`);
   };
 
-  return { getMovementsByProduct, createAdjustment, getExpiring, getTraceability, getAvailableSerials };
+  return { getMovementsByProduct, createAdjustment, createWriteOff, getWriteOffs, getExpiring, getTraceability, getAvailableSerials };
 };
 
 export default useStockMovement;
