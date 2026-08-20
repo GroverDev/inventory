@@ -21,6 +21,13 @@ public class LoginResponse
         /// </summary>
         public string RefreshToken { get; set; }="";
 
+        /// <summary>
+        /// Token de "dispositivo de confianza", emitido solo cuando se pidió
+        /// recordar el dispositivo al verificar el TOTP. Solo se entrega a
+        /// clientes que lo soportan (móvil); en web viaja en una cookie.
+        /// </summary>
+        public string DeviceTrustToken { get; set; }="";
+
         public bool RequireTotp { get; set; }
         public bool TotpSetupRequired { get; set; }
         public string TotpSessionToken { get; set; }="";

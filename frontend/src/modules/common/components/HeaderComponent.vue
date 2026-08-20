@@ -579,6 +579,10 @@
         <span><i class="fal fa-key me-1"></i>Cambiar contraseña</span>
       </a>
 
+      <a href="#" class="dropdown-item" @click.prevent="openDevicesModal" role="button">
+        <span><i class="fal fa-laptop me-1"></i>Mis dispositivos de confianza</span>
+      </a>
+
       <div class="dropdown-divider m-0"></div>
 
       <a class="dropdown-item py-3 fw-500 d-flex justify-content-between" href="javascript:void(0)" @click="logout()">
@@ -643,6 +647,50 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal mis dispositivos de confianza -->
+  <div v-if="showDevices" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold">
+            <i class="fal fa-laptop me-2"></i>Mis dispositivos de confianza
+          </h6>
+          <button type="button" class="btn-close" @click="showDevices = false"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Dispositivos donde marcaste "Recordar este dispositivo" al verificar tu código TOTP.
+            Olvidar uno te pedirá el código de nuevo la próxima vez que inicies sesión desde ahí.
+          </p>
+          <div v-if="devicesLoading" class="text-center py-3">
+            <i class="fal fa-spinner fa-spin text-muted"></i>
+          </div>
+          <div v-else-if="devices.length === 0" class="text-center py-3">
+            <small class="text-muted">No tienes dispositivos recordados.</small>
+          </div>
+          <ul v-else class="list-group list-group-flush">
+            <li v-for="device in devices" :key="device.Id"
+              class="list-group-item d-flex justify-content-between align-items-center px-0">
+              <div>
+                <div class="fw-semibold small">{{ device.DeviceLabel || 'Dispositivo sin nombre' }}</div>
+                <small class="text-muted">Recordado hasta {{ formatDeviceDate(device.ExpiresAt) }}</small>
+              </div>
+              <button type="button" class="btn btn-outline-danger btn-sm" @click="forgetDevice(device.Id)">
+                Olvidar
+              </button>
+            </li>
+          </ul>
+        </div>
+        <div class="modal-footer py-2">
+          <button v-if="devices.length > 0" class="btn btn-outline-danger btn-sm me-auto" @click="forgetAllDevices">
+            Olvidar todos
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" @click="showDevices = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -653,18 +701,29 @@ import { useThemeStore } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useApp } from '@/composables/useApp';
 import { useApi } from '@/modules/common/composables/api/useApi';
-import type { ResponseObject } from '@/modules/common/models';
+import type { ResponseArray, ResponseObject } from '@/modules/common/models';
 import utils from '@/utils/msg';
+
+interface TrustedDevice {
+  Id: number;
+  DeviceLabel: string;
+  CreatedAt: string;
+  ExpiresAt: string;
+}
 
 const authStore = useAuthStore();
 const router = useRouter();
 const themeStore = useThemeStore();
 const layoutStore = useLayoutStore();
 const { toggleFullscreen, printPage } = useApp();
-const { put } = useApi();
+const { get, put, del } = useApi();
 
 const showChangePwd = ref(false);
 const pwdForm = ref({ current: '', newPwd: '', confirm: '', showCurrent: false, showNew: false });
+
+const showDevices = ref(false);
+const devicesLoading = ref(false);
+const devices = ref<TrustedDevice[]>([]);
 
 const closePwdModal = () => {
   showChangePwd.value = false;
@@ -698,6 +757,39 @@ const logout = async () => {
   router.push({ name: 'login' });
   await authStore.logout();
 }
+
+const formatDeviceDate = (date: string): string => {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const loadDevices = async () => {
+  devicesLoading.value = true;
+  const resp = await get<ResponseArray<TrustedDevice>>('Mfa/devices');
+  if (resp.ok) devices.value = resp.Data;
+  devicesLoading.value = false;
+};
+
+const openDevicesModal = async () => {
+  showDevices.value = true;
+  await loadDevices();
+};
+
+const forgetDevice = async (id: number) => {
+  const confirmed = await utils.showMessageQuestion('¿Olvidar este dispositivo? La próxima vez que inicies sesión desde ahí te pedirá el código TOTP de nuevo.');
+  if (!confirmed) return;
+
+  const resp = await del<ResponseObject<boolean>>(`Mfa/devices/${id}`);
+  if (resp.ok) await loadDevices();
+};
+
+const forgetAllDevices = async () => {
+  const confirmed = await utils.showMessageQuestion('¿Olvidar todos tus dispositivos de confianza? Tendrás que ingresar el código TOTP la próxima vez que inicies sesión desde cualquiera de ellos.');
+  if (!confirmed) return;
+
+  const resp = await del<ResponseObject<boolean>>('Mfa/devices');
+  if (resp.ok) await loadDevices();
+};
 </script>
 
 <style scoped></style>

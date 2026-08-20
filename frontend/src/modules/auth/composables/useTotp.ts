@@ -17,11 +17,12 @@ export const useTotp = () => {
   const authStore = useAuthStore();
 
   // Verify TOTP code during login (user has TOTP configured)
-  const verifyAndComplete = async (code: string) => {
+  const verifyAndComplete = async (code: string, rememberDevice = false) => {
     const sessionToken = authStore.getPendingUser?.TotpSessionToken ?? '';
     const response = await post<ResponseObject<User>>('Mfa/verify', {
       TotpSessionToken: sessionToken,
       TotpCode: code,
+      RememberDevice: rememberDevice,
     });
     if (response.ok && response.Data?.Token) {
       authStore.completarTotp(response.Data);
@@ -32,11 +33,12 @@ export const useTotp = () => {
   };
 
   // Verify with recovery code during login
-  const verifyWithRecovery = async (recoveryCode: string) => {
+  const verifyWithRecovery = async (recoveryCode: string, rememberDevice = false) => {
     const sessionToken = authStore.getPendingUser?.TotpSessionToken ?? '';
     const response = await post<ResponseObject<User>>('Mfa/verify-recovery', {
       TotpSessionToken: sessionToken,
       RecoveryCode: recoveryCode,
+      RememberDevice: rememberDevice,
     });
     if (response.ok && response.Data?.Token) {
       authStore.completarTotp(response.Data);

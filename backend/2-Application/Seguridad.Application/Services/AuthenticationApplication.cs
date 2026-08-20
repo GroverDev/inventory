@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
+using Common.Utilities.Security;
 using Microsoft.Extensions.Options;
 using Seguridad.Domain;
 using Seguridad.Infrastructure;
@@ -10,6 +11,8 @@ namespace Seguridad.Application;
 public class AuthenticationApplication(
     IAuthenticationRepository _authenticationRepository,
     IRefreshTokenRepository _refreshTokenRepository,
+    ITrustedDeviceRepository _trustedDeviceRepository,
+    SessionRevocationRegistry _sessionRegistry,
     IOptions<LoginSettings> _options) : IAuthenticationApplication
 {
     public async Task<Response<LoginResponse>> Login(LoginRequest login)
@@ -51,11 +54,11 @@ public class AuthenticationApplication(
         }
     }
 
-    public async Task<string> IssueRefreshToken(int userId, string device, string loginFrom, int days)
+    public async Task<string> IssueRefreshToken(int userId, int tenantId, int sessionId, string device, string loginFrom, int days)
     {
         string raw = GenerateToken();
         await _refreshTokenRepository.Create(
-            userId, HashToken(raw), device, loginFrom, DateTime.UtcNow.AddDays(days));
+            userId, tenantId, sessionId, HashToken(raw), device, loginFrom, DateTime.UtcNow.AddDays(days));
         return raw;
     }
 
@@ -70,10 +73,12 @@ public class AuthenticationApplication(
                 throw new CustomException("Sesión inválida. Inicia sesión nuevamente.");
 
             // Un token ya rotado que vuelve a aparecer significa que alguien
-            // conserva una copia: se cortan todas las sesiones del usuario.
+            // conserva una copia: se cortan todas las sesiones del usuario, y se
+            // tumba también cualquier access token que ya tuvieran en la mano.
             if (stored.IsRevoked)
             {
-                await _refreshTokenRepository.RevokeAllForUser(stored.UserId);
+                var revokedIds = await _refreshTokenRepository.RevokeAllForUser(stored.UserId);
+                _sessionRegistry.RevokeMany(revokedIds);
                 throw new CustomException("Sesión inválida. Inicia sesión nuevamente.");
             }
 
@@ -87,14 +92,15 @@ public class AuthenticationApplication(
             // Usuario desactivado: el refresh deja de servir de inmediato.
             if (data == null)
             {
-                await _refreshTokenRepository.RevokeAllForUser(stored.UserId);
+                var revokedIds = await _refreshTokenRepository.RevokeAllForUser(stored.UserId);
+                _sessionRegistry.RevokeMany(revokedIds);
                 throw new CustomException("La cuenta no está disponible. Contacta al administrador.");
             }
 
             // Rotación: el token usado queda revocado y apuntando al nuevo.
             string raw = GenerateToken();
             long newId = await _refreshTokenRepository.Create(
-                stored.UserId, HashToken(raw), request.Device, loginFrom, DateTime.UtcNow.AddDays(days));
+                stored.UserId, data.TenantId, data.SesionId, HashToken(raw), request.Device, loginFrom, DateTime.UtcNow.AddDays(days));
             await _refreshTokenRepository.Revoke(stored.Id, newId);
 
             data.RefreshToken = raw;
@@ -114,7 +120,10 @@ public class AuthenticationApplication(
         {
             var stored = await _refreshTokenRepository.GetByHash(HashToken(refreshToken));
             if (stored != null && !stored.IsRevoked)
+            {
                 await _refreshTokenRepository.Revoke(stored.Id, null);
+                _sessionRegistry.Revoke(stored.SessionId);
+            }
 
             // Se responde igual exista o no: no se filtra si el token era válido.
             resp.Data = true;
@@ -122,6 +131,120 @@ public class AuthenticationApplication(
         }
         catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
 
+        return resp;
+    }
+
+    public async Task<int> RecordSuccessfulLogin(LoginRequest login, int userId) =>
+        await _authenticationRepository.RecordSuccessfulLogin(login, userId);
+
+    public async Task<string> IssueTrustedDevice(int userId, int tenantId, string device, int days)
+    {
+        string raw = GenerateToken();
+        await _trustedDeviceRepository.Create(
+            userId, tenantId, HashToken(raw), device, DateTime.UtcNow.AddDays(days));
+        return raw;
+    }
+
+    public async Task<bool> IsTrustedDevice(int userId, string rawToken)
+    {
+        if (string.IsNullOrEmpty(rawToken)) return false;
+
+        var stored = await _trustedDeviceRepository.GetByHash(HashToken(rawToken));
+        return stored != null && stored.UserId == userId && stored.IsActive;
+    }
+
+    public async Task RevokeAllTrustedDevicesForUser(int userId) =>
+        await _trustedDeviceRepository.RevokeAllForUser(userId);
+
+    public async Task<Response<List<TrustedDeviceResponse>>> GetTrustedDevices(int userId)
+    {
+        var resp = new Response<List<TrustedDeviceResponse>>() { Data = [] };
+        try
+        {
+            resp.Data = await _trustedDeviceRepository.GetActiveForUser(userId);
+            resp.ok = true;
+        }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+        return resp;
+    }
+
+    public async Task<Response<bool>> RevokeTrustedDevice(long id, int userId)
+    {
+        var resp = new Response<bool>();
+        try
+        {
+            var device = await _trustedDeviceRepository.GetByIdForUser(id, userId);
+
+            // No existe, es de otro usuario, o ya estaba revocado: el objetivo
+            // (que no quede recordado con ese id) igual se cumple.
+            if (device != null && !device.IsRevoked)
+                await _trustedDeviceRepository.Revoke(id);
+
+            resp.Data = resp.ok = true;
+        }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+        return resp;
+    }
+
+    public async Task<Response<List<SessionResponse>>> GetActiveSessions(int userId, int tenantId)
+    {
+        var resp = new Response<List<SessionResponse>>() { Data = [] };
+        try
+        {
+            resp.Data = await _refreshTokenRepository.GetActiveForUser(userId, tenantId);
+            resp.ok = true;
+        }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+        return resp;
+    }
+
+    public async Task<Response<List<ConnectedUserResponse>>> GetConnectedUsers(int tenantId)
+    {
+        var resp = new Response<List<ConnectedUserResponse>>() { Data = [] };
+        try
+        {
+            resp.Data = await _refreshTokenRepository.GetActiveForTenant(tenantId);
+            resp.ok = true;
+        }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+        return resp;
+    }
+
+    public async Task<Response<bool>> CloseSession(long id, int tenantId)
+    {
+        var resp = new Response<bool>();
+        try
+        {
+            var session = await _refreshTokenRepository.GetByIdForTenant(id, tenantId);
+
+            // No existe, es de otro tenant, o ya estaba cerrada: el objetivo
+            // (que no quede una sesión abierta con ese id) igual se cumple.
+            if (session == null || session.IsRevoked)
+            {
+                resp.Data = resp.ok = true;
+                return resp;
+            }
+
+            await _refreshTokenRepository.Revoke(id, null);
+            _sessionRegistry.Revoke(session.SessionId);
+
+            resp.Data = resp.ok = true;
+        }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+        return resp;
+    }
+
+    public async Task<Response<bool>> CloseAllSessions(int userId, int tenantId)
+    {
+        var resp = new Response<bool>();
+        try
+        {
+            var revokedSessionIds = await _refreshTokenRepository.RevokeAllForUserInTenant(userId, tenantId);
+            _sessionRegistry.RevokeMany(revokedSessionIds);
+
+            resp.Data = resp.ok = true;
+        }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
         return resp;
     }
 

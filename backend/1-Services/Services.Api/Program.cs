@@ -113,6 +113,11 @@ builder.Services.AddSwaggerGen(
 builder.Services.AddScoped<Common.Utilities.MultiTenancy.ITenantContext,
                            Common.Utilities.MultiTenancy.TenantContext>();
 
+// Sesiones cerradas desde el panel de administración. Singleton: el registro
+// es en memoria, compartido por todas las peticiones del proceso (ver la nota
+// en SessionRevocationRegistry sobre qué implica un reinicio).
+builder.Services.AddSingleton<Common.Utilities.Security.SessionRevocationRegistry>();
+
 // Injeccion de dependencias Seguridad
 builder.Services.AddInjectionSecurityInfraestructure();
 builder.Services.AddInjectionSecurityApplication();
@@ -248,6 +253,10 @@ if (app.Environment.IsDevelopment())
 app.UseCors("MisCors");
 app.UseHttpsRedirection();
 app.UseAuthentication();
+// Después de UseAuthentication (necesita los claims resueltos) y antes de
+// cualquier otra cosa: si la sesión fue cerrada, no tiene sentido seguir
+// resolviendo tenant ni autorizando nada más para este request.
+app.UseSessionRevocation();
 // Después de UseAuthentication: necesita los claims ya resueltos para leer el
 // tenant. Antes de los controladores, que abren conexiones a la base.
 app.UseTenantResolution();

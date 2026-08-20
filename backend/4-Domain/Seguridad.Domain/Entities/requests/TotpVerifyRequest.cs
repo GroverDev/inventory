@@ -8,6 +8,9 @@ public class TotpVerifyRequest
     public string TotpCode { get; set; } = "";
     public string Device { get; set; } = "";
     public Enums.InicioSesionDesde LoginFrom { get; set; } = Enums.InicioSesionDesde.Web;
+
+    /// <summary>Si es true, emite un token de dispositivo de confianza que salta el TOTP en logins futuros.</summary>
+    public bool RememberDevice { get; set; }
 }
 
 public class TotpVerifyRequestValidator : AbstractValidator<TotpVerifyRequest>

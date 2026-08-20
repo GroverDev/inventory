@@ -18,4 +18,7 @@ public interface IUsersApplication
     public Task<Response<bool>> AdminSetMfaRequired(Guid userUuid, bool required);
     public Task<Response<List<Roles>>> GetRolesByUser(Guid uuid);
     public Task<Response<bool>> AssignRolesToUser(Guid uuid, List<int> roleIds, int modifiedBy);
+
+    /// <summary>Resuelve el id interno del usuario a partir de su uuid, acotado al tenant de la conexión (RLS).</summary>
+    public Task<int?> GetUserIdByUuid(Guid uuid);
 }

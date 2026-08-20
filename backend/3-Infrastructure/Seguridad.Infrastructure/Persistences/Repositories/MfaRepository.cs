@@ -19,11 +19,17 @@ public class MfaRepository(SeguridadDbContext _context, IOptions<MfaSettings> _o
         try
         {
             db.Open();
+            // LEFT JOIN, no JOIN: esta conexión corre sin tenant a propósito (es
+            // el paso de verificar el TOTP en pleno login, antes de tener uno), y
+            // sec.users sí tiene RLS. Un INNER JOIN descartaba la fila entera de
+            // user_mfa —incluido is_enabled— apenas RLS bloqueaba sec.users, y
+            // nadie con 2FA activo podía completar el login. El email de más no
+            // se usa en la verificación; perderlo no cuesta nada.
             const string sql = @"
                 SELECT m.id, m.user_id, m.mfa_type, m.secret_encrypted, m.is_enabled, m.is_required,
                        m.failed_attempts, m.locked_until, u.email
                 FROM sec.user_mfa m
-                JOIN sec.users u ON u.id = m.user_id
+                LEFT JOIN sec.users u ON u.id = m.user_id
                 WHERE m.user_id = @user_id AND m.mfa_type = 'totp'";
             return await db.QueryFirstOrDefaultAsync<MfaInfo>(sql, new { user_id = userId });
         }

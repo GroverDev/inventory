@@ -304,6 +304,67 @@
           </div>
         </div>
 
+        <!-- Panel 3: Sesiones Activas (solo en modo edición, con permiso) -->
+        <div v-if="user.Uuid && canReadSessions" class="col-12">
+          <div class="panel panel-icon">
+            <div class="panel-hdr">
+              <h2>Sesiones <span class="fw-300"><i>Activas</i></span></h2>
+            </div>
+            <div class="panel-container show">
+              <div class="panel-content pt-0">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <small v-if="sessions.length > 0" class="text-muted">
+                    <strong>{{ sessions.length }}</strong> sesión(es) activa(s)
+                  </small>
+                  <button
+                    v-if="canDeleteSessions && sessions.length > 0"
+                    type="button"
+                    class="btn btn-sm btn-outline-danger ms-auto"
+                    @click="closeAllSessions"
+                  >
+                    <span class="fal fa-sign-out-alt me-1"></span>Cerrar todas las sesiones
+                  </button>
+                </div>
+
+                <div v-if="sessions.length === 0" class="text-center py-3">
+                  <small class="text-muted">Este usuario no tiene sesiones activas.</small>
+                </div>
+
+                <div v-else class="table-responsive">
+                  <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Dispositivo</th>
+                        <th class="text-center">Origen</th>
+                        <th class="text-center">Conectado desde</th>
+                        <th class="text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="session in sessions" :key="session.Id">
+                        <td><small class="text-muted">{{ session.Device || '—' }}</small></td>
+                        <td class="text-center"><span class="badge bg-secondary">{{ session.LoginFrom }}</span></td>
+                        <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.CreatedAt) }}</small></td>
+                        <td class="text-center">
+                          <button
+                            v-if="canDeleteSessions"
+                            type="button"
+                            class="btn btn-outline-danger btn-sm"
+                            title="Cerrar esta sesión"
+                            @click="closeOneSession(session.Id)"
+                          >
+                            <span class="fal fa-sign-out-alt"></span>
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -318,20 +379,28 @@ import utils from '@/utils/msg';
 
 import { User } from '@/modules/user-account/models/users.model';
 import { Role } from '@/modules/user-account/models/role.model';
+import { Session } from '@/modules/user-account/models/session.model';
 import useUser from '@/modules/user-account/composables/useUser';
 import useRole from '@/modules/user-account/composables/useRole';
+import useSessions from '@/modules/user-account/composables/useSessions';
+import usePermissions from '@/modules/common/composables/usePermissions';
 
 const router = useRouter();
 const route = useRoute();
 
 const { getUserById, createUser, updateUser, getUserRoles, assignRolesToUser } = useUser();
 const { getRoles } = useRole();
+const { getUserSessions, closeSession, closeAllUserSessions } = useSessions();
+const { can } = usePermissions();
+const canReadSessions = computed(() => can('active-sessions', 'read'));
+const canDeleteSessions = computed(() => can('active-sessions', 'delete'));
 
 const user = ref(new User());
 const isSaved = ref(false);
 const showPassword = ref(false);
 const allRoles = ref<Role[]>([]);
 const selectedRoleIds = ref<number[]>([]);
+const sessions = ref<Session[]>([]);
 
 const allRolesSelected = computed(() =>
   selectedRoleIds.value.length === allRoles.value.length && allRoles.value.length > 0
@@ -362,6 +431,7 @@ onMounted(async () => {
   if (userId && userId !== '0') {
     await getUser(userId);
     await loadUserRoles(userId);
+    if (canReadSessions.value) await loadSessions(userId);
   } else {
     user.value.Uuid = '';
   }
@@ -397,6 +467,42 @@ const saveRoles = async () => {
 
 const returnPage = () => {
   router.push({ name: 'users-admin' });
+};
+
+const formatSessionDate = (date: string): string => {
+  if (!date) return '—';
+  return new Date(date).toLocaleString('es-BO', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+};
+
+const loadSessions = async (uuid: string) => {
+  const { ok, Data } = await getUserSessions(uuid);
+  if (ok) sessions.value = Data;
+};
+
+const closeOneSession = async (id: number) => {
+  const confirmed = await utils.showMessageQuestion('¿Cerrar esta sesión? El usuario deberá iniciar sesión de nuevo en ese dispositivo.');
+  if (!confirmed) return;
+
+  const { ok } = await closeSession(id);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'La sesión se cerró correctamente.', MessageType: 'success' });
+    await loadSessions(user.value.Uuid);
+  }
+};
+
+const closeAllSessions = async () => {
+  const confirmed = await utils.showMessageQuestion(
+    `¿Cerrar todas las sesiones de ${user.value.FullName}? Deberá iniciar sesión de nuevo en todos sus dispositivos.`
+  );
+  if (!confirmed) return;
+
+  const { ok } = await closeAllUserSessions(user.value.Uuid);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'Se cerraron todas las sesiones del usuario.', MessageType: 'success' });
+    await loadSessions(user.value.Uuid);
+  }
 };
 
 const saveUser = async () => {

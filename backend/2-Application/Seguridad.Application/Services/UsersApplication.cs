@@ -8,7 +8,10 @@ using Seguridad.Infrastructure;
 
 namespace Seguridad.Application;
 
-public class UsersApplication(IUsersRepository _usersRepository, IMfaRepository _mfaRepository) : IUsersApplication
+public class UsersApplication(
+    IUsersRepository _usersRepository,
+    IMfaRepository _mfaRepository,
+    ITrustedDeviceRepository _trustedDeviceRepository) : IUsersApplication
 {
     public async Task<Response<string>> CreateUser(UserRequest userRequest, int UserId)
 {
@@ -105,6 +108,13 @@ public async Task<Response<bool>> ChangeUserPassword(Guid uuid, string newPasswo
     {
         string hashed = Common.Utilities.Cryptography.Hash.HashPassword(newPassword);
         resp.Data = await _usersRepository.ChangeUserPassword(uuid, hashed, modifiedBy);
+
+        // Contraseña nueva: cualquier dispositivo que se saltaba el TOTP con la
+        // vieja debe volver a verificarlo.
+        int? changedUserId = await _mfaRepository.GetUserIdByUuid(uuid);
+        if (changedUserId.HasValue)
+            await _trustedDeviceRepository.RevokeAllForUser(changedUserId.Value);
+
         resp.ok = true;
     }
     catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
@@ -119,6 +129,7 @@ public async Task<Response<bool>> ChangeOwnPassword(int userId, string currentPa
     {
         string newHashed = Common.Utilities.Cryptography.Hash.HashPassword(newPassword);
         resp.Data = await _usersRepository.ChangeOwnPassword(userId, currentPassword, newHashed);
+        await _trustedDeviceRepository.RevokeAllForUser(userId);
         resp.ok = true;
     }
     catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
@@ -136,6 +147,9 @@ public async Task<Response<bool>> AdminResetMfa(Guid userUuid)
             throw new CustomException("El usuario no tiene TOTP configurado.");
 
         await _mfaRepository.AdminResetMfa(mfa.UserId);
+        // El TOTP quedó sin configurar: los dispositivos que se lo saltaban
+        // pierden sentido y deben volver a verificarlo desde cero.
+        await _trustedDeviceRepository.RevokeAllForUser(mfa.UserId);
         resp.Data = true;
         resp.ok = true;
     }
@@ -189,4 +203,7 @@ public async Task<Response<bool>> AssignRolesToUser(Guid uuid, List<int> roleIds
     catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
     return resp;
 }
+
+public async Task<int?> GetUserIdByUuid(Guid uuid) =>
+    await _mfaRepository.GetUserIdByUuid(uuid);
 }

@@ -35,6 +35,10 @@
     <!-- Para probar el mapeo de Mapster, que es donde un vacío se convertía en
          Guid.Empty y rompía la FK. -->
     <ProjectReference Include="..\..\2-Application\Inventory.Application\Inventory.Application.csproj" />
+
+    <!-- Módulo Seguridad: dispositivos de confianza y sesiones activas. -->
+    <ProjectReference Include="..\..\4-Domain\Seguridad.Domain\Seguridad.Domain.csproj" />
+    <ProjectReference Include="..\..\3-Infrastructure\Seguridad.Infrastructure\Seguridad.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

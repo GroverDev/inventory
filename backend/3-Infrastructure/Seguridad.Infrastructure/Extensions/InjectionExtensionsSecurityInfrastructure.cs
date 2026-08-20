@@ -11,6 +11,7 @@ public static class InjectionExtensionsSecurityInfrastructure
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<ITrustedDeviceRepository, TrustedDeviceRepository>();
         services.AddScoped<IMfaRepository, MfaRepository>();
         services.AddScoped<IFormsRepository, FormsRepository>();
         services.AddScoped<IRolesRepository, RolesRepository>();

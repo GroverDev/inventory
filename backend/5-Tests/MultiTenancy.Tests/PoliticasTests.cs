@@ -29,6 +29,7 @@ public class PoliticasTests(TenantDatabaseFixture db)
         ["sec.users_changepass"] = "ídem",
         ["sec.users_resetpass"]  = "ídem",
         ["sec.refresh_tokens"]   = "ídem",
+        ["sec.trusted_devices"]  = "ídem — dispositivo de confianza del TOTP, se consulta por hash/user_id antes de tener tenant",
     };
 
     [Fact]

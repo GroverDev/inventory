@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
@@ -12,11 +12,15 @@ namespace Seguridad.Infrastructure;
 /// canjearlo, revocarlo— y ocurren en endpoints anónimos, donde todavía no hay
 /// claim de tenant. La tabla <c>sec.refresh_tokens</c> queda fuera de RLS por eso
 /// mismo, y se accede siempre por <c>user_id</c> o por hash del token, dos valores
-/// que ya vienen validados.
+/// que ya vienen validados. Las lecturas administrativas (GetActiveForUser,
+/// GetActiveForTenant) corren desde endpoints autenticados, así que ahí sí
+/// filtran <c>tenant_id</c> explícito: la tabla no tiene RLS, nadie lo hace por
+/// ellas.
 /// </remarks>
 public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshTokenRepository
 {
-    public async Task<long> Create(int userId, string tokenHash, string device, string loginFrom, DateTime expiresAt)
+    public async Task<long> Create(
+        int userId, int tenantId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt)
     {
         using var db = _context.CreateAuthConnection;
         try
@@ -24,14 +28,16 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             db.Open();
             const string query = @"
                 INSERT INTO sec.refresh_tokens
-                    (user_id, token_hash, device, login_from, expires_at)
+                    (user_id, tenant_id, session_id, token_hash, device, login_from, expires_at)
                 VALUES
-                    (@user_id, @token_hash, @device, @login_from, @expires_at)
+                    (@user_id, @tenant_id, @session_id, @token_hash, @device, @login_from, @expires_at)
                 RETURNING id";
 
             return await db.ExecuteScalarAsync<long>(query, new
             {
                 user_id = userId,
+                tenant_id = tenantId,
+                session_id = sessionId,
                 token_hash = tokenHash,
                 device = device ?? "",
                 login_from = loginFrom,
@@ -49,7 +55,7 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
         {
             db.Open();
             const string query = @"
-                SELECT id, user_id, token_hash, device, login_from,
+                SELECT id, user_id, tenant_id, session_id, token_hash, device, login_from,
                        created_at, expires_at, revoked_at, replaced_by
                 FROM sec.refresh_tokens
                 WHERE token_hash = @token_hash";
@@ -57,6 +63,71 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             return await db.QueryFirstOrDefaultAsync<RefreshToken>(query, new { token_hash = tokenHash });
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
+        finally { db.Close(); }
+    }
+
+    /// <summary>
+    /// Fila puntual, solo si pertenece al tenant indicado. Lo usa el cierre de
+    /// una sesión desde el panel de administración: sin este chequeo, un admin
+    /// podría cerrar por id la sesión de un usuario de otro tenant.
+    /// </summary>
+    public async Task<RefreshToken?> GetByIdForTenant(long id, int tenantId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            const string query = @"
+                SELECT id, user_id, tenant_id, session_id, token_hash, device, login_from,
+                       created_at, expires_at, revoked_at, replaced_by
+                FROM sec.refresh_tokens
+                WHERE id = @id AND tenant_id = @tenant_id";
+
+            return await db.QueryFirstOrDefaultAsync<RefreshToken>(query, new { id, tenant_id = tenantId });
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<List<SessionResponse>> GetActiveForUser(int userId, int tenantId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            const string query = @"
+                SELECT id, device, login_from, created_at, expires_at
+                FROM sec.refresh_tokens
+                WHERE user_id = @user_id AND tenant_id = @tenant_id
+                  AND revoked_at IS NULL AND expires_at > now()
+                ORDER BY created_at DESC";
+
+            var rows = await db.QueryAsync<SessionResponse>(query, new { user_id = userId, tenant_id = tenantId });
+            return rows.ToList();
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<List<SessionResponse>>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<List<ConnectedUserResponse>> GetActiveForTenant(int tenantId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            const string query = @"
+                SELECT rt.id, rt.device, rt.login_from, rt.created_at, rt.expires_at,
+                       u.uuid::text AS uuid, u.full_name, u.email
+                FROM sec.refresh_tokens rt
+                JOIN sec.users u ON u.id = rt.user_id
+                WHERE rt.tenant_id = @tenant_id
+                  AND rt.revoked_at IS NULL AND rt.expires_at > now()
+                ORDER BY rt.created_at DESC";
+
+            var rows = await db.QueryAsync<ConnectedUserResponse>(query, new { tenant_id = tenantId });
+            return rows.ToList();
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<List<ConnectedUserResponse>>(ex); }
         finally { db.Close(); }
     }
 
@@ -77,7 +148,8 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
         finally { db.Close(); }
     }
 
-    public async Task RevokeAllForUser(int userId)
+    /// <summary>Revoca todos los tokens activos del usuario y devuelve los SessionId que quedaron sin vigencia.</summary>
+    public async Task<List<int>> RevokeAllForUser(int userId)
     {
         using var db = _context.CreateAuthConnection;
         try
@@ -86,9 +158,35 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             const string query = @"
                 UPDATE sec.refresh_tokens
                    SET revoked_at = now()
-                 WHERE user_id = @user_id AND revoked_at IS NULL";
+                 WHERE user_id = @user_id AND revoked_at IS NULL
+                RETURNING session_id";
 
-            await db.ExecuteAsync(query, new { user_id = userId });
+            var ids = await db.QueryAsync<int?>(query, new { user_id = userId });
+            return ids.Where(id => id.HasValue).Select(id => id!.Value).ToList();
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
+        finally { db.Close(); }
+    }
+
+    /// <summary>
+    /// Igual que <see cref="RevokeAllForUser"/>, pero acotado al tenant del
+    /// admin que la pide: cerrar "todas las sesiones" de un usuario desde el
+    /// panel no debe poder alcanzar sesiones de otro tenant.
+    /// </summary>
+    public async Task<List<int>> RevokeAllForUserInTenant(int userId, int tenantId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            const string query = @"
+                UPDATE sec.refresh_tokens
+                   SET revoked_at = now()
+                 WHERE user_id = @user_id AND tenant_id = @tenant_id AND revoked_at IS NULL
+                RETURNING session_id";
+
+            var ids = await db.QueryAsync<int?>(query, new { user_id = userId, tenant_id = tenantId });
+            return ids.Where(id => id.HasValue).Select(id => id!.Value).ToList();
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
         finally { db.Close(); }

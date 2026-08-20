@@ -66,6 +66,18 @@
         </div>
         <p class="timer-hint">El código se renueva cada 30 segundos</p>
 
+        <div class="form-check remember-device">
+          <input
+            id="rememberDevice"
+            type="checkbox"
+            class="form-check-input"
+            v-model="rememberDevice"
+          >
+          <label for="rememberDevice" class="form-check-label">
+            Recordar este dispositivo por 30 días
+          </label>
+        </div>
+
         <!-- Submit -->
         <div class="d-grid mt-3">
           <button
@@ -160,6 +172,7 @@ const codeLength = computed(() => digits.value.filter(Boolean).length)
 const showRecovery = ref(false)
 const recoveryCode = ref('')
 const recoveryError = ref(false)
+const rememberDevice = ref(false)
 
 function onInput(e: Event, i: number) {
   const val = (e.target as HTMLInputElement).value.replace(/\D/g, '')
@@ -213,7 +226,7 @@ async function handleSubmit() {
   loading.value = true
   hasError.value = false
 
-  const result = await verifyAndComplete(digits.value.join(''))
+  const result = await verifyAndComplete(digits.value.join(''), rememberDevice.value)
   loading.value = false
 
   if (result.success) {
@@ -230,7 +243,7 @@ async function handleRecovery() {
   loading.value = true
   recoveryError.value = false
 
-  const result = await verifyWithRecovery(recoveryCode.value.trim())
+  const result = await verifyWithRecovery(recoveryCode.value.trim(), rememberDevice.value)
   loading.value = false
 
   if (result.success) {
@@ -414,6 +427,27 @@ async function handleRecovery() {
   font-size: 0.75rem;
   color: var(--auth-timer-hint);
   margin: 0;
+}
+
+/* ── Remember device ────────────────────────────────────── */
+.remember-device {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  padding-left: 0;
+}
+
+.remember-device .form-check-input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.remember-device .form-check-label {
+  font-size: 0.82rem;
+  color: var(--auth-subtitle-color);
+  cursor: pointer;
 }
 
 /* ── Button ─────────────────────────────────────────────── */

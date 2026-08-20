@@ -76,6 +76,27 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
         return new Inventory.Infrastructure.InventoryDbContext(config, tenant);
     }
 
+    /// <summary>
+    /// Igual que <see cref="ContextoApp"/>, para los repositorios de Seguridad
+    /// (refresh tokens, dispositivos de confianza). <paramref name="tenantId"/>
+    /// solo importa para las conexiones que sí lo exigen (CreateConnection); las
+    /// de autenticación (CreateAuthConnection) lo ignoran a propósito.
+    /// </summary>
+    public Seguridad.Infrastructure.SeguridadDbContext ContextoAppSeguridad(int tenantId)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"ConnectionStrings:{Common.Utilities.MultiTenancy.ConnectionStringResolver.Key}"] = _appConn,
+            })
+            .Build();
+
+        var tenant = new Common.Utilities.MultiTenancy.TenantContext();
+        tenant.SetTenant(tenantId);
+
+        return new Seguridad.Infrastructure.SeguridadDbContext(config, tenant);
+    }
+
     /// <summary>Conexión de superusuario. Sirve para preparar datos saltando RLS.</summary>
     public NpgsqlConnection AbrirComoAdmin()
     {

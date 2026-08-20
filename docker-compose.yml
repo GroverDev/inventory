@@ -47,7 +47,7 @@ services:
       JwtSettings__Audience:  ${JWT_AUDIENCE}
       JwtSettings__TimeToken: ${JWT_TIME_TOKEN}
       # Sesión larga con refresh token (web y móvil)
-      JwtSettings__TimeTokenRefreshable: ${JWT_TIME_TOKEN_REFRESHABLE:-240}
+      JwtSettings__TimeTokenRefreshable: ${JWT_TIME_TOKEN_REFRESHABLE:-30}
       JwtSettings__RefreshTokenDays:     ${JWT_REFRESH_TOKEN_DAYS:-30}
       # CORS: sin el origen correcto el navegador bloquea toda la web. El
       # valor por defecto evita dejarla caída si falta la variable en .env.

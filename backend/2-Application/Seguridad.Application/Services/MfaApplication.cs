@@ -10,6 +10,7 @@ namespace Seguridad.Application;
 public class MfaApplication(
     IMfaRepository _mfaRepository,
     IAuthenticationRepository _authRepository,
+    ITrustedDeviceRepository _trustedDeviceRepository,
     IOptions<MfaSettings> _options) : IMfaApplication
 {
     public async Task<Response<TotpSetupResponse>> SetupTotp(int userId, string userEmail)
@@ -133,6 +134,9 @@ public class MfaApplication(
         try
         {
             await _mfaRepository.DisableTotp(userId);
+            // Sin TOTP habilitado, un dispositivo "de confianza" no tiene
+            // sentido: sería confianza en un segundo factor que ya no existe.
+            await _trustedDeviceRepository.RevokeAllForUser(userId);
             resp.Data = true;
             resp.ok = true;
         }

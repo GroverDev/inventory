@@ -184,6 +184,35 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
         return usuario;
     }
 
+    public async Task<int> RecordSuccessfulLogin(LoginRequest login, int userId)
+    {
+        // Sin tenant: corre en el mismo punto del flujo que Login/CompleteLoginWithTotp
+        // cuando terminan con éxito, antes de que el JWT (que trae el tenant) exista.
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            using var transaction = db.BeginTransaction();
+            try
+            {
+                await db.ExecuteAsync("UPDATE sec.users SET last_access = now() WHERE id = @user_id",
+                    new { user_id = userId });
+                int sessionId = await GetSessionId(login, userId, true, db, transaction);
+                transaction.Commit();
+                return sessionId;
+            }
+            catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                throw new Exception(ex.Message, ex);
+            }
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<LoginResponse>(ex); }
+        finally { db.Close(); }
+    }
+
     protected static async Task<int> GetSessionId(LoginRequest login, int userId, bool loginSuccess, IDbConnection connection, IDbTransaction transactions)
     {
         int sessionId;

@@ -106,6 +106,17 @@ export default {
       },
     },
     {
+      path: 'active-sessions',
+      name: 'active-sessions',
+      component: () => import(/* webpackChunkName: "active-sessions" */ '@/modules/user-account/views/sessions/SessionsAdminView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Sesiones Activas',
+        titleForm: 'Sesiones Activas'
+      },
+    },
+    {
       path: 'company-create',
       name: 'company-create',
       component: () => import(/* webpackChunkName: "company-create" */ '@/modules/user-account/views/admin/CompanyCreateView.vue'),

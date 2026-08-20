@@ -24,8 +24,19 @@ public class LoginController(
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
 
-    /// <summary>Nombre de la cookie que transporta el refresh token en web.</summary>
-    private const string RefreshCookie = "refresh_token";
+    /// <summary>
+    /// Nombre de la cookie que transporta el refresh token en web. MfaController
+    /// también la escribe: el login puede completarse tanto acá (sin 2FA) como
+    /// ahí (verificando TOTP), y ambos caminos deben entregarla igual.
+    /// </summary>
+    internal const string RefreshCookie = "refresh_token";
+
+    /// <summary>
+    /// Nombre de la cookie que transporta el token de dispositivo de confianza
+    /// en web. MfaController la escribe al verificar el TOTP con "recordar este
+    /// dispositivo"; este controlador la lee en el siguiente login.
+    /// </summary>
+    internal const string DeviceTrustCookie = "device_trust";
 
     /// <summary>
     /// Clientes que sostienen la sesión con refresh token. Reciben un access
@@ -39,7 +50,7 @@ public class LoginController(
     /// cuerpo: así JavaScript no puede leerlo y un XSS no puede robarlo.
     /// El móvil no tiene navegador, así que lo recibe en el JSON.
     /// </summary>
-    private static bool UsesRefreshCookie(InicioSesionDesde from) =>
+    internal static bool UsesRefreshCookie(InicioSesionDesde from) =>
         from is InicioSesionDesde.Web or InicioSesionDesde.ReconexionWeb;
 
     private void SetRefreshCookie(string token)
@@ -116,8 +127,33 @@ public class LoginController(
         {
             if (resp.Data!.RequireTotp)
             {
-                resp.Data.TotpSessionToken = TokenJwt.GetTotpPendingToken(resp.Data.UserId, _jwtSettings.Secret);
-                resp.Data.UserId = 0;
+                // Dispositivo ya verificado en un login anterior ("recordar
+                // este dispositivo" al validar el TOTP): se salta el segundo
+                // factor, igual que si estuviera deshabilitado. Cualquier duda
+                // sobre el token (ausente, vencido, revocado, de otro usuario)
+                // cae al flujo TOTP normal: fail-closed.
+                string deviceToken = UsesRefreshCookie(login.LoginFrom)
+                    ? (Request.Cookies[DeviceTrustCookie] ?? "")
+                    : login.DeviceTrustToken;
+
+                bool trustedDevice = !string.IsNullOrEmpty(deviceToken)
+                    && await _authenticationApplication.IsTrustedDevice(resp.Data.UserId, deviceToken);
+
+                if (trustedDevice)
+                {
+                    resp.Data.RequireTotp = false;
+                    // Login() no registró la sesión: se cortó temprano al ver
+                    // RequireTotp, antes de la auditoría y el last_access que
+                    // hace el camino normal. Sin esto el JWT queda con
+                    // SessionId 0 y cualquier endpoint autenticado lo rechaza.
+                    resp.Data.SesionId = await _authenticationApplication.RecordSuccessfulLogin(login, resp.Data.UserId);
+                    await IssueTokens(resp.Data, login.LoginFrom, login.Device);
+                }
+                else
+                {
+                    resp.Data.TotpSessionToken = TokenJwt.GetTotpPendingToken(resp.Data.UserId, _jwtSettings.Secret);
+                    resp.Data.UserId = 0;
+                }
             }
             else if (resp.Data.TotpSetupRequired)
             {
@@ -204,7 +240,7 @@ public class LoginController(
         if (!refreshable) return;
 
         string raw = await _authenticationApplication.IssueRefreshToken(
-            data.UserId, device, Enum.GetName(typeof(InicioSesionDesde), from) ?? "",
+            data.UserId, data.TenantId, data.SesionId, device, Enum.GetName(typeof(InicioSesionDesde), from) ?? "",
             _jwtSettings.RefreshTokenDays);
 
         if (UsesRefreshCookie(from))

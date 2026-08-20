@@ -19,4 +19,11 @@ public class JwtSettings
 
     /// <summary>Días de vida del refresh token.</summary>
     public int RefreshTokenDays { get; set; } = 30;
+
+    /// <summary>
+    /// Días que dura un dispositivo marcado como "de confianza" tras verificar
+    /// el TOTP con "recordar este dispositivo". Vencido ese plazo, vuelve a
+    /// pedirse el segundo factor.
+    /// </summary>
+    public int TrustedDeviceDays { get; set; } = 30;
 }
