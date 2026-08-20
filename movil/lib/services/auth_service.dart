@@ -23,11 +23,19 @@ class AuthService {
   }
 
   /// POST api/Login
-  Future<LoginResponse> login(String email, String password) async {
+  Future<LoginResponse> login(
+    String email,
+    String password, {
+    String deviceTrustToken = '',
+  }) async {
     final res = await _api.post<LoginResponse>(
       'api/Login',
       (data) => LoginResponse.fromJson(data as Map<String, dynamic>),
-      body: LoginRequest(email: email, password: password).toJson(),
+      body: LoginRequest(
+        email: email,
+        password: password,
+        deviceTrustToken: deviceTrustToken,
+      ).toJson(),
     );
     final data = res.data;
     if (data == null) {
@@ -42,7 +50,11 @@ class AuthService {
 
   /// POST api/Mfa/verify — verifica el código TOTP durante el login.
   /// Devuelve el `LoginResponse` con el JWT real.
-  Future<LoginResponse> verifyTotp(String sessionToken, String code) async {
+  Future<LoginResponse> verifyTotp(
+    String sessionToken,
+    String code, {
+    bool rememberDevice = false,
+  }) async {
     final res = await _api.post<LoginResponse>(
       'api/Mfa/verify',
       (data) => LoginResponse.fromJson(data as Map<String, dynamic>),
@@ -51,6 +63,7 @@ class AuthService {
         'TotpCode': code,
         'Device': AppConfig.deviceName,
         'LoginFrom': AppConfig.loginFromMovil,
+        'RememberDevice': rememberDevice,
       },
     );
     final data = res.data;
@@ -66,7 +79,10 @@ class AuthService {
 
   /// POST api/Mfa/verify-recovery — verifica con un código de recuperación.
   Future<LoginResponse> verifyRecovery(
-      String sessionToken, String recoveryCode) async {
+    String sessionToken,
+    String recoveryCode, {
+    bool rememberDevice = false,
+  }) async {
     final res = await _api.post<LoginResponse>(
       'api/Mfa/verify-recovery',
       (data) => LoginResponse.fromJson(data as Map<String, dynamic>),
@@ -75,6 +91,7 @@ class AuthService {
         'RecoveryCode': recoveryCode,
         'Device': AppConfig.deviceName,
         'LoginFrom': AppConfig.loginFromMovil,
+        'RememberDevice': rememberDevice,
       },
     );
     final data = res.data;

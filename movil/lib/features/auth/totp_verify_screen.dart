@@ -16,6 +16,7 @@ class _TotpVerifyScreenState extends State<TotpVerifyScreen> {
   final _formKey = GlobalKey<FormState>();
   final _code = TextEditingController();
   bool _useRecovery = false;
+  bool _rememberDevice = false;
 
   @override
   void dispose() {
@@ -29,8 +30,8 @@ class _TotpVerifyScreenState extends State<TotpVerifyScreen> {
     final auth = context.read<AuthProvider>();
     final value = _code.text.trim();
     final ok = _useRecovery
-        ? await auth.verifyRecovery(value)
-        : await auth.verifyTotp(value);
+        ? await auth.verifyRecovery(value, rememberDevice: _rememberDevice)
+        : await auth.verifyTotp(value, rememberDevice: _rememberDevice);
     if (!ok && mounted && auth.error != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -102,7 +103,17 @@ class _TotpVerifyScreenState extends State<TotpVerifyScreen> {
                     },
                     onFieldSubmitted: (_) => _submit(),
                   ),
-                  const SizedBox(height: 24),
+                  CheckboxListTile(
+                    value: _rememberDevice,
+                    onChanged: auth.loading
+                        ? null
+                        : (v) => setState(() => _rememberDevice = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('Recordar este dispositivo por 30 días'),
+                  ),
+                  const SizedBox(height: 8),
                   FilledButton(
                     onPressed: auth.loading ? null : _submit,
                     child: auth.loading

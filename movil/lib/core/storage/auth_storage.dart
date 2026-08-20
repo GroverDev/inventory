@@ -12,6 +12,12 @@ class AuthStorage {
   static const _kUserId = 'auth_user_id';
   static const _kAccessMenu = 'auth_access_menu';
 
+  /// Token de "dispositivo de confianza" (saltar el TOTP en el próximo
+  /// login). Va atado al usuario que lo emitió, así que sobrevivir a
+  /// [clear] es seguro: si otro usuario inicia sesión en el mismo
+  /// dispositivo, el backend lo rechaza por no coincidir su UserId.
+  static const _kDeviceTrustToken = 'auth_device_trust_token';
+
   Future<void> save({
     required String token,
     required String userName,
@@ -50,18 +56,33 @@ class AuthStorage {
   Future<String?> readUserName() => _storage.read(key: _kUserName);
   Future<String?> readRolName() => _storage.read(key: _kRolName);
 
+  /// Se manda en cada `LoginRequest`; si el backend lo reconoce, salta el
+  /// paso de TOTP. Equivalente móvil de la cookie `device_trust` de la web.
+  Future<void> saveDeviceTrustToken(String token) =>
+      _storage.write(key: _kDeviceTrustToken, value: token);
+
+  Future<String?> readDeviceTrustToken() =>
+      _storage.read(key: _kDeviceTrustToken);
+
   Future<int> readUserId() async {
     final v = await _storage.read(key: _kUserId);
     return int.tryParse(v ?? '') ?? 0;
   }
 
   /// Borra todo lo de la sesión (token, usuario, menú de accesos y el PIN del
-  /// POS). Solo se conserva la preferencia de tema, que es del dispositivo.
+  /// POS). Se conservan la preferencia de tema y el token de dispositivo de
+  /// confianza, que son del dispositivo y no del usuario que cierra sesión
+  /// (mismo criterio que la cookie `device_trust` en la web, que tampoco se
+  /// borra al hacer logout).
   Future<void> clear() async {
     final theme = await _storage.read(key: ThemeStorage.key);
+    final deviceTrustToken = await _storage.read(key: _kDeviceTrustToken);
     await _storage.deleteAll();
     if (theme != null) {
       await _storage.write(key: ThemeStorage.key, value: theme);
+    }
+    if (deviceTrustToken != null) {
+      await _storage.write(key: _kDeviceTrustToken, value: deviceTrustToken);
     }
   }
 }

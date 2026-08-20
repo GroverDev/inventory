@@ -123,7 +123,9 @@ class AuthProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final res = await _authService.login(email, password);
+      final deviceTrustToken = await _storage.readDeviceTrustToken() ?? '';
+      final res = await _authService.login(email, password,
+          deviceTrustToken: deviceTrustToken);
 
       // Caso 1: 2FA ya configurado → aún NO hay token real, verificar código.
       if (res.requireTotp) {
@@ -162,14 +164,19 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Verifica el código TOTP de 6 dígitos durante el login.
-  Future<bool> verifyTotp(String code) =>
-      _completeWith(() => _authService.verifyTotp(_totpSessionToken, code),
+  Future<bool> verifyTotp(String code, {bool rememberDevice = false}) =>
+      _completeWith(
+          () => _authService.verifyTotp(_totpSessionToken, code,
+              rememberDevice: rememberDevice),
           'Error al verificar el código.');
 
   /// Verifica con un código de recuperación durante el login.
-  Future<bool> verifyRecovery(String recoveryCode) => _completeWith(
-      () => _authService.verifyRecovery(_totpSessionToken, recoveryCode),
-      'Error al verificar el código de recuperación.');
+  Future<bool> verifyRecovery(String recoveryCode,
+          {bool rememberDevice = false}) =>
+      _completeWith(
+          () => _authService.verifyRecovery(_totpSessionToken, recoveryCode,
+              rememberDevice: rememberDevice),
+          'Error al verificar el código de recuperación.');
 
   Future<bool> _completeWith(
       Future<LoginResponse> Function() action, String fallbackError) async {
@@ -248,6 +255,11 @@ class AuthProvider extends ChangeNotifier {
       userId: res.userId,
       refreshToken: res.refreshToken,
     );
+    // Solo llega cuando se verificó el TOTP con "recordar este dispositivo";
+    // en cualquier otro login se omite y se conserva el que ya había, si hay.
+    if (res.deviceTrustToken.isNotEmpty) {
+      await _storage.saveDeviceTrustToken(res.deviceTrustToken);
+    }
     userName = displayName;
     rolName = res.rolName;
   }

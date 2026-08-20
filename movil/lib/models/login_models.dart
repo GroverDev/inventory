@@ -13,6 +13,12 @@ class LoginRequest {
   final int loginFrom;
   final int loginWith;
 
+  /// Token de dispositivo de confianza guardado de una verificación TOTP
+  /// anterior con "recordar este dispositivo". Vacío si no hay uno guardado
+  /// o si es para otro usuario; el backend lo valida contra el usuario que
+  /// recién autenticó y lo ignora si no coincide.
+  final String deviceTrustToken;
+
   LoginRequest({
     required this.email,
     required this.password,
@@ -21,6 +27,7 @@ class LoginRequest {
     this.withEmail = true,
     this.loginFrom = AppConfig.loginFromMovil,
     this.loginWith = 1,
+    this.deviceTrustToken = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +38,7 @@ class LoginRequest {
         'WithEmail': withEmail,
         'LoginFrom': loginFrom,
         'LoginWith': loginWith,
+        'DeviceTrustToken': deviceTrustToken,
       };
 }
 
@@ -55,6 +63,12 @@ class LoginResponse {
   /// Token temporal usado para verificar el 2FA (no es el JWT real).
   final String totpSessionToken;
 
+  /// Nuevo token de dispositivo de confianza, emitido solo cuando se
+  /// verificó el TOTP marcando "recordar este dispositivo". Vacío en
+  /// cualquier otro caso, incluido el login que saltó el TOTP por ya tener
+  /// uno vigente (ese no se renueva).
+  final String deviceTrustToken;
+
   final int rolId;
   final String rolName;
   final bool changePassword;
@@ -69,6 +83,7 @@ class LoginResponse {
     required this.requireTotp,
     required this.totpSetupRequired,
     required this.totpSessionToken,
+    this.deviceTrustToken = '',
     required this.rolId,
     required this.rolName,
     required this.changePassword,
@@ -84,6 +99,7 @@ class LoginResponse {
         requireTotp: j['RequireTotp'] ?? false,
         totpSetupRequired: j['TotpSetupRequired'] ?? false,
         totpSessionToken: j['TotpSessionToken'] ?? '',
+        deviceTrustToken: j['DeviceTrustToken'] ?? '',
         rolId: j['RolId'] ?? 0,
         rolName: j['RolName'] ?? '',
         changePassword: j['ChangePassword'] ?? false,
