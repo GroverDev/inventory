@@ -12,7 +12,7 @@ class AppConfig {
     defaultValue: 'https://api.ideanueva.com/',
   );
 
-  static const String appName = 'Inventario Móvil';
+  static const String appName = 'Vendi2 PdV';
 
   /// Origen que se envía al backend (campo Device / LoginFrom).
   static const String deviceName = 'mobile';

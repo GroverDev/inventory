@@ -8,7 +8,7 @@
          para poder apuntar al backend local desde el emulador. En producción la
          API es HTTPS y permitirlo sería una degradación de seguridad. -->
     <application
-        android:label="Inventario Móvil"
+        android:label="Vendi2 PdV"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

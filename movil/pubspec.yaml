@@ -1,7 +1,7 @@
 name: inventory_movil
 description: App móvil de inventario, punto de venta y pedidos (consume el backend .NET existente).
 publish_to: "none"
-version: 1.0.0+2
+version: 1.1.0+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -46,7 +46,9 @@ flutter_launcher_icons:
   ios: false
   image_path: "store/icon-pos-1024.png"
   # Ícono adaptativo: el fondo lo pone Android y el dibujo va en la capa de
-  # primer plano, ya escalado para caer en la zona segura.
-  adaptive_icon_background: "#FFFFFF"
+  # primer plano, ya escalado para caer en la zona segura. Verde tomado del
+  # propio icon-pos-1024.png (sec. de contactless payment), para que el
+  # ícono adaptativo (Android 8+) y el legado se vean iguales.
+  adaptive_icon_background: "#02B57A"
   adaptive_icon_foreground: "store/icon-pos-foreground-1024.png"
   min_sdk_android: 24
