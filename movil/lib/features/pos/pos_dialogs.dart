@@ -6,8 +6,10 @@ import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/ui/confirm_dialog.dart';
 import '../../models/cash_session.dart';
+import '../../models/catalog.dart';
 import '../../models/discount.dart';
 import '../../providers/cart_provider.dart';
+import '../../services/catalog_service.dart';
 import '../../services/sale_service.dart';
 
 /// ── Descartar la venta en curso ─────────────────────────────
@@ -476,6 +478,110 @@ Future<String?> supervisorAuthDialog(
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text('Autorizar'),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+/// ── Alta rápida de cliente desde el cobro ───────────────────
+///
+/// Nombre y documento son los únicos obligatorios, mismo criterio que el
+/// backend (`CustomerRequestValidator`) y que el alta desde la web. Devuelve
+/// el cliente ya creado, listo para seleccionar en la venta, o `null` si se
+/// canceló.
+Future<Customer?> newCustomerDialog(
+  BuildContext context,
+  CatalogService catalogService, {
+  String initialFullName = '',
+}) {
+  final fullNameCtrl = TextEditingController(text: initialFullName);
+  final documentCtrl = TextEditingController();
+  final cellphoneCtrl = TextEditingController();
+  final emailCtrl = TextEditingController();
+  bool loading = false;
+  String? error;
+  return showDialog<Customer>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> save() async {
+          if (fullNameCtrl.text.trim().isEmpty ||
+              documentCtrl.text.trim().isEmpty) {
+            setState(() => error = 'Nombre y documento son requeridos.');
+            return;
+          }
+          setState(() {
+            loading = true;
+            error = null;
+          });
+          try {
+            final customer = await catalogService.createCustomer(
+              fullName: fullNameCtrl.text.trim(),
+              documentNumber: documentCtrl.text.trim(),
+              cellphone: cellphoneCtrl.text.trim(),
+              email: emailCtrl.text.trim(),
+            );
+            if (dialogContext.mounted) {
+              Navigator.pop(dialogContext, customer);
+            }
+          } on ApiException catch (e) {
+            setState(() {
+              loading = false;
+              error = e.message;
+            });
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('Nuevo cliente'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: fullNameCtrl,
+                  autofocus: initialFullName.isEmpty,
+                  decoration: const InputDecoration(labelText: 'Nombre completo'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: documentCtrl,
+                  decoration: const InputDecoration(labelText: 'Documento'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: cellphoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Celular (opcional)'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Correo (opcional)'),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(error!, style: const TextStyle(color: Colors.red)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: loading ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: loading ? null : save,
+              child: loading
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Guardar'),
             ),
           ],
         );

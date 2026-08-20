@@ -89,15 +89,29 @@ public class CustomersRepository(InventoryDbContext _DbContext) : ICustomersRepo
             using var transaction = db.BeginTransaction();
             try
             {
+                // El genérico ("Consumidor Final") es el que el POS precarga por
+                // defecto: borrarlo dejaría al tenant sin forma de cobrar una
+                // venta sin cliente identificado.
+                bool isGeneric = await db.ExecuteScalarAsync<bool>(
+                    "SELECT is_generic FROM public.customers WHERE id = @Id AND state;",
+                    new { Id = id }, transaction);
+                if (isGeneric)
+                    throw new CustomException("No se puede eliminar el cliente \"Consumidor Final\".", Common.Utilities.MessageTypes.Warning);
+
                 string sqlQuery = @"
                         UPDATE public.customers
                            SET state = false,
-                               modified_by = @ModifiedBy, 
+                               modified_by = @ModifiedBy,
                                modified = @Modified
                          WHERE id = @Id ;
                     ";
                 numberRows = await db.ExecuteAsync(sqlQuery, new { Id = id, ModifiedBy = idUserModified, @Modified = fechaActual });
                 transaction.Commit();
+            }
+            catch (CustomException)
+            {
+                transaction.Rollback();
+                throw;
             }
             catch (Exception ex)
             {
@@ -120,7 +134,7 @@ public class CustomersRepository(InventoryDbContext _DbContext) : ICustomersRepo
         {
             db.Open();
             string sqlQuery = @"
-                    SELECT id, full_name, document_number, email, cellphone, is_active
+                    SELECT id, full_name, document_number, email, cellphone, is_active, is_generic
                          FROM public.customers
                         WHERE state
                           AND id = @Id;
@@ -152,7 +166,7 @@ public class CustomersRepository(InventoryDbContext _DbContext) : ICustomersRepo
 
 
             string sqlQuery = @"
-                       SELECT id, full_name, document_number, email, cellphone, is_active
+                       SELECT id, full_name, document_number, email, cellphone, is_active, is_generic
                          FROM public.customers
                         WHERE state
                           AND full_name ILIKE @CustomerName;
@@ -167,5 +181,33 @@ public class CustomersRepository(InventoryDbContext _DbContext) : ICustomersRepo
         return listCustomers;
     }
 
-    
+    public async Task<Customer> GetDefaultCustomer()
+    {
+        Customer customer = new();
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            string sqlQuery = @"
+                    SELECT id, full_name, document_number, email, cellphone, is_active, is_generic
+                         FROM public.customers
+                        WHERE state
+                          AND is_generic
+                        LIMIT 1;
+                ";
+            var result = await db.QueryAsync<Customer>(sqlQuery);
+            if (result!.ToList().Count > 0)
+            {
+                customer = result!.ToList().First();
+            }
+            else
+            {
+                throw new CustomException("No se encontró el cliente por defecto de esta farmacia.", Common.Utilities.MessageTypes.Warning);
+            }
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex, ex.messageType); }
+        catch (Exception ex) { throw new Exception(ex.Message, ex); }
+        finally { db.Close(); }
+        return customer;
+    }
 }

@@ -14,8 +14,14 @@ const useCustomer = () => {
     return await get<ResponseObject<Customer>>(`Customers/${id}`);
   }
 
-  const createCustomer = async (customer: Customer): Promise<ResponseObject<boolean>> => {
-    return await post<ResponseObject<boolean>>('Customers', {
+  /** El "Consumidor Final" del tenant activo, que el POS precarga por defecto. */
+  const getDefaultCustomer = async (): Promise<ResponseObject<Customer>> => {
+    return await get<ResponseObject<Customer>>('Customers/default');
+  }
+
+  /** Devuelve el Id del cliente recién creado, para poder seleccionarlo de inmediato. */
+  const createCustomer = async (customer: Customer): Promise<ResponseObject<string>> => {
+    return await post<ResponseObject<string>>('Customers', {
       fullName: customer.FullName,
       documentNumber: customer.DocumentNumber,
       email: customer.Email,
@@ -39,6 +45,6 @@ const useCustomer = () => {
     return await del<ResponseObject<boolean>>(`Customers/${id}`);
   }
 
-  return { getCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer }
+  return { getCustomers, getCustomerById, getDefaultCustomer, createCustomer, updateCustomer, deleteCustomer }
 }
 export default useCustomer;

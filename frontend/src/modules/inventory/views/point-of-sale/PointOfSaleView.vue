@@ -188,6 +188,9 @@
               <button class="btn btn-outline-secondary" type="button" @click="searchCustomers">
                 <i class="fal fa-search"></i>
               </button>
+              <button class="btn btn-outline-primary" type="button" title="Nuevo cliente" @click="openNewCustomerModal">
+                <i class="fal fa-user-plus"></i>
+              </button>
             </div>
             <div
               v-if="customerResults.length > 0"
@@ -272,6 +275,9 @@
                 />
                 <button class="btn btn-outline-secondary" type="button" @click="searchCustomers">
                   <i class="fal fa-search"></i>
+                </button>
+                <button class="btn btn-outline-primary" type="button" title="Nuevo cliente" @click="openNewCustomerModal">
+                  <i class="fal fa-user-plus"></i>
                 </button>
               </div>
               <div
@@ -1083,6 +1089,67 @@
     @cerrar="fichaVisible = false"
     @agregar="agregarDesdeFicha"
   />
+
+  <!-- ════ MODAL: Nuevo cliente ════ -->
+  <div v-if="showNewCustomerModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold">
+            <i class="fal fa-user-plus me-2"></i>Nuevo cliente
+          </h6>
+          <button type="button" class="btn-close" @click="showNewCustomerModal = false"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small text-muted mb-1">Nombre completo <span class="text-danger">*</span></label>
+            <input
+              type="text" class="form-control form-control-sm" autofocus
+              v-model.trim="newCustomer.FullName"
+            />
+          </div>
+          <div class="mb-2">
+            <label class="form-label small text-muted mb-1">Documento <span class="text-danger">*</span></label>
+            <input
+              type="text" class="form-control form-control-sm"
+              v-model.trim="newCustomer.DocumentNumber"
+            />
+          </div>
+          <div class="mb-2">
+            <label class="form-label small text-muted mb-1">Celular</label>
+            <input
+              type="text" class="form-control form-control-sm"
+              v-model.trim="newCustomer.Cellphone"
+            />
+          </div>
+          <div class="mb-0">
+            <label class="form-label small text-muted mb-1">Correo</label>
+            <input
+              type="email" class="form-control form-control-sm"
+              v-model.trim="newCustomer.Email"
+            />
+          </div>
+          <div v-if="newCustomerError" class="alert alert-danger py-2 mt-3 mb-0 small">
+            {{ newCustomerError }}
+          </div>
+        </div>
+
+        <div class="modal-footer py-2">
+          <button class="btn btn-outline-secondary btn-sm" @click="showNewCustomerModal = false">Cancelar</button>
+          <button
+            class="btn btn-primary btn-sm"
+            :disabled="savingNewCustomer || !newCustomer.FullName.trim() || !newCustomer.DocumentNumber.trim()"
+            @click="saveNewCustomer"
+          >
+            <i class="fal fa-check me-1"></i>{{ savingNewCustomer ? 'Guardando...' : 'Guardar y seleccionar' }}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -1091,7 +1158,7 @@ import { useRouter } from 'vue-router';
 import { Sale } from '@/modules/inventory/models/sale.model';
 import { SaleDetail } from '@/modules/inventory/models/saleDetail.model';
 import { SalePayment, type PaymentMethod } from '@/modules/inventory/models/paymentMethod.model';
-import type { Customer } from '@/modules/inventory/models/customer.model';
+import { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
 import ProductInfoModal from '@/modules/inventory/components/ProductInfoModal.vue';
 import type { CashSession } from '@/modules/inventory/models/cashSession.model';
@@ -1119,7 +1186,7 @@ const maxCashierDiscountPct    = ref<number>(15);
 const maxCashierDiscountAmount = ref<number>(50);
 
 const { saveSaleApi } = useSales();
-const { getCustomers } = useCustomer();
+const { getCustomers, getDefaultCustomer, createCustomer } = useCustomer();
 const { getProductsByName } = useProduct();
 const { getPaymentMethods } = usePaymentMethod();
 const { getActiveSession, openSession, closeSession } = useCashSession();
@@ -1165,6 +1232,10 @@ const loadingProducts = ref(false);
 const selectedCustomer = ref<Customer | null>(null);
 const customerSearch = ref('');
 const customerResults = ref<Customer[]>([]);
+const showNewCustomerModal = ref(false);
+const newCustomer = ref(new Customer());
+const newCustomerError = ref('');
+const savingNewCustomer = ref(false);
 const productSearch = ref('');
 const selectedCategory = ref('');
 const activeTab = ref<'products' | 'cart'>('products');
@@ -1399,6 +1470,7 @@ onMounted(async () => {
   loadingProducts.value = false;
   if (!cashSession.value) showOpenCashModal.value = true;
   productInputRef.value?.focus();
+  loadDefaultCustomer();
 });
 
 // ── Clientes ───────────────────────────────────────────────
@@ -1418,6 +1490,37 @@ const clearCustomer = () => {
   selectedCustomer.value = null;
   customerSearch.value = '';
   customerResults.value = [];
+};
+
+// Precarga el "Consumidor Final" del tenant para que cobrar nunca quede
+// bloqueado por falta de cliente. Si falla (sin red, por ejemplo), no rompe
+// nada: el picker simplemente queda en modo búsqueda, como antes de esto.
+const loadDefaultCustomer = async () => {
+  const { ok, Data } = await getDefaultCustomer();
+  if (ok && Data) selectedCustomer.value = Data;
+};
+
+const openNewCustomerModal = () => {
+  newCustomer.value = new Customer();
+  newCustomer.value.FullName = customerSearch.value.trim();
+  newCustomerError.value = '';
+  showNewCustomerModal.value = true;
+};
+
+const saveNewCustomer = async () => {
+  newCustomerError.value = '';
+  savingNewCustomer.value = true;
+  try {
+    const { ok, Data: id, Message } = await createCustomer(newCustomer.value);
+    if (ok && id) {
+      selectCustomer({ ...newCustomer.value, Id: id });
+      showNewCustomerModal.value = false;
+    } else {
+      newCustomerError.value = Message?.Description || 'No se pudo crear el cliente.';
+    }
+  } finally {
+    savingNewCustomer.value = false;
+  }
 };
 
 // ── Ficha del producto ─────────────────────────────────────
@@ -1862,6 +1965,7 @@ const resetCart = () => {
 const resetAll = () => {
   resetCart();
   clearCustomer();
+  loadDefaultCustomer();
   productSearch.value = '';
   selectedCategory.value = '';
   removeHeaderDiscount();

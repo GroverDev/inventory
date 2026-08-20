@@ -1,5 +1,6 @@
 ﻿
 using Common.Utilities;
+using FluentValidation.Results;
 using Inventory.Application;
 using Inventory.Domain.Entities.Requests;
 using Microsoft.AspNetCore.Authorization;
@@ -16,8 +17,11 @@ public class CustomersController(ICustomersApplication _customersApplication) : 
 {
     // POST api/Client
     [HttpPost()]
-    public async Task<ActionResult<Response<bool>>> CreateCustomer([FromBody] CustomerRequest customerVM)
+    public async Task<ActionResult<Response<string>>> CreateCustomer([FromBody] CustomerRequest customerVM)
     {
+        ValidationResult result = new CustomerRequestValidator().Validate(customerVM);
+        if (!result.IsValid) return ErrorsValidationString.GetResponseString(result.Errors);
+
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
         var datos = TokenData.GetData(HttpContext);
 
@@ -30,6 +34,9 @@ public class CustomersController(ICustomersApplication _customersApplication) : 
     public async Task<ActionResult<Response<bool>>> UpdateCustomer(string id, [FromBody] CustomerRequest customerVM)
     {
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
+
+        ValidationResult result = new CustomerRequestValidator().Validate(customerVM);
+        if (!result.IsValid) return ErrorsValidation<bool>.GetResponse(result.Errors);
 
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
         var datos = TokenData.GetData(HttpContext);
@@ -59,6 +66,17 @@ public class CustomersController(ICustomersApplication _customersApplication) : 
         if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
 
         var respuesta = await _customersApplication.GetCustomers(CustomerName);
+        return respuesta;
+    }
+
+    // GET api/Customers/default — el "Consumidor Final" del tenant activo, que
+    // el POS precarga para no bloquear una venta sin cliente identificado.
+    [HttpGet("default")]
+    public async Task<ActionResult<Response<CustomerRequest>>> GetDefaultCustomer()
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+
+        var respuesta = await _customersApplication.GetDefaultCustomer();
         return respuesta;
     }
 

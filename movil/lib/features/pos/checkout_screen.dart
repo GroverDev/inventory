@@ -72,11 +72,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         catalog.paymentMethods(),
         context.read<DiscountService>().active(),
         sale.posSettings(),
+        catalog.getDefaultCustomer(),
       ]);
       setState(() {
         _methods = results[0] as List<PaymentMethod>;
         _discounts = results[1] as List<Discount>;
         _settings = results[2] as PosSettings;
+        // Precarga el "Consumidor Final" del tenant para que cobrar nunca
+        // quede bloqueado por falta de cliente. Si por algún motivo no llegó
+        // (sin red, tenant sin sembrar), el picker queda en modo búsqueda,
+        // como era antes de esto.
+        _customer ??= results[3] as Customer?;
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -116,6 +122,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _customerCtrl.clear();
     });
     FocusScope.of(context).unfocus();
+  }
+
+  Future<void> _openNewCustomerDialog() async {
+    final created = await newCustomerDialog(
+      context,
+      context.read<CatalogService>(),
+      initialFullName: _customerCtrl.text.trim(),
+    );
+    if (created != null) _selectCustomer(created);
   }
 
   // ── Descuentos ─────────────────────────────────────────────
@@ -491,6 +506,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2)),
                       )
                     : null,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _openNewCustomerDialog,
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text('Nuevo cliente'),
               ),
             ),
             for (final c in _customerResults)
