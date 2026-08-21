@@ -9,7 +9,7 @@ public class PurchaseDeliveryDetail:Audit
     public Guid PurchaseDeliveryId { get; set; }
     public Guid ProductId { get; set; }
 
-    public DateTime DeliveryDate { get; set; }
+    public DateOnly DeliveryDate { get; set; }
     public int DeliveryQuantity { get; set; }
 	public int OrderedQuantity { get; set; }
 

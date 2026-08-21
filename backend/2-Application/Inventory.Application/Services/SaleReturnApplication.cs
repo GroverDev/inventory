@@ -71,7 +71,7 @@ public class SaleReturnApplication(
             var saleReturn = new SaleReturn
             {
                 SaleId = saleId,
-                ReturnDate = DateTime.Now,
+                ReturnDate = DateTime.UtcNow,
                 Reason = request.Reason,
                 TotalReturned = totalReturned,
                 IsFullReturn = isFullReturn,

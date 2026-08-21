@@ -78,7 +78,7 @@
                     <td class="text-end small text-success">Bs. {{ formatNum(s.TotalSales) }}</td>
                     <td class="text-end small text-danger">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</td>
                     <td class="text-end small fw-semibold">
-                      Bs. {{ formatNum(s.OpeningAmount + s.TotalSales - s.TotalExpenses - s.TotalWithdrawals + s.TotalIncome) }}
+                      Bs. {{ formatNum(expectedAmount(s)) }}
                     </td>
                     <td class="text-end small">{{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}</td>
                     <td class="text-end small fw-semibold"
@@ -86,9 +86,12 @@
                       {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
                     </td>
                     <td class="text-center">
-                      <span class="badge" :class="s.IsOpen ? 'bg-success' : 'bg-secondary'">
+                      <span class="badge" :class="isStaleOpen(s) ? 'bg-warning text-dark' : s.IsOpen ? 'bg-success' : 'bg-secondary'">
                         {{ s.IsOpen ? 'Abierta' : 'Cerrada' }}
                       </span>
+                      <small v-if="isStaleOpen(s)" class="d-block text-warning mt-1">
+                        <i class="fal fa-exclamation-triangle me-1"></i>hace {{ daysOpen(s) }} día{{ daysOpen(s) === 1 ? '' : 's' }}
+                      </small>
                     </td>
                     <td class="text-center">
                       <button class="btn btn-sm btn-outline-secondary py-0 px-2" @click="selectSession(s)">
@@ -108,12 +111,21 @@
                     <div class="card-body d-flex flex-column gap-2">
                       <div class="d-flex justify-content-between align-items-center">
                         <p class="fw-semibold mb-0 lh-sm">{{ s.UserFullName }}</p>
-                        <span class="badge rounded-pill" :class="s.IsOpen ? 'text-bg-success' : 'text-bg-secondary'">
+                        <span class="badge rounded-pill" :class="isStaleOpen(s) ? 'text-bg-warning' : s.IsOpen ? 'text-bg-success' : 'text-bg-secondary'">
                           {{ s.IsOpen ? 'Abierta' : 'Cerrada' }}
                         </span>
                       </div>
                       <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(s.OpenedAt) }}</small>
+                      <small v-if="isStaleOpen(s)" class="text-warning">
+                        <i class="fal fa-exclamation-triangle me-1"></i>Abierta hace {{ daysOpen(s) }} día{{ daysOpen(s) === 1 ? '' : 's' }}
+                      </small>
+                      <!-- Los mismos seis importes que las columnas de la tabla en
+                           escritorio, para que la tarjeta no cuente otra historia. -->
                       <div class="row g-1 text-center small">
+                        <div class="col-4">
+                          <div class="text-muted">Fondo</div>
+                          <div class="fw-semibold">Bs. {{ formatNum(s.OpeningAmount) }}</div>
+                        </div>
                         <div class="col-4">
                           <div class="text-muted">Ventas</div>
                           <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
@@ -122,9 +134,21 @@
                           <div class="text-muted">Gastos</div>
                           <div class="text-danger fw-semibold">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</div>
                         </div>
+                      </div>
+                      <div class="row g-1 text-center small border-top pt-1">
+                        <div class="col-4">
+                          <div class="text-muted">Esperado</div>
+                          <div class="fw-semibold">Bs. {{ formatNum(expectedAmount(s)) }}</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Declarado</div>
+                          <div class="fw-semibold">
+                            {{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}
+                          </div>
+                        </div>
                         <div class="col-4">
                           <div class="text-muted">Diferencia</div>
-                          <div :class="s.Difference === null ? '' : s.Difference >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                          <div :class="s.Difference === null ? 'text-muted' : s.Difference >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
                             {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
                           </div>
                         </div>
@@ -151,13 +175,19 @@
             <h6 class="modal-title fw-bold">
               <i class="fal fa-cash-register me-2"></i>Turno — {{ selectedSession.UserFullName }}
               <small class="text-muted fw-normal ms-2">{{ formatDate(selectedSession.OpenedAt) }}</small>
+              <span v-if="isStaleOpen(selectedSession)" class="badge bg-warning text-dark ms-2">
+                <i class="fal fa-exclamation-triangle me-1"></i>Abierta hace {{ daysOpen(selectedSession) }} día{{ daysOpen(selectedSession) === 1 ? '' : 's' }}
+              </span>
             </h6>
             <button type="button" class="btn-close" @click="selectedSession = null"></button>
           </div>
           <div class="modal-body" style="max-height:80vh; overflow-y:auto;">
 
             <!-- Resumen arqueo -->
-            <div class="row g-2 mb-3">
+            <!-- Se muestran los cuatro términos que componen el esperado, y no
+                 solo algunos: si falta uno (los ingresos, por ejemplo) la cuenta
+                 no cierra en pantalla y la diferencia parece salida de la nada. -->
+            <div class="row g-2 mb-2">
               <div class="col-6 col-md-3">
                 <div class="border rounded p-2 text-center">
                   <small class="text-muted d-block">Fondo inicial</small>
@@ -166,21 +196,46 @@
               </div>
               <div class="col-6 col-md-3">
                 <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Ventas</small>
+                  <small class="text-muted d-block">+ Ventas</small>
                   <strong class="text-success">Bs. {{ formatNum(selectedSession.TotalSales) }}</strong>
                 </div>
               </div>
               <div class="col-6 col-md-3">
                 <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Gastos + Retiros</small>
-                  <strong class="text-danger">Bs. {{ formatNum(selectedSession.TotalExpenses + selectedSession.TotalWithdrawals) }}</strong>
+                  <small class="text-muted d-block">+ Ingresos</small>
+                  <strong class="text-success">Bs. {{ formatNum(selectedSession.TotalIncome) }}</strong>
                 </div>
               </div>
               <div class="col-6 col-md-3">
                 <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">− Gastos + Retiros</small>
+                  <strong class="text-danger">Bs. {{ formatNum(selectedSession.TotalExpenses + selectedSession.TotalWithdrawals) }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-4">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Esperado en caja</small>
+                  <strong>Bs. {{ formatNum(expectedAmount(selectedSession)) }}</strong>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Declarado</small>
+                  <strong>{{ selectedSession.DeclaredAmount !== null ? 'Bs. ' + formatNum(selectedSession.DeclaredAmount) : '—' }}</strong>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="border rounded text-center p-2"
+                  :class="selectedSession.Difference === null ? '' : selectedSession.Difference >= 0 ? 'border-success' : 'border-danger'">
                   <small class="text-muted d-block">Diferencia</small>
-                  <strong :class="(selectedSession.Difference ?? 0) >= 0 ? 'text-success' : 'text-danger'">
-                    Bs. {{ formatNum(selectedSession.Difference ?? 0) }}
+                  <!-- Mientras la caja siga abierta no hay arqueo: un "0.00" en
+                       verde se leería como que cuadra. -->
+                  <strong v-if="selectedSession.Difference === null" class="text-muted">—</strong>
+                  <strong v-else :class="selectedSession.Difference >= 0 ? 'text-success' : 'text-danger'">
+                    Bs. {{ formatNum(selectedSession.Difference) }}
                   </strong>
                 </div>
               </div>
@@ -228,7 +283,7 @@
                   <div class="col-6 col-md-3">
                     <div class="card border text-center py-2 mb-0">
                       <small class="text-muted d-block">Descuentos</small>
-                      <strong class="text-danger">Bs. {{ formatNum(sessionSales.reduce((a,s)=>a+s.TotalDiscounts+s.HeaderDiscountAmount,0)) }}</strong>
+                      <strong class="text-danger">Bs. {{ formatNum(sessionSales.reduce((a,s)=>a+s.TotalDiscounts,0)) }}</strong>
                     </div>
                   </div>
                   <div class="col-6 col-md-3">
@@ -245,7 +300,7 @@
                     <thead class="">
                       <tr>
                         <th style="width:28px"></th>
-                        <th>Hora</th>
+                        <th>Fecha</th>
                         <th>Cliente</th>
                         <th>Cajero</th>
                         <th>Método pago</th>
@@ -258,7 +313,7 @@
                           <td class="text-center">
                             <i class="fal" :class="expandedSales.has(sale.Id) ? 'fa-chevron-down' : 'fa-chevron-right'" style="font-size:.7rem;"></i>
                           </td>
-                          <td><small>{{ formatTime(sale.SaleDate) }}</small></td>
+                          <td><small>{{ formatDate(sale.SaleDate) }}</small></td>
                           <td class="fw-semibold small">{{ sale.CustomerName }}</td>
                           <td><small class="text-muted">{{ sale.SellerName }}</small></td>
                           <td>
@@ -291,6 +346,9 @@
                                 </tr>
                               </tbody>
                             </table>
+                            <div v-if="sale.HeaderDiscountAmount > 0" class="small text-danger px-3 py-1 border-top">
+                              <i class="fal fa-tag me-1"></i>Descuento aplicado a toda la venta: Bs. {{ formatNum(sale.HeaderDiscountAmount) }}
+                            </div>
                           </td>
                         </tr>
                       </template>
@@ -312,6 +370,7 @@
                     <th>Descripción</th>
                     <th class="text-end">Monto</th>
                     <th>Fecha</th>
+                    <th>Registrado por</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,6 +384,7 @@
                     <td><small>{{ m.Description }}</small></td>
                     <td class="text-end small">Bs. {{ formatNum(m.Amount) }}</td>
                     <td><small class="text-muted">{{ formatDate(m.Created) }}</small></td>
+                    <td><small class="text-muted">{{ m.CreatedByName || '—' }}</small></td>
                   </tr>
                 </tbody>
               </table>
@@ -353,6 +413,7 @@ import type { CashSession, SessionSale } from '@/modules/inventory/models/cashSe
 import { MovementTypeLabels } from '@/modules/inventory/models/cashMovement.model';
 import useCashSession from '@/modules/inventory/composables/useCashSession';
 import { exportToExcel } from '@/utils/excelHelper';
+import { todayIso, toIsoDate } from '@/utils/dateHelper';
 
 const { getSessions, getSessionById, getSessionSales } = useCashSession();
 
@@ -364,11 +425,11 @@ const sessionSales = ref<SessionSale[]>([]);
 const loadingSales = ref(false);
 const expandedSales = ref<Set<string>>(new Set());
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayIso;
 const daysAgo = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return toIsoDate(d);
 };
 
 const filtro = ref({ dateFrom: today(), dateTo: today() });
@@ -453,10 +514,30 @@ const formatNum = (val: number) =>
   (val ?? 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const formatDate = (val: string) =>
-  new Date(val).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  new Date(val).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
-const formatTime = (val: string) =>
-  new Date(val).toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' });
+// Turnos pensados para durar un día; uno abierto por más tiempo suele ser un
+// olvido (nadie lo cerró) más que un caso de uso real — se avisa en vez de
+// cerrarlo solo, porque un cajero puede legítimamente cruzar medianoche.
+const STALE_OPEN_DAYS = 1;
+
+const daysOpen = (s: CashSession): number =>
+  Math.floor((Date.now() - new Date(s.OpenedAt).getTime()) / 86_400_000);
+
+const isStaleOpen = (s: CashSession): boolean => s.IsOpen && daysOpen(s) >= STALE_OPEN_DAYS;
+
+/**
+ * Lo que debería haber en la caja. Es la misma fórmula que aplica el backend al
+ * cerrar (CashSessionApplication.CloseSession).
+ *
+ * En una sesión ya cerrada se muestra el valor que quedó guardado, no uno
+ * recalculado: el arqueo es un hecho histórico y recalcularlo lo haría cambiar
+ * si algún movimiento se editara después.
+ */
+const expectedAmount = (s: CashSession): number =>
+  s.ExpectedAmount !== null
+    ? s.ExpectedAmount
+    : s.OpeningAmount + s.TotalSales + s.TotalIncome - s.TotalExpenses - s.TotalWithdrawals;
 
 const movementLabel = (type: string) => MovementTypeLabels[type] ?? type;
 

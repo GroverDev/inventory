@@ -62,9 +62,9 @@
               </div>
             </div>
 
-            <div class="d-flex justify-content-end mb-4">
+            <!-- <div class="d-flex justify-content-end mb-4">
               <a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
-            </div>
+            </div> -->
 
             <!-- Normalmente no se ve: solo aparece si Cloudflare pide un clic,
                  y en ese caso el propio componente reserva su espacio. -->
@@ -86,9 +86,9 @@
               </button>
             </div>
 
-            <div class="text-center mt-4">
+            <!-- <div class="text-center mt-4">
               <a href="#" class="sign-up-link">Registrarse</a>
-            </div>
+            </div> -->
           </form>
         </div>
       </div>
@@ -350,11 +350,11 @@ const loginSubmit = async () => {
     max-width: 500px;
     min-height: auto;
   }
-  
+
   .info-panel {
     display: none;
   }
-  
+
   .form-panel {
     padding: 3rem 2rem;
   }

@@ -17,7 +17,7 @@ public class LaboratoryApplication(ILaboratoryRepository _laboratoryRepository) 
 
             var laboratory = laboratoryRequest.Adapt<Laboratory>();
             laboratory.CreatedBy = laboratory.ModifiedBy = createdBy;
-            laboratory.Created = laboratory.Modified = DateTime.Now;
+            laboratory.Created = laboratory.Modified = DateTime.UtcNow;
             laboratory.State = true;
 
             respuesta.Data = await _laboratoryRepository.CreateLaboratory(laboratory);
@@ -35,7 +35,7 @@ public class LaboratoryApplication(ILaboratoryRepository _laboratoryRepository) 
         {
             var laboratory = laboratoryRequest.Adapt<Laboratory>();
             laboratory.ModifiedBy = modifiedBy;
-            laboratory.Modified = DateTime.Now;
+            laboratory.Modified = DateTime.UtcNow;
 
             var rowsAffected = await _laboratoryRepository.UpdateLaboratory(laboratory);
             if (rowsAffected <= 0)

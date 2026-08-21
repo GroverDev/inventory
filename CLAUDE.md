@@ -37,6 +37,24 @@ The captcha is enforced in two stages, both in `LoginController.Authenticate`:
 
 Verification is fail-closed: a rejected token always blocks, and so does a one-off infrastructure failure. Only after `OutageThreshold` consecutive infrastructure failures does `TurnstileCircuitBreaker` declare an outage and let logins through for `OutageMinutes`, then retry on its own. `Enabled` is read through `IOptionsMonitor`, so it can be switched off without restarting when `appsettings.json` is a mounted volume.
 
+## Backend (local)
+
+Correr desde `backend/1-Services/Services.Api`. Requiere .NET 10 SDK y una base Postgres accesible en `localhost:5432` (rol `app_pos`, base `punto_venta` — restaurar el backup más reciente de `db/` con `pg_restore`).
+
+El `.env` (raíz, junto a `docker-compose.yml`) solo lo lee `docker compose` — .NET no carga archivos `.env`. Corriendo el backend suelto (`dotnet run`, sin Docker) los secretos se cargan con `dotnet user-secrets` en su lugar:
+
+```sh
+cd backend/1-Services/Services.Api
+dotnet user-secrets init
+dotnet user-secrets set "JwtSettings:Secret" "<random >=64 bytes, p.ej. openssl rand -base64 64>"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=punto_venta;Username=app_pos;Password=<pwd>;Port=5432;"
+dotnet user-secrets set "MfaSettings:EncryptionKeyHex" "<64 hex chars, p.ej. openssl rand -hex 32>"   # solo si se prueba MFA/TOTP
+
+dotnet run --project backend/1-Services/Services.Api   # levanta en http://localhost:6001
+```
+
+`appsettings.json` versiona placeholders (`REEMPLAZAR_VIA_ENV*`) en vez de secretos reales, a propósito: `ConnectionStringResolver` y la firma JWT fallan ruidosamente si detectan el marcador, en vez de arrancar con un secreto inválido en silencio. Si el backend no arranca o el login falla citando ese texto, falta uno de los `dotnet user-secrets set` de arriba — no es un bug de código.
+
 ## Architecture
 
 **Stack:** Vue 3 (Composition API) + Vite + TypeScript + Pinia + Vue Router 4 + Axios + Bootstrap (external HTML template).

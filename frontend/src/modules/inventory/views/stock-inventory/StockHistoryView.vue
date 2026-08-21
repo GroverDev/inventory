@@ -167,7 +167,7 @@ const verTodos = () => {
 const formatDate = (dateStr: string): string => {
   const d = new Date(dateStr);
   return d.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    + ' ' + d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+    + ' ' + d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 
 const typeLabel = (type: string): string => {

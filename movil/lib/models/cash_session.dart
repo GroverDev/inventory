@@ -36,11 +36,14 @@ class CashSession {
         id: (j['Id'] ?? '').toString(),
         userId: j['UserId'] ?? 0,
         userFullName: j['UserFullName'] ?? '',
-        openedAt: DateTime.tryParse(j['OpenedAt']?.toString() ?? '') ??
+        // Instantes: la API los manda en UTC, se pasan a hora local para que
+        // coincidan con lo que muestra la web (ver _toInstanteLocal en
+        // sale_history.dart). DateTime.now() ya es local.
+        openedAt: DateTime.tryParse(j['OpenedAt']?.toString() ?? '')?.toLocal() ??
             DateTime.now(),
         closedAt: j['ClosedAt'] == null
             ? null
-            : DateTime.tryParse(j['ClosedAt'].toString()),
+            : DateTime.tryParse(j['ClosedAt'].toString())?.toLocal(),
         openingAmount: (j['OpeningAmount'] ?? 0).toDouble(),
         totalSales: (j['TotalSales'] ?? 0).toDouble(),
         totalExpenses: (j['TotalExpenses'] ?? 0).toDouble(),

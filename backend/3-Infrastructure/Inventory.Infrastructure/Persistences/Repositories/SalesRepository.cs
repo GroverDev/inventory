@@ -117,7 +117,7 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                  LEFT  JOIN sec.users u ON u.id = s.created_by
                  WHERE s.state
                    AND s.sale_date >= @SaleDateInitial
-                   AND s.sale_date <= @SaleDateEnd
+                   AND s.sale_date <  @SaleDateEnd
                    {userFilter}
                    {sellerFilter}
                  ORDER BY s.sale_date DESC
@@ -204,7 +204,7 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try

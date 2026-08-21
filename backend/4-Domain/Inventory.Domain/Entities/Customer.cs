@@ -12,7 +12,7 @@ public class Customer : Audit
     public bool IsActive { get; set; }
 
     /// <summary>
-    /// Cliente "Consumidor Final" que el POS precarga por defecto, uno por
+    /// Cliente genérico que el POS precarga por defecto, uno por
     /// tenant. Nunca se fija desde <c>CustomerRequest</c> (create/update no lo
     /// exponen) para que no se pueda tocar por API; solo lo siembra
     /// <c>sec.fn_seed_tenant_master_data</c>.

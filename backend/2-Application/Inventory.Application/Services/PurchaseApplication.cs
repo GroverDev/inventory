@@ -49,7 +49,7 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
                 var purchase = purchaseRequest.Adapt<Purchase>();
 
                 purchase.CreatedBy = purchase.ModifiedBy = createdBy;
-                purchase.Created = purchase.Modified = DateTime.Now;
+                purchase.Created = purchase.Modified = DateTime.UtcNow;
                 purchase.State = true;
                 purchase.Detail.ForEach(d => { d.CreatedBy = purchase.CreatedBy; d.Created = purchase.Created; d.Modified = purchase.Created; d.ModifiedBy = purchase.CreatedBy; d.State = purchase.State; });
 
@@ -91,7 +91,7 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
 
                 var purchase = purchaseRequest.Adapt<Purchase>();
                 purchase.ModifiedBy = modifiedBy;
-                purchase.Modified = DateTime.Now;
+                purchase.Modified = DateTime.UtcNow;
 
                 var rowsAffected = await _purchaseRepository.UpdatePurchase(purchase);
                 if (rowsAffected <= 0)
@@ -115,10 +115,13 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
             if (!Guid.TryParse(purchaseDeliveryRequest.PurchaseId, out var purchaseId) || purchaseId == Guid.Empty)
                 throw new CustomException("La orden de compra indicada no es válida.", MessageTypes.Warning);
 
-            if (!DateTime.TryParse(purchaseDeliveryRequest.DeliveryDate, out var deliveryDate))
+            if (!DateOnly.TryParse(purchaseDeliveryRequest.DeliveryDate, out var deliveryDate))
                 throw new CustomException("La fecha de recepción no es válida.", MessageTypes.Warning);
 
-            if (deliveryDate.Date > DateTime.Now.Date)
+            // "Hoy" es el día boliviano, no el del servidor: con DateTime.Now el
+            // contenedor (en UTC) ya había pasado de día a las 20:00, y entre esa
+            // hora y medianoche se aceptaba como válida la fecha de mañana.
+            if (deliveryDate > DateOnly.FromDateTime(BusinessTime.Today))
                 throw new CustomException("La fecha de recepción no puede ser futura.", MessageTypes.Warning);
 
             // Solo viajan al dominio las líneas con mercadería efectivamente recibida.
@@ -126,7 +129,7 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
             if (lines.Count == 0)
                 throw new CustomException("Debe indicar al menos un producto con cantidad recibida.", MessageTypes.Warning);
 
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             var purchaseDelivery = new PurchaseDelivery
             {
                 PurchaseId = purchaseId,
@@ -240,32 +243,34 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
         Response<List<PurchaseProductResponse>> purchases = new() { Data = [] };
         try
         {
-            purchaseDateInitial += " 00:00:01";
-            purchaseDateEnd += " 23:59:59";
+            // purchase_date es una columna `date`: el rango se compara día contra
+            // día. No hay que recortar horas ni convertir de hora boliviana a UTC
+            // como en Ventas —eso corresponde solo a las columnas que guardan un
+            // instante—, y por eso tampoco existe acá el problema del borde del día.
             #region Valida Fechas
-            if (!DateTime.TryParse(purchaseDateInitial, out _))
+            if (!DateOnly.TryParse(purchaseDateInitial, out var diaDesde))
                 throw new CustomException("Fecha desde, es incorrecto.", MessageTypes.Warning);
 
-            if (Convert.ToDateTime(purchaseDateInitial).Year > DateTime.Now.Year + 1)
-                throw new CustomException($"Fecha desde, el año  no puede ser mayor al año {(DateTime.Now.Year + 1).ToString()}.", MessageTypes.Warning);
+            if (diaDesde.Year > BusinessTime.Today.Year + 1)
+                throw new CustomException($"Fecha desde, el año  no puede ser mayor al año {(BusinessTime.Today.Year + 1).ToString()}.", MessageTypes.Warning);
 
-            if (Convert.ToDateTime(purchaseDateInitial).Year < 1900)
+            if (diaDesde.Year < 1900)
                 throw new CustomException("Fecha desde, el año no puede ser menor al año 1900.", MessageTypes.Warning);
 
-            if (!DateTime.TryParse(purchaseDateEnd, out _))
+            if (!DateOnly.TryParse(purchaseDateEnd, out var diaHasta))
                 throw new CustomException("Fecha hasta, es incorrecto.", MessageTypes.Warning);
 
-            if (Convert.ToDateTime(purchaseDateEnd).Year > DateTime.Now.Year + 1)
-                throw new CustomException($"Fecha hasta, el año  no puede ser mayor al año {(DateTime.Now.Year + 1).ToString()}.", MessageTypes.Warning);
+            if (diaHasta.Year > BusinessTime.Today.Year + 1)
+                throw new CustomException($"Fecha hasta, el año  no puede ser mayor al año {(BusinessTime.Today.Year + 1).ToString()}.", MessageTypes.Warning);
 
-            if (Convert.ToDateTime(purchaseDateEnd).Year < 1900)
+            if (diaHasta.Year < 1900)
                 throw new CustomException("Fecha hasta, el año no puede ser menor al año 1900.", MessageTypes.Warning);
 
-            if (Convert.ToDateTime(purchaseDateInitial) > Convert.ToDateTime(purchaseDateEnd))
+            if (diaDesde > diaHasta)
                 throw new CustomException("Fecha desde, no puede ser mayor a la Fecha hasta.", MessageTypes.Warning);
             #endregion
 
-            var respList = await _purchaseRepository.GetPurchases(Convert.ToDateTime(purchaseDateInitial), Convert.ToDateTime(purchaseDateEnd), purchaseStatus);
+            var respList = await _purchaseRepository.GetPurchases(diaDesde, diaHasta, purchaseStatus);
 
             foreach (var item in respList)
             {

@@ -97,7 +97,7 @@ public class DiscountRepository(InventoryDbContext _DbContext) : IDiscountReposi
                    SET state = false, modified_by = @ModifiedBy, modified = @Modified
                  WHERE id = @Id;
             ";
-            return await db.ExecuteAsync(sql, new { Id = id, ModifiedBy = modifiedBy, Modified = DateTime.Now });
+            return await db.ExecuteAsync(sql, new { Id = id, ModifiedBy = modifiedBy, Modified = DateTime.UtcNow });
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
         catch (Exception ex) { throw ExceptionHandler.HandleException<int>(ex); }

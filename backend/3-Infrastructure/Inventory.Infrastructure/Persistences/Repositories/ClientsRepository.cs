@@ -84,19 +84,21 @@ public class CustomersRepository(InventoryDbContext _DbContext) : ICustomersRepo
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try
             {
-                // El genérico ("Consumidor Final") es el que el POS precarga por
-                // defecto: borrarlo dejaría al tenant sin forma de cobrar una
-                // venta sin cliente identificado.
+                // El genérico es el que el POS precarga por defecto: borrarlo
+                // dejaría al tenant sin forma de cobrar una venta sin cliente
+                // identificado.
                 bool isGeneric = await db.ExecuteScalarAsync<bool>(
                     "SELECT is_generic FROM public.customers WHERE id = @Id AND state;",
                     new { Id = id }, transaction);
                 if (isGeneric)
-                    throw new CustomException("No se puede eliminar el cliente \"Consumidor Final\".", Common.Utilities.MessageTypes.Warning);
+                    // Sin repetir el nombre: es editable por el usuario, y tenerlo
+                    // escrito acá ya hizo que el mensaje quedara desactualizado una vez.
+                    throw new CustomException("No se puede eliminar el cliente genérico del punto de venta.", Common.Utilities.MessageTypes.Warning);
 
                 string sqlQuery = @"
                         UPDATE public.customers

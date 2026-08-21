@@ -16,7 +16,7 @@ public class CategoryApplication(ICategoryRepository _categoryRepository) : ICat
             categoryRequest.Id = Guid.Empty.ToString();
             var category = categoryRequest.Adapt<Category>();
             category.CreatedBy = category.ModifiedBy = createdBy;
-            category.Created = category.Modified = DateTime.Now;
+            category.Created = category.Modified = DateTime.UtcNow;
             category.State = true;
 
             respuesta.Data = await _categoryRepository.CreateCategory(category);
@@ -34,7 +34,7 @@ public class CategoryApplication(ICategoryRepository _categoryRepository) : ICat
         {
             var category = categoryRequest.Adapt<Category>();
             category.ModifiedBy = modifiedBy;
-            category.Modified = DateTime.Now;
+            category.Modified = DateTime.UtcNow;
 
             var rowsAffected = await _categoryRepository.UpdateCategory(category);
             if (rowsAffected <= 0)

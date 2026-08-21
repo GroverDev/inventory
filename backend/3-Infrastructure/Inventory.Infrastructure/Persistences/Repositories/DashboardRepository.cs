@@ -21,10 +21,17 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
         {
             db.Open();
 
-            // Rangos calculados en C# para evitar diferencias de zona horaria con DATE()
-            var todayStart = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Unspecified);
-            var todayEnd   = DateTime.SpecifyKind(DateTime.Today.AddDays(1), DateTimeKind.Unspecified);
-            var monthStart = DateTime.SpecifyKind(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1), DateTimeKind.Unspecified);
+            // Rangos calculados en C# para evitar diferencias de zona horaria con DATE().
+            //
+            // "Hoy" es el día del calendario boliviano, no el del servidor: el
+            // contenedor corre en UTC, así que con DateTime.Today el día arrancaba
+            // a las 20:00 de la víspera y las ventas de la noche caían en el KPI
+            // del día siguiente. sale_date guarda instantes UTC, de modo que los
+            // límites se convierten a UTC (ver BusinessTime).
+            var hoy        = BusinessTime.Today;
+            var todayStart = BusinessTime.StartOfDayUtc(hoy);
+            var todayEnd   = BusinessTime.EndOfDayUtcExclusive(hoy);
+            var monthStart = BusinessTime.StartOfDayUtc(new DateTime(hoy.Year, hoy.Month, 1));
 
             // Ventas del día
             var todayKpi = await db.QueryFirstAsync<SalesKpiRow>(@"

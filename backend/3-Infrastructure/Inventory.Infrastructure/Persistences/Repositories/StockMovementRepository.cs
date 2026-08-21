@@ -162,7 +162,7 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                 movement.MovementType = "AJUSTE";
                 movement.State = true;
                 movement.CreatedBy = movement.ModifiedBy = userId;
-                movement.Created = movement.Modified = DateTime.Now;
+                movement.Created = movement.Modified = DateTime.UtcNow;
 
                 await InsertMovement(movement, db, transaction);
 
@@ -213,7 +213,7 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                 movement.ReferenceType = "EXPIRY";
                 movement.State = true;
                 movement.CreatedBy = movement.ModifiedBy = userId;
-                movement.Created = movement.Modified = DateTime.Now;
+                movement.Created = movement.Modified = DateTime.UtcNow;
 
                 await InsertMovement(movement, db, transaction);
 
@@ -233,11 +233,14 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
         try
         {
             db.Open();
-            // Rango calculado acá, no en SQL con DATE(created), por la misma razón
-            // que en DashboardRepository: evitar diferencias de zona horaria entre
-            // la app y la base.
-            var inicio = desde.Date;
-            var fin = hasta.Date.AddDays(1);
+            // Rango calculado acá, no en SQL con DATE(created): el usuario elige
+            // días del calendario boliviano y `created` guarda instantes UTC, así
+            // que hay que convertir. Sin esto el día arrancaba a las 20:00 de la
+            // víspera y una merma registrada de noche caía en el reporte del día
+            // siguiente. El tope ya era exclusivo, que es lo que espera
+            // EndOfDayUtcExclusive.
+            var inicio = BusinessTime.StartOfDayUtc(desde);
+            var fin = BusinessTime.EndOfDayUtcExclusive(hasta);
 
             string sqlDetalle = @"
                 SELECT product_id, product_code, product_name, lot_code, expiry_date,

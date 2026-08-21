@@ -9,6 +9,18 @@ double _toDouble(dynamic v) => v == null ? 0 : (v as num).toDouble();
 int _toInt(dynamic v) => v == null ? 0 : (v as num).toInt();
 String _toStr(dynamic v) => v?.toString() ?? '';
 
+/// Instante de la API, pasado a hora local para mostrarlo.
+///
+/// El backend manda estas marcas en UTC (terminan en "Z") y `DateTime.parse`
+/// conserva esa zona; `DateFormat` después usa esos mismos componentes sin
+/// desplazar nada, así que sin el `toLocal()` la app mostraba cuatro horas de
+/// más y las ventas de la noche aparecían con la fecha del día siguiente.
+///
+/// Ojo: esto es para INSTANTES. Las fechas puras —vencimientos, fecha de una
+/// orden de compra— se guardan como medianoche UTC y no deben convertirse; para
+/// esas está `formatApiDate` en `purchase.dart`.
+DateTime? _toInstanteLocal(String v) => DateTime.tryParse(v)?.toLocal();
+
 /// Resultado paginado de `GET api/Sales`.
 class SalesPage {
   final List<SaleSummary> items;
@@ -62,7 +74,7 @@ class SaleSummary {
         id: _toStr(json['Id']),
         customerName: _toStr(json['CustomerName']),
         sellerName: _toStr(json['SellerName']),
-        saleDate: DateTime.tryParse(_toStr(json['SaleDate'])),
+        saleDate: _toInstanteLocal(_toStr(json['SaleDate'])),
         subtotal: _toDouble(json['Subtotal']),
         totalDiscounts: _toDouble(json['TotalDiscounts']),
         total: _toDouble(json['Total']),
@@ -104,7 +116,7 @@ class SaleFull {
         id: _toStr(json['Id']),
         customerName: _toStr(json['CustomerName']),
         sellerName: _toStr(json['SellerName']),
-        saleDate: DateTime.tryParse(_toStr(json['SaleDate'])),
+        saleDate: _toInstanteLocal(_toStr(json['SaleDate'])),
         subtotal: _toDouble(json['Subtotal']),
         totalDiscounts: _toDouble(json['TotalDiscounts']),
         headerDiscountAmount: _toDouble(json['HeaderDiscountAmount']),
@@ -208,7 +220,7 @@ class SaleReturnInfo {
 
   factory SaleReturnInfo.fromJson(Map<String, dynamic> json) => SaleReturnInfo(
         id: _toStr(json['Id']),
-        returnDate: DateTime.tryParse(_toStr(json['ReturnDate'])),
+        returnDate: _toInstanteLocal(_toStr(json['ReturnDate'])),
         reason: json['Reason'] as String?,
         totalReturned: _toDouble(json['TotalReturned']),
         isFullReturn: json['IsFullReturn'] == true,

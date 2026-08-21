@@ -127,7 +127,7 @@ public class CategoryRepository(InventoryDbContext _DbContext) : ICategoryReposi
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try

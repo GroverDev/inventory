@@ -5,6 +5,7 @@ export class CashMovement {
   public Amount: number = 0;
   public Description: string = '';
   public Created: string = '';
+  public CreatedByName: string = '';
 }
 
 export class CashMovementRequest {

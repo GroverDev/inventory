@@ -25,7 +25,7 @@ public class CashSessionApplication(
             var session = new CashSession
             {
                 UserId = userId,
-                OpenedAt = DateTime.Now,
+                OpenedAt = DateTime.UtcNow,
                 OpeningAmount = request.OpeningAmount
             };
             AuditHelper.SetCreated(session, userId);
@@ -112,15 +112,17 @@ public class CashSessionApplication(
         Response<List<CashSessionResponse>> resp = new() { Data = [] };
         try
         {
-            string dateFromFull = dateFrom + " 00:00:01";
-            string dateToFull = dateTo + " 23:59:59";
-
-            if (!DateTime.TryParse(dateFromFull, out DateTime from))
+            if (!DateTime.TryParse(dateFrom, out DateTime diaDesde))
                 throw new CustomException("Fecha desde inválida.", MessageTypes.Warning);
-            if (!DateTime.TryParse(dateToFull, out DateTime to))
+            if (!DateTime.TryParse(dateTo, out DateTime diaHasta))
                 throw new CustomException("Fecha hasta inválida.", MessageTypes.Warning);
-            if (from > to)
+            if (diaDesde.Date > diaHasta.Date)
                 throw new CustomException("La fecha desde no puede ser mayor a la fecha hasta.", MessageTypes.Warning);
+
+            // Días del calendario boliviano → ventana UTC; opened_at es un
+            // instante. El tope es exclusivo (ver BusinessTime).
+            var from = BusinessTime.StartOfDayUtc(diaDesde);
+            var to = BusinessTime.EndOfDayUtcExclusive(diaHasta);
 
             // Cajero solo ve sus propias sesiones, y solo si Cajero es su único rol.
             int? filterUserId = Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(rol) ? userId : null;

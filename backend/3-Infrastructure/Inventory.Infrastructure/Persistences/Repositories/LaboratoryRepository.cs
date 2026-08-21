@@ -140,7 +140,7 @@ public class LaboratoryRepository(InventoryDbContext _DbContext) : ILaboratoryRe
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try

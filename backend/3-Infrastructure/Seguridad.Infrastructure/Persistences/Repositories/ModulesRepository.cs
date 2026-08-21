@@ -77,7 +77,7 @@ public class ModulesRepository(SeguridadDbContext _context) : IModulesRepository
                            modified = @Modified
                      WHERE id = @Id;
                 ";
-            return await db.ExecuteAsync(sqlQuery, new { Id = id, ModifiedBy = idUserModified, Modified = DateTime.Now });
+            return await db.ExecuteAsync(sqlQuery, new { Id = id, ModifiedBy = idUserModified, Modified = DateTime.UtcNow });
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<int>(ex); }
         finally { db.Close(); }

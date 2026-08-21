@@ -84,7 +84,7 @@ public class ProviderRepository(InventoryDbContext _DbContext): IProviderReposit
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try

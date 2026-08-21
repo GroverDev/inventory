@@ -346,7 +346,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                     Id = id,
                     PurchaseStatusId = (int)Domain.Enums.PurchaseStatusEnum.CLOSED,
                     ModifiedBy = idUserModified,
-                    Modified = DateTime.Now
+                    Modified = DateTime.UtcNow
                 }, transaction);
 
                 transaction.Commit();
@@ -404,7 +404,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                     Id = id,
                     PurchaseStatusId = (int)Domain.Enums.PurchaseStatusEnum.CANCELLED,
                     ModifiedBy = idUserModified,
-                    Modified = DateTime.Now
+                    Modified = DateTime.UtcNow
                 }, transaction);
 
                 transaction.Commit();
@@ -427,7 +427,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
         return numberRows;
     }
 
-    public async Task<List<PurchaseProductResponse>> GetPurchases(DateTime purchaseDateInitial, DateTime purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus)
+    public async Task<List<PurchaseProductResponse>> GetPurchases(DateOnly purchaseDateInitial, DateOnly purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus)
     {
         List<PurchaseProductResponse> listPurchases = [];
         using var db = _DbContext.CreateConnection;
@@ -539,7 +539,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try

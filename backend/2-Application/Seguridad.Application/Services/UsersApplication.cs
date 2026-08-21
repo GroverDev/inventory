@@ -24,7 +24,7 @@ public class UsersApplication(
         user.IsActive = true;
         user.CreatedBy = UserId;
         user.UserName = user.Email;
-        user.LastAccess = DateTime.Now;
+        user.LastAccess = DateTime.UtcNow;
         user.ChangePassword = true;
         user.IsActive = true;
 

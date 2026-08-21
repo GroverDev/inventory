@@ -32,11 +32,13 @@ public class CashMovementRepository(InventoryDbContext _DbContext) : ICashMoveme
         {
             db.Open();
             const string sql = @"
-                SELECT id, cash_session_id AS CashSessionId, movement_type AS MovementType,
-                       amount, description, created
-                  FROM cash_movements
-                 WHERE cash_session_id = @SessionId AND state = TRUE
-                 ORDER BY created ASC;";
+                SELECT m.id, m.cash_session_id AS CashSessionId, m.movement_type AS MovementType,
+                       m.amount, m.description, m.created,
+                       COALESCE(u.full_name, '') AS CreatedByName
+                  FROM cash_movements m
+                  LEFT JOIN sec.users u ON u.id = m.created_by
+                 WHERE m.cash_session_id = @SessionId AND m.state = TRUE
+                 ORDER BY m.created ASC;";
             var result = await db.QueryAsync<CashMovementResponse>(sql, new { SessionId = sessionId });
             return result.ToList();
         }

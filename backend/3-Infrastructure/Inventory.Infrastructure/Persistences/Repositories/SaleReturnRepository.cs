@@ -87,8 +87,8 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                         State = true,
                         CreatedBy = saleReturn.CreatedBy,
                         ModifiedBy = saleReturn.CreatedBy,
-                        Created = DateTime.Now,
-                        Modified = DateTime.Now,
+                        Created = DateTime.UtcNow,
+                        Modified = DateTime.UtcNow,
                     };
 
                     string movSql = @"

@@ -69,7 +69,7 @@ public class CustomersController(ICustomersApplication _customersApplication) : 
         return respuesta;
     }
 
-    // GET api/Customers/default — el "Consumidor Final" del tenant activo, que
+    // GET api/Customers/default — el cliente genérico del tenant activo, que
     // el POS precarga para no bloquear una venta sin cliente identificado.
     [HttpGet("default")]
     public async Task<ActionResult<Response<CustomerRequest>>> GetDefaultCustomer()

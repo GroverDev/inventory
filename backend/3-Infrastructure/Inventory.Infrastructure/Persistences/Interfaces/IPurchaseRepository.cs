@@ -12,7 +12,7 @@ public interface IPurchaseRepository
     public Task<int> ClosePurchase(Guid id, int idUserModified);
     /// <summary>Anula una orden que aún no recibió mercadería.</summary>
     public Task<int> CancelPurchase(Guid id, int idUserModified);
-    public Task<List<PurchaseProductResponse>> GetPurchases(DateTime purchaseDateInitial, DateTime purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus);
+    public Task<List<PurchaseProductResponse>> GetPurchases(DateOnly purchaseDateInitial, DateOnly purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus);
     public Task<List<Purchase>> GetPurchases(string PurchaseDate);
     public Task<PurchaseProductResponse> GetPurchase(Guid Id);
 

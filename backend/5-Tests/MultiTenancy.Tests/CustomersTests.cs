@@ -3,7 +3,7 @@ using Dapper;
 namespace MultiTenancy.Tests;
 
 /// <summary>
-/// Cliente "Consumidor Final" (is_generic) que el POS precarga por defecto
+/// Cliente genérico ("Cliente Genérico") que el POS precarga por defecto
 /// para no bloquear una venta sin cliente identificado.
 /// </summary>
 [Collection("tenant-db")]
@@ -20,7 +20,7 @@ public class CustomersTests(TenantDatabaseFixture db)
                 "SELECT full_name, document_number FROM customers WHERE tenant_id = @t AND is_generic",
                 new { t = tenant });
 
-            Assert.Equal("Consumidor Final", generico.FullName);
+            Assert.Equal("Cliente Genérico", generico.FullName);
             Assert.Equal("0", generico.DocumentNumber);
         }
     }
@@ -51,7 +51,7 @@ public class CustomersTests(TenantDatabaseFixture db)
 
         var generico = await repo.GetDefaultCustomer();
 
-        Assert.Equal("Consumidor Final", generico.FullName);
+        Assert.Equal("Cliente Genérico", generico.FullName);
         Assert.True(generico.IsGeneric);
     }
 }

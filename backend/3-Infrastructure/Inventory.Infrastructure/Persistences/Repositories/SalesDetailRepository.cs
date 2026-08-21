@@ -200,7 +200,7 @@ public class SalesDetailRepository : ISalesDetailRepository
                     porcion.DiscountId,
                     AppliedAmount = porcion.LineTotalDiscounts,
                     porcion.CreatedBy,
-                    Created = DateTime.Now
+                    Created = DateTime.UtcNow
                 }, transaction);
         }
 
@@ -226,8 +226,8 @@ public class SalesDetailRepository : ISalesDetailRepository
                 State         = true,
                 CreatedBy     = porcion.CreatedBy,
                 ModifiedBy    = porcion.CreatedBy,
-                Created       = DateTime.Now,
-                Modified      = DateTime.Now,
+                Created       = DateTime.UtcNow,
+                Modified      = DateTime.UtcNow,
             }, transaction);
     }
 

@@ -178,7 +178,7 @@ const formatNum = (value: number) =>
 
 const formatTime = (dateStr: string) => {
   const d = new Date(dateStr);
-  return d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 </script>
 

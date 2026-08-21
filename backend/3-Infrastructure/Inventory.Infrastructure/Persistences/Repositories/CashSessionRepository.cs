@@ -171,8 +171,7 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
                   FROM cash_sessions cs
                   JOIN sec.users u ON u.id = cs.user_id
                  WHERE cs.state = TRUE
-                   AND cs.opened_at >= @DateFrom
-                   AND cs.opened_at <= @DateTo
+                   AND (cs.closed_at IS NULL OR (cs.opened_at >= @DateFrom AND cs.opened_at < @DateTo))
                    {userFilter}
                  ORDER BY cs.opened_at DESC;";
             var result = await db.QueryAsync<CashSessionResponse>(sql, new { DateFrom = dateFrom, DateTo = dateTo, UserId = userId });

@@ -78,7 +78,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _methods = results[0] as List<PaymentMethod>;
         _discounts = results[1] as List<Discount>;
         _settings = results[2] as PosSettings;
-        // Precarga el "Consumidor Final" del tenant para que cobrar nunca
+        // Precarga el cliente genérico del tenant para que cobrar nunca
         // quede bloqueado por falta de cliente. Si por algún motivo no llegó
         // (sin red, tenant sin sembrar), el picker queda en modo búsqueda,
         // como era antes de esto.

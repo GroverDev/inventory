@@ -202,8 +202,8 @@ public class PurchaseDetailRepository : IPurchaseDetailRepository
                     State = true,
                     CreatedBy = detail.CreatedBy,
                     ModifiedBy = detail.CreatedBy,
-                    Created = DateTime.Now,
-                    Modified = DateTime.Now,
+                    Created = DateTime.UtcNow,
+                    Modified = DateTime.UtcNow,
                 }, transaction);
             }
 

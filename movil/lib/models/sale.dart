@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:intl/intl.dart';
-
 import 'product.dart';
 
 double _round(double v) => double.parse(v.toStringAsFixed(2));
@@ -130,7 +128,11 @@ class SaleRequest {
   Map<String, dynamic> toJson() => {
         'Id': '',
         'CustomerId': customerId,
-        'SaleDate': DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now()),
+        // En UTC y en ISO 8601 (con la "Z"), igual que el POS web. Antes se
+        // mandaba 'dd/MM/yyyy HH:mm:ss' con la hora local: sin marca de zona el
+        // backend la tomaba como si ya fuera UTC y la venta quedaba guardada 4
+        // horas antes de haber ocurrido.
+        'SaleDate': DateTime.now().toUtc().toIso8601String(),
         'Subtotal': subtotal,
         'TotalDiscounts': totalDiscounts,
         'Total': total,

@@ -10,7 +10,7 @@ public interface ICustomersRepository
     Task<Customer> GetCustomer(Guid Id);
     Task<int> DeleteCustomer(Guid id, int idUserModified);
 
-    /// <summary>El cliente "Consumidor Final" del tenant activo, sembrado por
+    /// <summary>El cliente genérico del tenant activo, sembrado por
     /// sec.fn_seed_tenant_master_data. El POS lo precarga para no bloquear una
     /// venta sin cliente identificado.</summary>
     Task<Customer> GetDefaultCustomer();

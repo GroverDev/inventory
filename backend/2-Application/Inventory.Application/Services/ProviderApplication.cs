@@ -17,7 +17,7 @@ public class ProviderApplication(IProviderRepository _providerRepository): IProv
 
             var provider = providerRequest.Adapt<Provider>();
             provider.CreatedBy = provider.ModifiedBy = createdBy;
-            provider.Created = provider.Modified = DateTime.Now;
+            provider.Created = provider.Modified = DateTime.UtcNow;
             provider.State = true;
             provider.IsActive = true;
 
@@ -36,7 +36,7 @@ public class ProviderApplication(IProviderRepository _providerRepository): IProv
         {
             var provider = providerRequest.Adapt<Provider>();
             provider.ModifiedBy = modifiedBy;
-            provider.Modified = DateTime.Now;
+            provider.Modified = DateTime.UtcNow;
 
             var rowsAffected = await _providerRepository.UpdateProvider(provider);
             if (rowsAffected <= 0)

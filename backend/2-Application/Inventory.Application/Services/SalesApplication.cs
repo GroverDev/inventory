@@ -99,7 +99,7 @@ public class SalesApplication(
 
                 var respCustomer = await _customersRepository.GetCustomer(Guid.Parse(saleRequest.CustomerId));
 
-                saleRequest.SaleDate = saleRequest.SaleDate == "" ? DateTime.Now.ToString() : saleRequest.SaleDate;
+                saleRequest.SaleDate = saleRequest.SaleDate == "" ? DateTime.UtcNow.ToString() : saleRequest.SaleDate;
                 saleRequest.Id = Guid.Empty.ToString();
                 if (string.IsNullOrEmpty(saleRequest.HeaderDiscountId))
                     saleRequest.HeaderDiscountId = Guid.Empty.ToString();
@@ -112,6 +112,12 @@ public class SalesApplication(
                 });
 
                 var sale = saleRequest.Adapt<Sale>();
+                // SaleDate llega como texto y Mapster lo parsea a hora local del
+                // servidor. Npgsql después guarda los dígitos tal cual, así que sin
+                // normalizar la venta quedaría corrida tantas horas como el servidor
+                // se aparte de UTC. En producción (contenedor en UTC) esto no cambia
+                // nada; es lo que hace que también salga bien fuera de UTC.
+                sale.SaleDate = sale.SaleDate.ToUniversalTime();
 
                 // Convertir Guid.Empty → null en campos opcionales de descuento
                 if (sale.HeaderDiscountId == Guid.Empty) sale.HeaderDiscountId = null;
@@ -146,6 +152,7 @@ public class SalesApplication(
             if (saleRequest.Detail.Count > 0)
             {
                 var sale = saleRequest.Adapt<Sale>();
+                sale.SaleDate = sale.SaleDate.ToUniversalTime();   // ver CreateSale
                 AuditHelper.SetModified(sale, modifiedBy);
                 foreach (var det in sale.Detail)
                 {
@@ -187,25 +194,28 @@ public class SalesApplication(
         Response<SalesPagedResponse> response = new() { Data = new() };
         try
         {
-            saleDateInitial += " 00:00:01";
-            saleDateEnd     += " 23:59:59";
-
-            if (!DateTime.TryParse(saleDateInitial, out _))
+            if (!DateTime.TryParse(saleDateInitial, out var diaDesde))
                 throw new CustomException("Fecha desde, es incorrecto.", MessageTypes.Warning);
-            if (Convert.ToDateTime(saleDateInitial).Year > DateTime.Now.Year + 1)
-                throw new CustomException($"Fecha desde, el año no puede ser mayor al año {DateTime.Now.Year + 1}.", MessageTypes.Warning);
-            if (Convert.ToDateTime(saleDateInitial).Year < 1900)
+            if (diaDesde.Year > BusinessTime.Today.Year + 1)
+                throw new CustomException($"Fecha desde, el año no puede ser mayor al año {BusinessTime.Today.Year + 1}.", MessageTypes.Warning);
+            if (diaDesde.Year < 1900)
                 throw new CustomException("Fecha desde, el año no puede ser menor al año 1900.", MessageTypes.Warning);
 
-            if (!DateTime.TryParse(saleDateEnd, out _))
+            if (!DateTime.TryParse(saleDateEnd, out var diaHasta))
                 throw new CustomException("Fecha hasta, es incorrecto.", MessageTypes.Warning);
-            if (Convert.ToDateTime(saleDateEnd).Year > DateTime.Now.Year + 1)
-                throw new CustomException($"Fecha hasta, el año no puede ser mayor al año {DateTime.Now.Year + 1}.", MessageTypes.Warning);
-            if (Convert.ToDateTime(saleDateEnd).Year < 1900)
+            if (diaHasta.Year > BusinessTime.Today.Year + 1)
+                throw new CustomException($"Fecha hasta, el año no puede ser mayor al año {BusinessTime.Today.Year + 1}.", MessageTypes.Warning);
+            if (diaHasta.Year < 1900)
                 throw new CustomException("Fecha hasta, el año no puede ser menor al año 1900.", MessageTypes.Warning);
 
-            if (Convert.ToDateTime(saleDateInitial) > Convert.ToDateTime(saleDateEnd))
+            if (diaDesde.Date > diaHasta.Date)
                 throw new CustomException("Fecha desde, no puede ser mayor a la Fecha hasta.", MessageTypes.Warning);
+
+            // El usuario elige días del calendario boliviano; sale_date guarda
+            // instantes UTC. Sin convertir, el día consultado arrancaba a las
+            // 20:00 del día anterior. El tope es exclusivo (ver BusinessTime).
+            var desdeUtc = BusinessTime.StartOfDayUtc(diaDesde);
+            var hastaUtc = BusinessTime.EndOfDayUtcExclusive(diaHasta);
 
             // `rol` llega con todos los roles del usuario separados por coma. La
             // regla —restringido solo si Cajero es su único rol— vive en RolePolicy.
@@ -215,8 +225,8 @@ public class SalesApplication(
             string? filterSeller = soloLoPropio ? null   : sellerName;
 
             response.Data = await _salesRepository.GetSales(
-                Convert.ToDateTime(saleDateInitial),
-                Convert.ToDateTime(saleDateEnd),
+                desdeUtc,
+                hastaUtc,
                 filterUserId,
                 page,
                 pageSize,

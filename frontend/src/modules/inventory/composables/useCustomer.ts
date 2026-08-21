@@ -14,7 +14,7 @@ const useCustomer = () => {
     return await get<ResponseObject<Customer>>(`Customers/${id}`);
   }
 
-  /** El "Consumidor Final" del tenant activo, que el POS precarga por defecto. */
+  /** El cliente genérico del tenant activo, que el POS precarga por defecto. */
   const getDefaultCustomer = async (): Promise<ResponseObject<Customer>> => {
     return await get<ResponseObject<Customer>>('Customers/default');
   }

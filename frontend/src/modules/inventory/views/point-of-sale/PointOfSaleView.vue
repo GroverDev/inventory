@@ -1492,7 +1492,7 @@ const clearCustomer = () => {
   customerResults.value = [];
 };
 
-// Precarga el "Consumidor Final" del tenant para que cobrar nunca quede
+// Precarga el cliente genérico del tenant para que cobrar nunca quede
 // bloqueado por falta de cliente. Si falla (sin red, por ejemplo), no rompe
 // nada: el picker simplemente queda en modo búsqueda, como antes de esto.
 const loadDefaultCustomer = async () => {
@@ -1941,7 +1941,7 @@ const finalizeSale = async () => {
       completedDetail.value = [...cart.value];
       completedTotalLineDiscounts.value = totalLineDiscounts.value;
       completedHeaderDiscountAmount.value = headerDiscountAmount.value;
-      completedDate.value = new Date().toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      completedDate.value = new Date().toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
       closePaymentModal();
       resetAll();
       showCompletedModal.value = true;

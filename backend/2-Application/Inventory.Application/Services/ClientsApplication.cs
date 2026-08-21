@@ -17,7 +17,7 @@ public class CustomersApplication(ICustomersRepository _customerRepository) : IC
             customerRequest.Id = Guid.Empty.ToString();
             var customer = customerRequest.Adapt<Customer>();
             customer.CreatedBy = customer.ModifiedBy = createdBy;
-            customer.Created = customer.Modified = DateTime.Now;
+            customer.Created = customer.Modified = DateTime.UtcNow;
             customer.State = true;
             customer.IsActive = true;
             // Solo lo siembra sec.fn_seed_tenant_master_data; nunca por esta vía,
@@ -42,7 +42,7 @@ public class CustomersApplication(ICustomersRepository _customerRepository) : IC
         {
             var customer = customerRequest.Adapt<Customer>();
             customer.ModifiedBy = modifiedBy;
-            customer.Modified = DateTime.Now;
+            customer.Modified = DateTime.UtcNow;
 
             var rowsAffected = await _customerRepository.UpdateCustomer(customer); 
                 if (rowsAffected <= 0)

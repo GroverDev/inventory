@@ -45,7 +45,7 @@ class CatalogService {
     return res.data ?? <Customer>[];
   }
 
-  /// El "Consumidor Final" del tenant (GET api/Customers/default), que el POS
+  /// El cliente genérico del tenant (GET api/Customers/default), que el POS
   /// precarga para no bloquear una venta sin cliente identificado.
   Future<Customer?> getDefaultCustomer() async {
     final res = await _api.get<Customer>(

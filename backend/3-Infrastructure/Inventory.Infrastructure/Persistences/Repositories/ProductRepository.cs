@@ -108,7 +108,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         int numberRows = 0;
         try
         {
-            DateTime fechaActual = DateTime.Now;
+            DateTime fechaActual = DateTime.UtcNow;
             db.Open();
             using var transaction = db.BeginTransaction();
             try
@@ -323,7 +323,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
             using var transaction = db.BeginTransaction();
             try
             {
-                DateTime now = DateTime.Now;
+                DateTime now = DateTime.UtcNow;
                 string sqlQuery = @"
                     UPDATE products
                        SET product_name       = @ProductName,

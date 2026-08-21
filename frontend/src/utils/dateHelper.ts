@@ -18,16 +18,15 @@ export const todayIso = (): string => toIsoDate(new Date());
 /**
  * Muestra una fecha PURA (dd/MM/yyyy) sin convertirla a horario local.
  *
- * Hace falta porque algunas fechas viven en columnas con zona horaria pero
- * representan un día, no un instante: `purchase_date` y
- * `estimated_delivery_date` se guardan como medianoche UTC. Pasarlas por
- * `new Date(v).toLocaleDateString()` las corre un día atrás en Bolivia (UTC−4):
- * una compra del 28/07 se lee 27/07.
+ * Las fechas de compra —`purchase_date`, `estimated_delivery_date`,
+ * `delivery_date`— y los vencimientos son días del calendario, no instantes:
+ * viven en columnas `date` y llegan como "2026-08-21", sin hora ni zona.
+ * Construir un `new Date(v)` con ese texto lo interpreta como medianoche UTC y
+ * al mostrarlo en Bolivia (UTC−4) lo corre un día atrás: una compra del 28/07
+ * se leería 27/07. Por eso acá el día se toma del texto, sin `Date` de por medio.
  *
  * NO usar para instantes reales —una venta, un movimiento de stock, un último
- * acceso—: ahí la hora local sí es la correcta y `toLocaleDateString` está bien.
- * Tampoco hace falta para los vencimientos: vienen de una columna `date`, sin
- * zona, así que el navegador ya los interpreta como locales.
+ * acceso—: ahí la hora local sí es la correcta y `toLocaleString` está bien.
  */
 export const formatDateOnly = (value: string | Date | null | undefined): string => {
   if (!value) return '—';

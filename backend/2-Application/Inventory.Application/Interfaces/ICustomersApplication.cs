@@ -12,7 +12,7 @@ public interface ICustomersApplication
     public Task<Response<List<CustomerRequest>>> GetCustomers(string clientName);
     public Task<Response<CustomerRequest>> GetCustomer(string id);
 
-    /// <summary>El cliente "Consumidor Final" del tenant activo, que el POS
+    /// <summary>El cliente genérico del tenant activo, que el POS
     /// precarga por defecto.</summary>
     public Task<Response<CustomerRequest>> GetDefaultCustomer();
 }
