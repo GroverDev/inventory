@@ -136,6 +136,26 @@ public class RolesRepository(SeguridadDbContext _context) : IRolesRepository
             using var transaction = db.BeginTransaction();
             try
             {
+                // El menu se arma por jerarquia padre->hijo (AccessMenuController.AddObjectInMenu):
+                // un formulario cuyo padre no esta asignado al rol queda huerfano y no se renderiza
+                // nunca. Por eso la lista que llega del cliente se normaliza aca, que es la unica
+                // puerta de escritura: se toman los formularios que son pantalla y se agregan todos
+                // sus ancestros. Los contenedores sueltos, sin ninguna pantalla debajo, se descartan
+                // porque solo darian un grupo vacio en el menu.
+                var idsEfectivos = (await db.QueryAsync<int>(
+                    @"WITH RECURSIVE seleccion AS (
+                              SELECT f.id, f.form_id
+                                FROM sec.forms f
+                               WHERE f.id = ANY(@FormIds)
+                                 AND (COALESCE(f.is_form_register, false) OR f.route <> 'ninguno')
+                               UNION
+                              SELECT p.id, p.form_id
+                                FROM sec.forms p
+                                     INNER JOIN seleccion s ON p.id = s.form_id
+                          )
+                          SELECT id FROM seleccion",
+                    new { FormIds = formIds.Distinct().ToArray() }, transaction)).ToList();
+
                 // Desactivar todas las asignaciones actuales del rol
                 await db.ExecuteAsync(
                     @"UPDATE sec.roles_forms
@@ -144,7 +164,7 @@ public class RolesRepository(SeguridadDbContext _context) : IRolesRepository
                     new { RolId = rolId, UserId = userId }, transaction);
 
                 // Activar o insertar cada formulario seleccionado
-                foreach (var formId in formIds)
+                foreach (var formId in idsEfectivos)
                 {
                     int rows = await db.ExecuteAsync(
                         @"UPDATE sec.roles_forms

@@ -89,7 +89,10 @@
               <div class="col-6 col-md-3">
                 <div class="kpi-card kpi-card--total">
                   <div class="kpi-label"><i class="fal fa-check-circle me-1"></i>Total cobrado</div>
-                  <div class="kpi-value">{{ formatCurrency(periodTotals.Total) }}</div>
+                  <div class="kpi-value">{{ formatCurrency(periodTotals.Net) }}</div>
+                  <div class="kpi-sub text-warning" v-if="periodTotals.Returned > 0">
+                    facturado {{ formatCurrency(periodTotals.Total) }} · devuelto − {{ formatCurrency(periodTotals.Returned) }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -137,6 +140,7 @@
                       <th>Vendedor</th>
                       <th class="text-end">Subtotal</th>
                       <th class="text-end">Descuentos</th>
+                      <th class="text-end">Devuelto</th>
                       <th class="text-end">Total</th>
                       <th class="text-center">Acciones</th>
                     </tr>
@@ -144,7 +148,10 @@
                   <tbody>
                     <tr v-for="(sale, index) in sales" :key="index">
                       <td>{{ formatDate(sale.SaleDate) }}</td>
-                      <td class="fw-semibold">{{ sale.CustomerName }}</td>
+                      <td class="fw-semibold">
+                        {{ sale.CustomerName }}
+                        <span v-if="sale.SaleStatus === 'anulada'" class="badge bg-danger ms-1">Anulada</span>
+                      </td>
                       <td><small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small></td>
                       <td class="text-end">{{ formatCurrency(sale.Subtotal) }}</td>
                       <td class="text-end">
@@ -153,7 +160,17 @@
                         </span>
                         <span v-else class="text-muted">—</span>
                       </td>
-                      <td class="text-end fw-semibold">{{ formatCurrency(sale.Total) }}</td>
+                      <td class="text-end">
+                        <span v-if="sale.TotalReturned > 0" class="text-warning fw-semibold">
+                          − {{ formatCurrency(sale.TotalReturned) }}
+                        </span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
+                      <td class="text-end fw-semibold">
+                        <span v-if="sale.TotalReturned > 0" class="text-muted text-decoration-line-through small me-1">
+                          {{ formatCurrency(sale.Total) }}
+                        </span>{{ formatCurrency(sale.NetTotal) }}
+                      </td>
                       <td class="text-center text-nowrap">
                         <button
                           type="button"
@@ -182,7 +199,11 @@
                         <span v-if="periodTotals.Discounts > 0">− {{ formatCurrency(periodTotals.Discounts) }}</span>
                         <span v-else class="text-muted">—</span>
                       </td>
-                      <td class="text-end text-primary">{{ formatCurrency(periodTotals.Total) }}</td>
+                      <td class="text-end text-warning">
+                        <span v-if="periodTotals.Returned > 0">− {{ formatCurrency(periodTotals.Returned) }}</span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
+                      <td class="text-end text-primary">{{ formatCurrency(periodTotals.Net) }}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -196,11 +217,18 @@
                     <div class="card shadow rounded-3">
                       <div class="card-body d-flex flex-column gap-2">
                         <div class="d-flex justify-content-between align-items-center">
-                          <p class="fw-semibold mb-0 lh-sm">{{ sale.CustomerName }}</p>
-                          <span class="fs-6 fw-bold text-primary">{{ formatCurrency(sale.Total) }}</span>
+                          <p class="fw-semibold mb-0 lh-sm">
+                            {{ sale.CustomerName }}
+                            <span v-if="sale.SaleStatus === 'anulada'" class="badge bg-danger ms-1">Anulada</span>
+                          </p>
+                          <span class="fs-6 fw-bold text-primary">{{ formatCurrency(sale.NetTotal) }}</span>
                         </div>
                         <small class="text-muted"><i class="fal fa-calendar me-1"></i>{{ formatDate(sale.SaleDate) }}</small>
                         <small class="text-muted"><i class="fal fa-user me-1"></i>{{ sale.SellerName || '—' }}</small>
+                        <small v-if="sale.TotalReturned > 0" class="text-warning">
+                          <i class="fal fa-undo me-1"></i>
+                          Devuelto − {{ formatCurrency(sale.TotalReturned) }} · facturado {{ formatCurrency(sale.Total) }}
+                        </small>
                         <div v-if="sale.TotalDiscounts > 0" class="d-flex gap-3 px-2 py-1 rounded bg-body-secondary">
                           <div class="text-center flex-fill">
                             <div class="kpi-label">Subtotal</div>
@@ -273,7 +301,7 @@ const PAGE_SIZE = 50;
 const sales = ref<Sale[]>([]);
 const currentPage = ref(1);
 const totalCount = ref(0);
-const periodTotals = ref({ Subtotal: 0, Discounts: 0, Total: 0 });
+const periodTotals = ref({ Subtotal: 0, Discounts: 0, Total: 0, Returned: 0, Net: 0 });
 const allSellers = ref<string[]>([]);
 
 const { getSales, deleteSale } = useSales();
@@ -350,9 +378,15 @@ const discountRatePct = computed(() =>
 const sellerOptions = computed(() => allSellers.value);
 
 // ── Formatters ─────────────────────────────────────────────
+// La API manda sale_date en UTC; new Date() lo pasa a la hora local del
+// navegador, que es la del mostrador. Se muestra la hora porque en un día de
+// mucho movimiento la fecha sola no alcanza para ubicar una venta.
 const formatDate = (val: string | Date): string => {
   if (!val) return '—';
-  return new Date(val).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(val).toLocaleString('es-BO', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 };
 
 const formatCurrency = (val: number): string =>
@@ -374,6 +408,8 @@ const getSalesData = async (page: number) => {
     Subtotal:  Data?.PeriodSubtotal  ?? 0,
     Discounts: Data?.PeriodDiscounts ?? 0,
     Total:     Data?.PeriodTotal     ?? 0,
+    Returned:  Data?.PeriodReturned  ?? 0,
+    Net:       Data?.PeriodNet       ?? 0,
   };
   // Actualiza vendedores disponibles solo cuando no hay filtro activo
   if (!filtro.value.seller) {
@@ -402,7 +438,9 @@ const exportExcel = () => {
     Vendedor:    s.SellerName || '',
     Subtotal:    s.Subtotal,
     Descuentos:  s.TotalDiscounts,
-    Total:       s.Total,
+    Facturado:   s.Total,
+    Devuelto:    s.TotalReturned,
+    Total:       s.NetTotal,
   }));
 
   rows.push({
@@ -411,7 +449,9 @@ const exportExcel = () => {
     Vendedor:   '',
     Subtotal:   periodTotals.value.Subtotal,
     Descuentos: periodTotals.value.Discounts,
-    Total:      periodTotals.value.Total,
+    Facturado:  periodTotals.value.Total,
+    Devuelto:   periodTotals.value.Returned,
+    Total:      periodTotals.value.Net,
   });
 
   const fileName = `ventas_${filtro.value.dateInitial}_${filtro.value.dateEnd}_p${currentPage.value}.xlsx`;

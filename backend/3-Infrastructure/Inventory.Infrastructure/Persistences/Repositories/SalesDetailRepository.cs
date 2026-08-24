@@ -249,9 +249,23 @@ public class SalesDetailRepository : ISalesDetailRepository
                                         sd.unit_price,
                                         sd.line_subtotal,
                                         sd.line_total_discounts,
-                                        sd.line_total
+                                        sd.line_total,
+                                        -- Precio unitario efectivamente cobrado: la linea ya
+                                        -- con su descuento, menos la parte que le toca del
+                                        -- descuento global, dividido por la cantidad. Es lo
+                                        -- que se reembolsa al devolver, y lo que el POS
+                                        -- muestra al previsualizar una devolucion.
+                                        -- El neto sale de line_subtotal - descuentos y no de
+                                        -- line_total, porque hay ventas viejas con line_total
+                                        -- truncado a entero (10.50 guardado como 10).
+                                        ROUND((sd.line_subtotal - COALESCE(sd.line_total_discounts, 0)
+                                               - COALESCE(s.header_discount_amount, 0)
+                                                 * (sd.line_subtotal - COALESCE(sd.line_total_discounts, 0))
+                                                 / NULLIF(SUM(sd.line_subtotal - COALESCE(sd.line_total_discounts, 0)) OVER (), 0)
+                                              ) / NULLIF(sd.quantity, 0), 2) AS EffectiveUnitPrice
                                     FROM sales_detail sd
                                          INNER JOIN products p ON p.id = sd.product_id
+                                         INNER JOIN sales s ON s.id = sd.sale_id
                                          LEFT  JOIN stock_items si ON si.id = sd.stock_item_id
                                    WHERE sd.sale_id = @sale_id";
             var result = await db.QueryAsync<SaleProductDetailResponse>(sqlQuery, new { sale_id = idSale });

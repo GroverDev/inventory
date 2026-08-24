@@ -58,12 +58,16 @@ public class CashSessionApplication(
                 throw new CustomException("No tienes permiso para cerrar esta sesión.");
 
             // Calcular el monto esperado:
-            // Fondo inicial + ventas en efectivo - gastos - retiros + ingresos extra
+            // Fondo inicial + ventas en efectivo - gastos - retiros + ingresos extra.
+            // "En efectivo" es TotalCashSales, no TotalSales: una venta cobrada por QR o
+            // tarjeta no deja plata en el cajón, y sumarla dejaba al cajero con un
+            // faltante que no era suyo.
             decimal expectedAmount = session.OpeningAmount
-                + session.TotalSales
+                + session.TotalCashSales
                 - session.TotalExpenses
                 - session.TotalWithdrawals
-                + session.TotalIncome;
+                + session.TotalIncome
+                - session.TotalReturns;
 
             decimal difference = request.DeclaredAmount - expectedAmount;
 

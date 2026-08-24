@@ -23,8 +23,10 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                 string sqlReturn = @"
                     INSERT INTO sale_returns
                            (id, sale_id, return_date, reason, total_returned, is_full_return,
+                            payment_method_id, cash_session_id,
                             state, created_by, created, modified_by, modified)
                     VALUES (@Id, @SaleId, @ReturnDate, @Reason, @TotalReturned, @IsFullReturn,
+                            @PaymentMethodId, @CashSessionId,
                             @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                 ";
                 await db.ExecuteAsync(sqlReturn, saleReturn, transaction);
@@ -38,10 +40,10 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                     string sqlDetail = @"
                         INSERT INTO sale_return_detail
                                (id, return_id, sale_detail_id, product_id,
-                                quantity_returned, unit_price, line_total,
+                                quantity_returned, unit_price, discount_share, line_total,
                                 state, created_by, created, modified_by, modified)
                         VALUES (@Id, @ReturnId, @SaleDetailId, @ProductId,
-                                @QuantityReturned, @UnitPrice, @LineTotal,
+                                @QuantityReturned, @UnitPrice, @DiscountShare, @LineTotal,
                                 @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                     ";
                     await db.ExecuteAsync(sqlDetail, det, transaction);
@@ -103,6 +105,28 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                     await db.ExecuteAsync(movSql, movement, transaction);
                 }
 
+                // El efectivo que se le devuelve al cliente sale del cajón, así que tiene
+                // que quedar como movimiento de la sesión abierta: si no, el arqueo espera
+                // una plata que ya no está y el faltante se le imputa al cajero. La
+                // aplicación solo completa CashSessionId cuando el reintegro afecta caja.
+                if (saleReturn.CashSessionId.HasValue)
+                {
+                    await db.ExecuteAsync(@"
+                        INSERT INTO cash_movements
+                               (id, cash_session_id, movement_type, amount, description,
+                                state, created_by, created, modified_by, modified)
+                        VALUES (@Id, @CashSessionId, 'return', @Amount, @Description,
+                                TRUE, @CreatedBy, NOW(), @CreatedBy, NOW());",
+                        new
+                        {
+                            Id = Guid.NewGuid(),
+                            CashSessionId = saleReturn.CashSessionId.Value,
+                            Amount = saleReturn.TotalReturned,
+                            Description = $"Devolución de venta {saleReturn.SaleId}",
+                            CreatedBy = saleReturn.CreatedBy,
+                        }, transaction);
+                }
+
                 // Si es devolución total, marcar la venta como inactiva
                 if (saleReturn.IsFullReturn)
                 {
@@ -129,10 +153,12 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
         try
         {
             string sqlReturns = @"
-                SELECT id, sale_id, return_date, reason, total_returned, is_full_return
-                  FROM sale_returns
-                 WHERE sale_id = @SaleId AND state
-                 ORDER BY return_date DESC;
+                SELECT r.id, r.sale_id, r.return_date, r.reason, r.total_returned,
+                       r.is_full_return, COALESCE(pm.name, '') AS PaymentMethodName
+                  FROM sale_returns r
+                       LEFT JOIN payment_methods pm ON pm.id = r.payment_method_id
+                 WHERE r.sale_id = @SaleId AND r.state
+                 ORDER BY r.return_date DESC;
             ";
             var rows = await db.QueryAsync<SaleReturnResponse>(sqlReturns, new { SaleId = saleId });
             returns = [.. rows];
@@ -142,7 +168,7 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
                 string sqlDetail = @"
                     SELECT srd.id, srd.sale_detail_id, srd.product_id,
                            p.product_name AS ProductName,
-                           srd.quantity_returned, srd.unit_price, srd.line_total
+                           srd.quantity_returned, srd.unit_price, srd.discount_share, srd.line_total
                       FROM sale_return_detail srd
                            INNER JOIN products p ON p.id = srd.product_id
                      WHERE srd.return_id = @ReturnId AND srd.state;

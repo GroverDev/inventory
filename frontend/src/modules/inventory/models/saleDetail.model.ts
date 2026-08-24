@@ -7,6 +7,12 @@ export class SaleDetail {
   public LineSubtotal: number = 0;
   public LineTotalDiscounts: number = 0;
   public LineTotal: number = 0;
+  /**
+   * Precio unitario efectivamente cobrado: el de lista menos el descuento de la
+   * línea y menos la parte prorrateada del descuento global. Lo calcula el
+   * servidor; es el que se reembolsa al devolver.
+   */
+  public EffectiveUnitPrice: number = 0;
   public ProductName: string = '';
   public LaboratoryName: string = '';
   /**

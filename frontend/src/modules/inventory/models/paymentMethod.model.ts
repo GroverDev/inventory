@@ -3,6 +3,8 @@ export class PaymentMethod {
   public Name: string = '';
   public IconCss: string = '';
   public RequiresChanges: boolean = false;
+  /** Si el cobro entra al cajón. Un reintegro por este medio mueve la caja. */
+  public AffectsCash: boolean = false;
 }
 
 export class SalePayment {

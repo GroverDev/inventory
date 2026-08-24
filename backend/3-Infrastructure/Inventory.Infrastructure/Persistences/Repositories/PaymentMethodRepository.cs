@@ -14,7 +14,7 @@ public class PaymentMethodRepository(InventoryDbContext _DbContext) : IPaymentMe
         {
             db.Open();
             string sqlQuery = @"
-                SELECT id, name, icon_css, requires_changes
+                SELECT id, name, icon_css, requires_changes, affects_cash
                   FROM payment_methods
                  WHERE state
                  ORDER BY name;

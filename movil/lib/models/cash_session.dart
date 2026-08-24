@@ -7,9 +7,17 @@ class CashSession {
   final DateTime? closedAt;
   final double openingAmount;
   final double totalSales;
+
+  /// Lo cobrado por metodos que entran al cajon (payment_methods.affects_cash),
+  /// ya sin el vuelto. Es lo unico que suma al efectivo esperado: una venta por
+  /// QR o tarjeta no deja plata en la caja.
+  final double totalCashSales;
   final double totalExpenses;
   final double totalWithdrawals;
   final double totalIncome;
+
+  /// Efectivo reintegrado por devoluciones en la sesion: sale del cajon.
+  final double totalReturns;
 
   CashSession({
     required this.id,
@@ -19,16 +27,18 @@ class CashSession {
     required this.closedAt,
     required this.openingAmount,
     required this.totalSales,
+    this.totalCashSales = 0,
     this.totalExpenses = 0,
     this.totalWithdrawals = 0,
     this.totalIncome = 0,
+    this.totalReturns = 0,
   });
 
   bool get isOpen => closedAt == null;
 
   /// Efectivo esperado en caja al momento del arqueo.
   double get expectedCash => double.parse(
-        (openingAmount + totalSales - totalExpenses - totalWithdrawals + totalIncome)
+        (openingAmount + totalCashSales - totalExpenses - totalWithdrawals + totalIncome - totalReturns)
             .toStringAsFixed(2),
       );
 
@@ -46,9 +56,11 @@ class CashSession {
             : DateTime.tryParse(j['ClosedAt'].toString())?.toLocal(),
         openingAmount: (j['OpeningAmount'] ?? 0).toDouble(),
         totalSales: (j['TotalSales'] ?? 0).toDouble(),
+        totalCashSales: (j['TotalCashSales'] ?? 0).toDouble(),
         totalExpenses: (j['TotalExpenses'] ?? 0).toDouble(),
         totalWithdrawals: (j['TotalWithdrawals'] ?? 0).toDouble(),
         totalIncome: (j['TotalIncome'] ?? 0).toDouble(),
+        totalReturns: (j['TotalReturns'] ?? 0).toDouble(),
       );
 }
 

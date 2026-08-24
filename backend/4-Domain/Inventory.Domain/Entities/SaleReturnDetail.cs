@@ -10,5 +10,11 @@ public class SaleReturnDetail : Audit
     public Guid ProductId { get; set; }
     public int QuantityReturned { get; set; }
     public decimal UnitPrice { get; set; }
+
+    /// <summary>
+    /// Descuentos que corresponden a las unidades devueltas: el de la propia linea
+    /// mas la porcion prorrateada del descuento global de la venta.
+    /// </summary>
+    public decimal DiscountShare { get; set; }
     public decimal LineTotal { get; set; }
 }

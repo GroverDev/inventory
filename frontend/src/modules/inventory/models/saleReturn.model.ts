@@ -15,6 +15,8 @@ export class SaleReturn {
   public Reason: string | null = null;
   public TotalReturned: number = 0;
   public IsFullReturn: boolean = false;
+  /** Medio por el que se reintegró. Vacío en devoluciones anteriores a 2026-08-24. */
+  public PaymentMethodName: string = '';
   public Detail: SaleReturnDetail[] = [];
 }
 
@@ -28,5 +30,7 @@ export class SaleReturnDetailRequest {
 export class SaleReturnRequest {
   public SaleId: string = '';
   public Reason: string | null = null;
+  /** Medio de reintegro. El servidor decide con él si sale plata del cajón. */
+  public PaymentMethodId: string = '';
   public Detail: SaleReturnDetailRequest[] = [];
 }

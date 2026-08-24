@@ -10,6 +10,14 @@ public class SaleProductDetailResponse
     public decimal LineSubtotal { get; set; }
     public decimal LineTotalDiscounts { get; set; }
     public decimal LineTotal { get; set; }
+
+    /// <summary>
+    /// Precio unitario efectivamente cobrado: el de lista menos el descuento de la
+    /// linea y menos la porcion prorrateada del descuento global de la venta. Es el
+    /// que se reembolsa al devolver (ver SaleReturnApplication), y el que el POS usa
+    /// para previsualizar el importe de una devolucion.
+    /// </summary>
+    public decimal EffectiveUnitPrice { get; set; }
     public string ProductName { get; set; } = "";
 
     /// <summary>Lote del que salió la línea. Vacío si el producto no usa lotes.</summary>

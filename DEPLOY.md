@@ -155,3 +155,125 @@ que está en producción:
 docker exec -it pos_db_dos psql -U "$DB_USER" -d postgres -c 'CREATE DATABASE punto_venta_rollback;'
 docker exec -i  pos_db_dos pg_restore -U "$DB_USER" -d punto_venta_rollback /backups/pre_fechas_<fecha>.dump
 ```
+
+---
+
+## Despliegue 2026-08-24 — devoluciones, neto de ventas y arqueo
+
+Trae tres cambios que tocan plata, y **4 migraciones de esquema** (más una de
+datos que se re-ejecuta y una que es solo documentación):
+
+1. **Devoluciones sobre el precio efectivamente cobrado.** Antes se reembolsaba
+   `cantidad * precio de lista`, sin descontar los descuentos: una venta de 84.00
+   con 55.00 de descuento, cobrada en 29.00, devolvía 84.00. Ahora el importe lo
+   calcula el servidor desde la venta y el `UnitPrice` que manda el cliente se
+   ignora.
+2. **Ventas netas de devoluciones.** La vista `v_sales_net` centraliza el neto y
+   la leen el listado de ventas, el reporte, el dashboard y el detalle.
+3. **Arqueo de caja real.** El efectivo esperado suma solo lo cobrado por medios
+   que entran al cajón (`payment_methods.affects_cash`) y resta las devoluciones
+   reintegradas en efectivo, que ahora generan un `cash_movements` de tipo
+   `return`.
+
+Las migraciones van **antes** que el código: todas agregan columnas con default o
+crean objetos nuevos, así que el backend viejo sigue funcionando contra la base ya
+migrada. No hay estado intermedio roto.
+
+> **Antes de empezar: el lote del 2026-08-21 tiene que estar aplicado.** Si ese
+> despliegue nunca se hizo en el VPS, correrlo primero (sección anterior) y recién
+> después este. Cómo saber en qué estado está la base:
+> ```bash
+> docker exec -it pos_db_dos psql -U "$DB_USER" -d punto_venta -c "
+> SELECT column_name, data_type FROM information_schema.columns
+>  WHERE table_name = 'purchases' AND column_name = 'purchase_date';"
+> ```
+> Si devuelve `date`, el lote del 21 ya está. Si devuelve `timestamp with time
+> zone`, falta.
+
+```bash
+cd /opt/punto-venta
+set -a; . ./.env; set +a
+
+# 1. Traer el código nuevo (deja las migraciones en ./db/migrations, que el
+#    contenedor de la base ve como /backups/migrations).
+git pull
+
+# 2. Backup ANTES de migrar.
+docker exec -t pos_db_dos pg_dump -U "$DB_USER" -d punto_venta -F c \
+  -f "/backups/pre_devoluciones_$(date +%Y%m%d_%H%M).dump"
+
+# 3. Parar el backend para que nadie escriba durante la migración.
+docker compose stop backend
+
+# 4. Migraciones, en este orden.
+for m in 2026-08-24_devoluciones_precio_efectivo \
+         2026-08-24_vista_ventas_neto \
+         2026-08-24_caja_solo_efectivo \
+         2026-08-24_devoluciones_a_caja \
+         2026-08-21_corrige_sale_date_movil ; do
+  echo "── $m"
+  docker exec -i pos_db_dos psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d punto_venta \
+    -f "/backups/migrations/$m.sql" || break
+done
+
+# 5. Levantar backend y frontend con el código nuevo.
+docker compose up --build -d
+```
+
+### Qué hace cada migración
+
+| Migración | Qué cambia |
+|---|---|
+| `devoluciones_precio_efectivo` | `sale_return_detail.discount_share`: los descuentos que corresponden a lo devuelto. `line_total` pasa a ser el importe realmente reembolsado |
+| `vista_ventas_neto` | Crea `v_sales_net` (total, devuelto, neto y estado por venta) e indexa `sale_returns` por venta |
+| `caja_solo_efectivo` | `payment_methods.affects_cash` + siembra de tenant nuevo con la bandera correcta |
+| `devoluciones_a_caja` | `sale_returns.cash_session_id` y `payment_method_id`; `cash_movements` acepta el tipo `return` |
+| `corrige_sale_date_movil` | Re-ejecución: corrige las ventas que la app móvil vieja guardó 4 h antes |
+
+`2026-08-24_notas_historico_ventas.sql` **no se ejecuta**: no cambia nada, solo
+deja documentadas tres inconsistencias históricas que se decidió no corregir.
+
+### Verificación
+
+```bash
+set -a; . ./.env; set +a
+
+# a) La vista tiene que existir CON security_invoker: sin él corre como su dueño
+#    y el aislamiento por tenant deja de aplicarse.
+docker exec -it pos_db_dos psql -U "$DB_USER" -d punto_venta -c "
+SELECT reloptions FROM pg_class WHERE relname='v_sales_net';"
+
+# b) El rol de la aplicación tiene que poder leerla.
+docker exec -it pos_db_dos psql -U "$APP_DB_USER" -d punto_venta -c "
+SELECT count(*) FROM v_sales_net;"
+
+# c) Efectivo por método: Efectivo en true, QR y Tarjeta en false.
+docker exec -it pos_db_dos psql -U "$DB_USER" -d punto_venta -c "
+SELECT name, requires_changes, affects_cash FROM payment_methods ORDER BY name;"
+
+# d) Ninguna venta con ~4 h de diferencia contra su 'created'.
+docker exec -it pos_db_dos psql -U "$DB_USER" -d punto_venta -c "
+SELECT count(*) AS ventas_corridas FROM sales
+ WHERE EXTRACT(EPOCH FROM (created - sale_date)) BETWEEN 14100 AND 14700;"
+```
+
+En la app, sobre una venta con devolución: **Registro de Ventas** debe mostrar la
+columna *Devuelto* y el total tachado con el neto al lado, y los KPIs del período
+deben cerrar (facturado − devuelto = neto). En **Turnos de Caja**, una sesión con
+venta por QR debe mostrar "en efectivo" menor que "Ventas".
+
+Probar además los tres caminos de una devolución nueva: en efectivo con caja
+abierta (aparece el movimiento *Devolución* y baja el esperado), en efectivo sin
+caja abierta (debe rechazarla), y por QR (no toca la caja).
+
+### Después del despliegue
+
+**Publicar la app móvil.** Los celulares con la versión vieja siguen mandando la
+hora local sin zona (ventas 4 h antes) y no mandan el medio de reintegro, así que
+el servidor lo deduce del pago de la venta. Cuando la nueva versión esté
+difundida, volver a correr:
+
+```bash
+docker exec -i pos_db_dos psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d punto_venta \
+  -f /backups/migrations/2026-08-21_corrige_sale_date_movil.sql
+```

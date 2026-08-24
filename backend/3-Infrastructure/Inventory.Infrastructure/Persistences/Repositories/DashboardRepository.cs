@@ -33,11 +33,12 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
             var todayEnd   = BusinessTime.EndOfDayUtcExclusive(hoy);
             var monthStart = BusinessTime.StartOfDayUtc(new DateTime(hoy.Year, hoy.Month, 1));
 
-            // Ventas del día
+            // Ventas del día. Se lee v_sales_net y se suma net_total: un KPI de
+            // ventas con importes brutos mentiría apenas hay una devolución.
             var todayKpi = await db.QueryFirstAsync<SalesKpiRow>(@"
-                SELECT COALESCE(SUM(total), 0)          AS KpiTotal,
+                SELECT COALESCE(SUM(net_total), 0)      AS KpiTotal,
                        CAST(COUNT(*) AS INTEGER)         AS KpiCount
-                  FROM sales
+                  FROM v_sales_net
                  WHERE state
                    AND sale_date >= @Start
                    AND sale_date  < @End;",
@@ -48,9 +49,9 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
 
             // Ventas del mes
             var monthKpi = await db.QueryFirstAsync<SalesKpiRow>(@"
-                SELECT COALESCE(SUM(total), 0)          AS KpiTotal,
+                SELECT COALESCE(SUM(net_total), 0)      AS KpiTotal,
                        CAST(COUNT(*) AS INTEGER)         AS KpiCount
-                  FROM sales
+                  FROM v_sales_net
                  WHERE state
                    AND sale_date >= @Start
                    AND sale_date  < @End;",
@@ -77,8 +78,8 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
 
             // Últimas 5 ventas del día
             var recentSales = await db.QueryAsync<DashboardRecentSale>(@"
-                SELECT s.id, c.full_name AS CustomerName, s.sale_date, s.total
-                  FROM sales s
+                SELECT s.id, c.full_name AS CustomerName, s.sale_date, s.net_total AS Total
+                  FROM v_sales_net s
                  INNER JOIN customers c ON c.id = s.customer_id
                  WHERE s.state
                    AND s.sale_date >= @Start

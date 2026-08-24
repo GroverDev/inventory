@@ -107,12 +107,17 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                        s.sale_date, s.subtotal, s.total_discounts,
                        COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
                        s.total, s.is_active,
+                       s.total_returned, s.net_total, s.sale_status,
                        COALESCE(u.full_name, '') AS SellerName,
                        COUNT(*)                OVER() AS TotalCount,
                        SUM(s.subtotal)         OVER() AS PeriodSubtotal,
                        SUM(s.total_discounts)  OVER() AS PeriodDiscounts,
-                       SUM(s.total)            OVER() AS PeriodTotal
-                  FROM sales s
+                       SUM(s.total)            OVER() AS PeriodTotal,
+                       SUM(s.total_returned)   OVER() AS PeriodReturned,
+                       SUM(s.net_total)        OVER() AS PeriodNet
+                  -- v_sales_net y no sales: trae lo devuelto por venta, para que
+                  -- el listado y sus KPIs no muestren importes brutos.
+                  FROM v_sales_net s
                  INNER JOIN customers c ON c.id = s.customer_id
                  LEFT  JOIN sec.users u ON u.id = s.created_by
                  WHERE s.state
@@ -140,6 +145,8 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 result.PeriodSubtotal  = rows[0].PeriodSubtotal;
                 result.PeriodDiscounts = rows[0].PeriodDiscounts;
                 result.PeriodTotal     = rows[0].PeriodTotal;
+                result.PeriodReturned  = rows[0].PeriodReturned;
+                result.PeriodNet       = rows[0].PeriodNet;
             }
 
             foreach (var row in rows)
@@ -162,6 +169,8 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
         public decimal PeriodSubtotal { get; set; }
         public decimal PeriodDiscounts { get; set; }
         public decimal PeriodTotal { get; set; }
+        public decimal PeriodReturned { get; set; }
+        public decimal PeriodNet { get; set; }
     }
 
      public async Task<SaleProductResponse> GetSale(Guid Id)
@@ -175,8 +184,9 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                     SELECT s.id, s.customer_id, c.full_name AS CustomerName,
                            s.sale_date, s.subtotal, s.total_discounts,
                            COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
-                           s.total, s.is_active
-                      FROM sales s
+                           s.total, s.is_active,
+                           s.total_returned, s.net_total, s.sale_status
+                      FROM v_sales_net s
                      INNER JOIN customers c ON c.id = s.customer_id
                      WHERE s.state
                        AND s.id = @Id;

@@ -1,0 +1,38 @@
+-- -----------------------------------------------------------------------------
+-- Notas de datos históricos conocidos (NO ejecuta cambios)
+-- -----------------------------------------------------------------------------
+-- Este archivo no modifica nada. Documenta tres inconsistencias detectadas el
+-- 2026-08-24 al corregir el cálculo de devoluciones y el arqueo de caja, que se
+-- decidió NO tocar. Se dejan asentadas acá para que quien las encuentre después
+-- sepa que ya fueron analizadas y por qué siguen así.
+--
+-- 1) SOBRE-REEMBOLSO DE 0.36 EN LA DEVOLUCIÓN DEL 2026-05-28
+--    Venta d083a5ba-1e8b-4f87-aafe-3e1e890df7e1 (subtotal 8.64, 1.00 de
+--    descuento de línea, 1.00 de descuento global, cobrada en 6.64).
+--    Hasta esa fecha la devolución reembolsaba cantidad * precio de lista, sin
+--    descontar los descuentos, así que se devolvieron 2.81 donde correspondían
+--    2.45. Las tres líneas afectadas de sale_return_detail:
+--        22e4b6f5-6c28-4589-8455-47f3d0c5ceb4   devuelto 0.49, correcto 0.43
+--        498d0fa5-e015-4c24-b4a7-a3d6cf07009f   devuelto 1.16, correcto 1.01
+--        3914e773-7162-4650-a997-4256d523c5f2   devuelto 1.16, correcto 1.01
+--    El cálculo ya está corregido para toda devolución nueva
+--    (SaleReturnApplication + sale_return_detail.discount_share).
+--
+-- 2) line_total TRUNCADO A ENTERO EN 5 VENTAS DE FEBRERO/2026
+--    2bb6c8bc-2cf8-4b6a-bf0c-ef0fc90cfe3d, 6a6b9551-e598-454f-8ede-635fc9033cbd,
+--    4f2d7c4c-0083-4dac-b347-806bd5f75c36, aba34156-7c46-4776-a524-a80245568141,
+--    59f4d9f8-e5ba-4ed2-8a66-87ef001e0e0b
+--    En su sales_detail, line_total quedó sin decimales (10.50 guardado como 10).
+--    line_subtotal, unit_price y sales.total son correctos, y por eso todo
+--    cálculo posterior (devoluciones, precio efectivo) se apoya en
+--    line_subtotal - line_total_discounts y no en line_total. El único efecto
+--    visible es que el detalle de esas 5 ventas muestra el importe de línea
+--    truncado.
+--
+-- 3) CUATRO SESIONES DE CAJA CERRADAS CON DEVOLUCIONES NO REGISTRADAS
+--    b21b0553 (32.00), 892b8d9e (15.00), b045db6a (2.81), bd3d6c55 (0.50).
+--    Sus arqueos esperaban ese efectivo de más. No se corrigen porque el dato
+--    necesario no existe: nunca se registró si el reintegro fue en efectivo ni
+--    de qué caja salió. Desde 2026-08-24 eso se guarda en sale_returns
+--    (cash_session_id, payment_method_id) y genera un cash_movements de tipo
+--    'return'.

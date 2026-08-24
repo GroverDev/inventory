@@ -40,13 +40,13 @@
           <div class="panel-content pt-0" v-if="cargado">
             <div class="row g-2">
               <div class="col-6 col-md-4">
-                <div class="card border-0 bg-light text-center py-2">
+                <div class="card border-0 bg-body-secondary text-center py-2">
                   <small class="text-muted">Eventos de baja</small>
                   <div class="fw-bold fs-5">{{ reporte.TotalEventos }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-4">
-                <div class="card border-0 bg-light text-center py-2">
+                <div class="card border-0 bg-body-secondary text-center py-2">
                   <small class="text-muted">Unidades perdidas</small>
                   <div class="fw-bold fs-5">{{ reporte.TotalUnidades }}</div>
                 </div>

@@ -35,11 +35,16 @@ class PaymentMethod {
   /// Si el método entrega vuelto (efectivo). Tarjeta/QR normalmente no.
   final bool requiresChanges;
 
+  /// Si el cobro entra al cajon. Un reintegro por este medio mueve la caja y
+  /// exige tener una sesion de caja abierta.
+  final bool affectsCash;
+
   PaymentMethod({
     required this.id,
     required this.name,
     this.iconCss = '',
     this.requiresChanges = false,
+    this.affectsCash = false,
   });
 
   factory PaymentMethod.fromJson(Map<String, dynamic> j) => PaymentMethod(
@@ -47,6 +52,7 @@ class PaymentMethod {
         name: j['Name'] ?? j['PaymentMethodName'] ?? j['MethodName'] ?? '',
         iconCss: j['IconCss'] ?? '',
         requiresChanges: j['RequiresChanges'] ?? false,
+        affectsCash: j['AffectsCash'] ?? false,
       );
 }
 

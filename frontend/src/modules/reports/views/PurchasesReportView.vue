@@ -48,13 +48,13 @@
           <div class="panel-content pt-0" v-if="purchases.length">
             <div class="row g-2">
               <div class="col-6 col-md-4">
-                <div class="card border-0 bg-light text-center py-2">
+                <div class="card border-0 bg-body-secondary text-center py-2">
                   <small class="text-muted">Órdenes</small>
                   <div class="fw-bold fs-5">{{ purchases.length }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-4">
-                <div class="card border-0 bg-light text-center py-2">
+                <div class="card border-0 bg-body-secondary text-center py-2">
                   <small class="text-muted">Proveedores distintos</small>
                   <div class="fw-bold fs-5">{{ uniqueProviders }}</div>
                 </div>

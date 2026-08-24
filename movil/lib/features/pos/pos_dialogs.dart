@@ -96,12 +96,16 @@ Future<({double declaredAmount, String notes})?> closeCashDialog(
               children: [
                 _kv('Fondo inicial', currency(session.openingAmount)),
                 _kv('Ventas', currency(session.totalSales)),
+                if (session.totalCashSales != session.totalSales)
+                  _kv('  en efectivo', currency(session.totalCashSales)),
                 if (session.totalExpenses > 0)
                   _kv('Gastos', '− ${currency(session.totalExpenses)}'),
                 if (session.totalWithdrawals > 0)
                   _kv('Retiros', '− ${currency(session.totalWithdrawals)}'),
                 if (session.totalIncome > 0)
                   _kv('Ingresos', currency(session.totalIncome)),
+                if (session.totalReturns > 0)
+                  _kv('Devoluciones', '− ${currency(session.totalReturns)}'),
                 const Divider(),
                 _kv('Esperado en caja', currency(session.expectedCash),
                     bold: true),

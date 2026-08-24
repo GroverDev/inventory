@@ -12,10 +12,15 @@ export class CashSession {
   public ExpectedAmount: number | null = null;
   public Difference: number | null = null;
   public Notes: string = '';
+  /** Ventas de la sesión, todos los métodos de pago. Informativo. */
   public TotalSales: number = 0;
+  /** Lo cobrado por métodos que entran al cajón, ya sin el vuelto: es lo que suma al esperado. */
+  public TotalCashSales: number = 0;
   public TotalExpenses: number = 0;
   public TotalWithdrawals: number = 0;
   public TotalIncome: number = 0;
+  /** Efectivo reintegrado por devoluciones en la sesión: resta al esperado. */
+  public TotalReturns: number = 0;
   public Movements: CashMovement[] = [];
 }
 

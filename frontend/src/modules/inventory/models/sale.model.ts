@@ -8,6 +8,10 @@ export interface SalesPagedResult {
   PeriodSubtotal: number;
   PeriodDiscounts: number;
   PeriodTotal: number;
+  /** Lo devuelto en el período: PeriodTotal no lo descuenta. */
+  PeriodReturned: number;
+  /** PeriodTotal − PeriodReturned. */
+  PeriodNet: number;
 }
 
 export class Sale {
@@ -20,6 +24,11 @@ export class Sale {
   public TotalDiscounts: number = 0;
   public Total: number = 0;
   public IsActive: boolean = false;
+  /** Suma de las devoluciones de la venta. Total no la descuenta; NetTotal sí. */
+  public TotalReturned: number = 0;
+  public NetTotal: number = 0;
+  /** activa | con_devolucion | anulada (derivado en v_sales_net). */
+  public SaleStatus: string = "";
   public CashSessionId: string = '';
   public HeaderDiscountId: string = '';
   public HeaderDiscountAmount: number = 0;

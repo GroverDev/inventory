@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/catalog.dart';
 import '../../models/sale_history.dart';
+import '../../services/catalog_service.dart';
 import '../../services/sale_service.dart';
 
 class SaleDetailScreen extends StatefulWidget {
@@ -24,6 +26,9 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
 
   /// Se registró una devolución: al volver, la lista debe refrescarse.
   bool _changed = false;
+
+  /// Medios de reintegro, para elegir por dónde se le devuelve al cliente.
+  List<PaymentMethod> _paymentMethods = const [];
 
   @override
   void initState() {
@@ -298,6 +303,28 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
     final qty = <String, int>{for (final d in sale.detail) d.id: 0};
     final reasonCtrl = TextEditingController();
 
+    if (_paymentMethods.isEmpty) {
+      try {
+        _paymentMethods = await context.read<CatalogService>().paymentMethods();
+      } on ApiException catch (e) {
+        _snack(e.message);
+        return;
+      }
+    }
+    if (!mounted) return;
+
+    // Se precarga el medio con el que se cobró la venta (el de mayor importe si
+    // hubo varios): es lo que va a pasar casi siempre. El cajero lo cambia solo
+    // si al cliente se le reintegra por otra vía.
+    final cobros = [...sale.payments]
+      ..sort((a, b) => b.amountGiven.compareTo(a.amountGiven));
+    var methodId = _paymentMethods
+            .where((m) => cobros.isNotEmpty && m.id == cobros.first.paymentMethodId)
+            .map((m) => m.id)
+            .firstOrNull ??
+        _paymentMethods.where((m) => m.affectsCash).map((m) => m.id).firstOrNull ??
+        _paymentMethods.firstOrNull?.id;
+
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -310,7 +337,10 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
           builder: (context, setSheet) {
             double total = 0;
             for (final d in sale.detail) {
-              total += (qty[d.id] ?? 0) * d.unitPrice;
+              // Precio efectivamente cobrado: el servidor reembolsa sobre este,
+              // no sobre el de lista. El monto final lo recalcula el backend al
+              // confirmar, asi que esto es una previsualizacion.
+              total += (qty[d.id] ?? 0) * d.effectiveUnitPrice;
             }
 
             return SingleChildScrollView(
@@ -332,6 +362,25 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  DropdownButtonFormField<String>(
+                    initialValue: methodId,
+                    decoration: const InputDecoration(labelText: 'Reintegrar por'),
+                    items: _paymentMethods
+                        .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
+                        .toList(),
+                    onChanged: (v) => setSheet(() => methodId = v),
+                  ),
+                  if (_paymentMethods
+                      .where((m) => m.id == methodId)
+                      .any((m) => m.affectsCash))
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Sale del cajón: requiere tener una caja abierta.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
                   ...sale.detail.map((d) {
                     final already = sale.returnedFor(d.id);
                     final available = d.quantity - already;
@@ -398,7 +447,7 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
     );
 
     if (confirmed == true) {
-      await _submitReturn(qty, reasonCtrl.text.trim());
+      await _submitReturn(qty, reasonCtrl.text.trim(), methodId);
     }
     reasonCtrl.dispose();
   }
@@ -431,7 +480,8 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
     );
   }
 
-  Future<void> _submitReturn(Map<String, int> qty, String reason) async {
+  Future<void> _submitReturn(
+      Map<String, int> qty, String reason, String? paymentMethodId) async {
     final sale = _sale!;
     final detail = <SaleReturnDetailRequest>[];
     for (final d in sale.detail) {
@@ -441,7 +491,7 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
           saleDetailId: d.id,
           productId: d.productId,
           quantityReturned: q,
-          unitPrice: d.unitPrice,
+          unitPrice: d.effectiveUnitPrice,
         ));
       }
     }
@@ -452,6 +502,7 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
             SaleReturnRequest(
               saleId: sale.id,
               reason: reason.isEmpty ? null : reason,
+              paymentMethodId: paymentMethodId,
               detail: detail,
             ),
           );

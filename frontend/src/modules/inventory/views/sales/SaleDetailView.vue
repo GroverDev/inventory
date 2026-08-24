@@ -283,6 +283,9 @@
                       {{ ret.IsFullReturn ? 'Total' : 'Parcial' }}
                     </span>
                     <small class="text-muted">{{ formatDate(ret.ReturnDate) }}</small>
+                    <small v-if="ret.PaymentMethodName" class="text-muted">
+                      <i class="fal fa-wallet me-1"></i>{{ ret.PaymentMethodName }}
+                    </small>
                     <small v-if="ret.Reason" class="text-muted fst-italic">— {{ ret.Reason }}</small>
                     <span class="ms-auto fw-semibold text-danger small">− {{ formatCurrency(ret.TotalReturned) }}</span>
                   </div>
@@ -315,14 +318,26 @@
           </div>
 
           <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label small text-muted">Motivo (opcional)</label>
-              <input
-                type="text" class="form-control form-control-sm"
-                v-model="returnReason"
-                placeholder="Ej: Producto en mal estado, error de pedido..."
-                maxlength="255"
-              />
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-md-7">
+                <label class="form-label small text-muted">Motivo (opcional)</label>
+                <input
+                  type="text" class="form-control form-control-sm"
+                  v-model="returnReason"
+                  placeholder="Ej: Producto en mal estado, error de pedido..."
+                  maxlength="255"
+                />
+              </div>
+              <div class="col-12 col-md-5">
+                <label class="form-label small text-muted">Reintegrar por</label>
+                <select class="form-select form-select-sm" v-model="returnPaymentMethodId">
+                  <option v-for="pm in paymentMethods" :key="pm.Id" :value="pm.Id">{{ pm.Name }}</option>
+                </select>
+                <small v-if="returnAffectsCash" class="text-muted d-block mt-1">
+                  <i class="fal fa-cash-register me-1"></i>
+                  Sale del cajón: requiere caja abierta.
+                </small>
+              </div>
             </div>
 
             <div class="table-responsive">
@@ -373,6 +388,12 @@
               </table>
             </div>
 
+            <div v-if="sale.TotalDiscounts > 0" class="text-muted small mt-2">
+              <i class="fal fa-info-circle me-1"></i>
+              Los importes se calculan sobre el precio efectivamente cobrado, ya con los
+              descuentos aplicados. El servidor recalcula el monto final al confirmar.
+            </div>
+
             <div v-if="returnTotal === 0" class="text-center text-muted small mt-3">
               <i class="fal fa-info-circle me-1"></i>
               Indica la cantidad a devolver en al menos un producto.
@@ -404,22 +425,30 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { Sale } from '@/modules/inventory/models/sale.model';
 import { SaleReturnRequest, SaleReturnDetailRequest } from '@/modules/inventory/models/saleReturn.model';
+import type { PaymentMethod } from '@/modules/inventory/models/paymentMethod.model';
 import useSales from '@/modules/inventory/composables/useSales';
 import useSaleReturn from '@/modules/inventory/composables/useSaleReturn';
+import usePaymentMethod from '@/modules/inventory/composables/usePaymentMethod';
 import utils from '@/utils/msg';
 
 const router = useRouter();
 const route = useRoute();
 const { getSaleById } = useSales();
 const { createReturn } = useSaleReturn();
+const { getPaymentMethods } = usePaymentMethod();
 
 const sale = ref(new Sale());
 const showReturnHistory = ref(false);
 
 // ── Formatters ─────────────────────────────────────────────
+// Igual que en el listado: la API manda UTC y se muestra en hora local, con
+// hora y minutos.
 const formatDate = (val: string | Date): string => {
   if (!val) return '—';
-  return new Date(val).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(val).toLocaleString('es-BO', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 };
 
 const formatCurrency = (val: number): string =>
@@ -486,7 +515,15 @@ const loadSale = async () => {
   }
 };
 
-onMounted(loadSale);
+const loadPaymentMethods = async () => {
+  const { ok, Data } = await getPaymentMethods();
+  if (ok) paymentMethods.value = Data ?? [];
+};
+
+onMounted(async () => {
+  await loadSale();
+  await loadPaymentMethods();
+});
 
 const returnPage = () => router.push({ name: 'sales-admin' });
 
@@ -498,6 +535,7 @@ interface ReturnLine {
   Quantity: number;
   AlreadyReturned: number;
   Available: number;
+  /** Precio efectivamente cobrado por unidad (ya con descuentos): es lo que se reembolsa. */
   UnitPrice: number;
   QuantityReturned: number;
 }
@@ -506,6 +544,14 @@ const showReturnModal = ref(false);
 const savingReturn = ref(false);
 const returnReason = ref('');
 const returnLines = ref<ReturnLine[]>([]);
+const paymentMethods = ref<PaymentMethod[]>([]);
+const returnPaymentMethodId = ref('');
+
+// Solo los medios que entran al cajón mueven la caja; el aviso y la validación
+// del servidor (caja abierta) dependen de esto.
+const returnAffectsCash = computed(
+  () => paymentMethods.value.find(pm => pm.Id === returnPaymentMethodId.value)?.AffectsCash === true
+);
 
 const returnTotal = computed(() =>
   returnLines.value.reduce((s, l) => s + l.QuantityReturned * l.UnitPrice, 0)
@@ -513,6 +559,16 @@ const returnTotal = computed(() =>
 
 const openReturnModal = () => {
   returnReason.value = '';
+
+  // Se precarga el medio con el que se cobró la venta (el de mayor importe si
+  // hubo varios): es lo que va a pasar casi siempre, y el cajero solo lo cambia
+  // si al cliente se le devuelve por otra vía.
+  const cobro = [...(sale.value.Payments ?? [])].sort((a, b) => b.AmountGiven - a.AmountGiven)[0];
+  returnPaymentMethodId.value =
+    paymentMethods.value.find(pm => pm.Id === cobro?.PaymentMethodId)?.Id
+    ?? paymentMethods.value.find(pm => pm.AffectsCash)?.Id
+    ?? paymentMethods.value[0]?.Id
+    ?? '';
   returnLines.value = sale.value.Detail.map((d) => {
     const alreadyReturned = (sale.value.Returns ?? [])
       .flatMap((r) => r.Detail)
@@ -525,7 +581,7 @@ const openReturnModal = () => {
       Quantity: d.Quantity,
       AlreadyReturned: alreadyReturned,
       Available: d.Quantity - alreadyReturned,
-      UnitPrice: d.UnitPrice,
+      UnitPrice: d.EffectiveUnitPrice,
       QuantityReturned: 0,
     };
   });
@@ -556,6 +612,7 @@ const confirmReturn = async () => {
       d.UnitPrice = l.UnitPrice;
       return d;
     });
+    request.PaymentMethodId = returnPaymentMethodId.value;
 
     const { ok, Message } = await createReturn(request);
     if (ok) {

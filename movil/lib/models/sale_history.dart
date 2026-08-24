@@ -157,6 +157,11 @@ class SaleDetailItem {
   final double lineTotal;
   final String productName;
 
+  /// Precio unitario efectivamente cobrado: el de lista menos el descuento de la
+  /// linea y menos la parte prorrateada del descuento global. Lo calcula el
+  /// servidor; es el que se reembolsa al devolver.
+  final double effectiveUnitPrice;
+
   SaleDetailItem({
     required this.id,
     required this.productId,
@@ -166,6 +171,7 @@ class SaleDetailItem {
     required this.lineTotalDiscounts,
     required this.lineTotal,
     required this.productName,
+    required this.effectiveUnitPrice,
   });
 
   factory SaleDetailItem.fromJson(Map<String, dynamic> json) => SaleDetailItem(
@@ -177,16 +183,19 @@ class SaleDetailItem {
         lineTotalDiscounts: _toDouble(json['LineTotalDiscounts']),
         lineTotal: _toDouble(json['LineTotal']),
         productName: _toStr(json['ProductName']),
+        effectiveUnitPrice: _toDouble(json['EffectiveUnitPrice']),
       );
 }
 
 class SalePaymentInfo {
+  final String paymentMethodId;
   final String paymentMethodName;
   final String iconCss;
   final double amountGiven;
   final double amountReturned;
 
   SalePaymentInfo({
+    this.paymentMethodId = '',
     required this.paymentMethodName,
     required this.iconCss,
     required this.amountGiven,
@@ -194,6 +203,7 @@ class SalePaymentInfo {
   });
 
   factory SalePaymentInfo.fromJson(Map<String, dynamic> json) => SalePaymentInfo(
+        paymentMethodId: _toStr(json['PaymentMethodId']),
         paymentMethodName: _toStr(json['PaymentMethodName']),
         iconCss: _toStr(json['IconCss']),
         amountGiven: _toDouble(json['AmountGiven']),
@@ -205,6 +215,7 @@ class SaleReturnInfo {
   final String id;
   final DateTime? returnDate;
   final String? reason;
+  final String paymentMethodName;
   final double totalReturned;
   final bool isFullReturn;
   final List<SaleReturnDetailInfo> detail;
@@ -213,6 +224,7 @@ class SaleReturnInfo {
     required this.id,
     required this.returnDate,
     required this.reason,
+    this.paymentMethodName = '',
     required this.totalReturned,
     required this.isFullReturn,
     required this.detail,
@@ -222,6 +234,7 @@ class SaleReturnInfo {
         id: _toStr(json['Id']),
         returnDate: _toInstanteLocal(_toStr(json['ReturnDate'])),
         reason: json['Reason'] as String?,
+        paymentMethodName: _toStr(json['PaymentMethodName']),
         totalReturned: _toDouble(json['TotalReturned']),
         isFullReturn: json['IsFullReturn'] == true,
         detail: ((json['Detail'] as List?) ?? [])
@@ -262,17 +275,23 @@ class SaleReturnDetailInfo {
 class SaleReturnRequest {
   final String saleId;
   final String? reason;
+
+  /// Medio por el que se reintegra. El servidor decide con el si sale plata del
+  /// cajon; si es efectivo exige tener una caja abierta.
+  final String? paymentMethodId;
   final List<SaleReturnDetailRequest> detail;
 
   SaleReturnRequest({
     required this.saleId,
     this.reason,
+    this.paymentMethodId,
     required this.detail,
   });
 
   Map<String, dynamic> toJson() => {
         'SaleId': saleId,
         'Reason': reason,
+        'PaymentMethodId': paymentMethodId,
         'Detail': detail.map((d) => d.toJson()).toList(),
       };
 }

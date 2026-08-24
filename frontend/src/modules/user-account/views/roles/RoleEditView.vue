@@ -177,7 +177,7 @@
                   :node="root"
                   :level="0"
                   :selected-ids="selectedFormIds"
-                  @update:selected-ids="selectedFormIds = $event"
+                  @update:selected-ids="selectedFormIds = normalizeSelection($event)"
                   class="mb-1"
                 />
               </div>
@@ -243,6 +243,30 @@ const formsAsTree = computed((): TreeNode[] => {
 
   return roots;
 });
+
+// El menu de la app se arma por jerarquia padre->hijo: un formulario cuyo padre no esta
+// asignado al rol queda huerfano y no se muestra nunca. Esto espeja lo que hace
+// AssignFormsToRole en el backend, para que el arbol refleje lo que se va a guardar: cada
+// pantalla marcada arrastra a sus ancestros, y los contenedores que quedan sin ninguna
+// pantalla debajo se descartan, porque solo darian un grupo vacio en el menu.
+const normalizeSelection = (ids: number[]): number[] => {
+  const byId = new Map<number, Form>(allForms.value.map(f => [f.Id, f]));
+  const result = new Set<number>();
+
+  ids.forEach(id => {
+    const form = byId.get(id);
+    if (!form) return;
+    if (!form.IsFormRegister && form.Route === 'ninguno') return; // contenedor: entra solo como ancestro
+
+    let current: Form | undefined = form;
+    while (current && !result.has(current.Id)) {
+      result.add(current.Id);
+      current = byId.get(current.FormId);
+    }
+  });
+
+  return [...result];
+};
 
 const allSelected = computed(() => selectedFormIds.value.length === allForms.value.length && allForms.value.length > 0);
 
@@ -313,6 +337,9 @@ const saveForms = async () => {
 
   const { ok } = await assignForms({ RolId: localRole.value.Id, FormIds: selectedFormIds.value });
   if (ok) {
+    // El backend normaliza la seleccion (agrega ancestros, descarta contenedores vacios):
+    // recargar para que el arbol muestre lo que realmente quedo guardado.
+    await loadAssignedForms(localRole.value.Id);
     await utils.showMessageModal({ Description: 'Los formularios se asignaron correctamente.', MessageType: 'success' });
   }
 };

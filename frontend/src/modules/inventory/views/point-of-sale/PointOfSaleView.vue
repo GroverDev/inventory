@@ -78,6 +78,9 @@
                 <div class="border rounded p-2 text-center">
                   <small class="text-muted d-block">Ventas</small>
                   <strong class="text-success">Bs. {{ formatNum(cashSession.TotalSales) }}</strong>
+                  <small v-if="cashSession.TotalCashSales !== cashSession.TotalSales" class="text-muted d-block">
+                    en efectivo Bs. {{ formatNum(cashSession.TotalCashSales) }}
+                  </small>
                 </div>
               </div>
               <div class="col-6" v-if="cashSession.TotalExpenses > 0">
@@ -90,6 +93,12 @@
                 <div class="border rounded p-2 text-center">
                   <small class="text-muted d-block">Retiros</small>
                   <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalWithdrawals) }}</strong>
+                </div>
+              </div>
+              <div class="col-6" v-if="cashSession.TotalReturns > 0">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Devoluciones</small>
+                  <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalReturns) }}</strong>
                 </div>
               </div>
             </div>
@@ -1216,12 +1225,14 @@ const movementTypes = [
 
 const expectedCash = computed(() => {
   if (!cashSession.value) return 0;
+  // TotalCashSales y no TotalSales: lo cobrado por QR o tarjeta no está en el cajón.
   return +(
     cashSession.value.OpeningAmount +
-    cashSession.value.TotalSales -
+    cashSession.value.TotalCashSales -
     cashSession.value.TotalExpenses -
     cashSession.value.TotalWithdrawals +
-    cashSession.value.TotalIncome
+    cashSession.value.TotalIncome -
+    cashSession.value.TotalReturns
   ).toFixed(2);
 });
 

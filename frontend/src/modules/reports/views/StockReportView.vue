@@ -44,7 +44,7 @@
           <div class="panel-content pt-0" v-if="displayRows.length">
             <div class="row g-2">
               <div class="col-6 col-md-3">
-                <div class="card border-0 bg-light text-center py-2">
+                <div class="card border-0 bg-body-secondary text-center py-2">
                   <small class="text-muted">Productos</small>
                   <div class="fw-bold fs-5">{{ displayRows.length }}</div>
                 </div>
@@ -56,7 +56,7 @@
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="card border-0 bg-light text-center py-2">
+                <div class="card border-0 bg-body-secondary text-center py-2">
                   <small class="text-muted">Unidades totales</small>
                   <div class="fw-bold fs-5">{{ totalUnits.toLocaleString('es-BO') }}</div>
                 </div>

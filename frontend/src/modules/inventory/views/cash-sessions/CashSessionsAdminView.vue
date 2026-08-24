@@ -75,8 +75,18 @@
                     <td><small>{{ formatDate(s.OpenedAt) }}</small></td>
                     <td><small>{{ s.ClosedAt ? formatDate(s.ClosedAt) : '—' }}</small></td>
                     <td class="text-end small">Bs. {{ formatNum(s.OpeningAmount) }}</td>
-                    <td class="text-end small text-success">Bs. {{ formatNum(s.TotalSales) }}</td>
-                    <td class="text-end small text-danger">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</td>
+                    <td class="text-end small text-success">
+                      Bs. {{ formatNum(s.TotalSales) }}
+                      <small v-if="s.TotalCashSales !== s.TotalSales" class="text-muted d-block">
+                        efectivo Bs. {{ formatNum(s.TotalCashSales) }}
+                      </small>
+                    </td>
+                    <td class="text-end small text-danger">
+                      Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}
+                      <small v-if="s.TotalReturns > 0" class="text-muted d-block">
+                        devoluciones Bs. {{ formatNum(s.TotalReturns) }}
+                      </small>
+                    </td>
                     <td class="text-end small fw-semibold">
                       Bs. {{ formatNum(expectedAmount(s)) }}
                     </td>
@@ -129,6 +139,9 @@
                         <div class="col-4">
                           <div class="text-muted">Ventas</div>
                           <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
+                          <small v-if="s.TotalCashSales !== s.TotalSales" class="text-muted">
+                            efectivo Bs. {{ formatNum(s.TotalCashSales) }}
+                          </small>
                         </div>
                         <div class="col-4">
                           <div class="text-muted">Gastos</div>
@@ -198,6 +211,10 @@
                 <div class="border rounded p-2 text-center">
                   <small class="text-muted d-block">+ Ventas</small>
                   <strong class="text-success">Bs. {{ formatNum(selectedSession.TotalSales) }}</strong>
+                  <small v-if="selectedSession.TotalCashSales !== selectedSession.TotalSales"
+                         class="text-muted d-block">
+                    en efectivo Bs. {{ formatNum(selectedSession.TotalCashSales) }} · el resto no entra al cajón
+                  </small>
                 </div>
               </div>
               <div class="col-6 col-md-3">
@@ -210,6 +227,9 @@
                 <div class="border rounded p-2 text-center">
                   <small class="text-muted d-block">− Gastos + Retiros</small>
                   <strong class="text-danger">Bs. {{ formatNum(selectedSession.TotalExpenses + selectedSession.TotalWithdrawals) }}</strong>
+                  <small v-if="selectedSession.TotalReturns > 0" class="text-muted d-block">
+                    + devoluciones Bs. {{ formatNum(selectedSession.TotalReturns) }}
+                  </small>
                 </div>
               </div>
             </div>
@@ -288,7 +308,7 @@
                   </div>
                   <div class="col-6 col-md-3">
                     <div class="card border border-success text-center py-2 mb-0">
-                      <small class="text-muted d-block">Total neto</small>
+                      <small class="text-muted d-block">Total facturado</small>
                       <strong class="text-success">Bs. {{ formatNum(sessionSales.reduce((a,s)=>a+s.Total,0)) }}</strong>
                     </div>
                   </div>
@@ -377,7 +397,7 @@
                   <tr v-for="m in selectedSession.Movements" :key="m.Id">
                     <td>
                       <span class="badge"
-                        :class="m.MovementType === 'expense' ? 'bg-danger-subtle text-danger' : m.MovementType === 'withdrawal' ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'">
+                        :class="m.MovementType === 'income' ? 'bg-success-subtle text-success' : m.MovementType === 'withdrawal' ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger'">
                         {{ movementLabel(m.MovementType) }}
                       </span>
                     </td>
@@ -537,7 +557,8 @@ const isStaleOpen = (s: CashSession): boolean => s.IsOpen && daysOpen(s) >= STAL
 const expectedAmount = (s: CashSession): number =>
   s.ExpectedAmount !== null
     ? s.ExpectedAmount
-    : s.OpeningAmount + s.TotalSales + s.TotalIncome - s.TotalExpenses - s.TotalWithdrawals;
+    : s.OpeningAmount + s.TotalCashSales + s.TotalIncome
+      - s.TotalExpenses - s.TotalWithdrawals - s.TotalReturns;
 
 const movementLabel = (type: string) => MovementTypeLabels[type] ?? type;
 

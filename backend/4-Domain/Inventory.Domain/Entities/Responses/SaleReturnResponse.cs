@@ -8,6 +8,7 @@ public class SaleReturnResponse
     public string? Reason { get; set; }
     public decimal TotalReturned { get; set; }
     public bool IsFullReturn { get; set; }
+    public string PaymentMethodName { get; set; } = "";
     public List<SaleReturnDetailResponse> Detail { get; set; } = [];
 }
 
@@ -19,5 +20,6 @@ public class SaleReturnDetailResponse
     public string ProductName { get; set; } = "";
     public int QuantityReturned { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal DiscountShare { get; set; }
     public decimal LineTotal { get; set; }
 }

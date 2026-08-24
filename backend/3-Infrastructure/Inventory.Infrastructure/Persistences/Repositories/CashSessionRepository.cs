@@ -59,9 +59,17 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
                        cs.opened_at, cs.closed_at,
                        cs.opening_amount, cs.declared_amount, cs.expected_amount, cs.difference, cs.notes,
                        COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.cash_session_id = cs.id AND s.state), 0) AS TotalSales,
+                       -- Solo lo que entra al cajón: si la venta se cobró por QR o tarjeta no hay
+                       -- efectivo que contar. Se descuenta el vuelto entregado.
+                       COALESCE(ROUND((SELECT SUM(sp.amount_given - COALESCE(sp.""amount returned"", 0))
+                                   FROM sale_payments sp
+                                        INNER JOIN payment_methods pm ON pm.id = sp.payment_method_id
+                                        INNER JOIN sales sc ON sc.id = sp.sale_id
+                                  WHERE sc.cash_session_id = cs.id AND sc.state AND pm.affects_cash), 2), 0) AS TotalCashSales,
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'expense' AND m.state), 0) AS TotalExpenses,
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'withdrawal' AND m.state), 0) AS TotalWithdrawals,
-                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'income' AND m.state), 0) AS TotalIncome
+                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'income' AND m.state), 0) AS TotalIncome,
+                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'return' AND m.state), 0) AS TotalReturns
                   FROM cash_sessions cs
                   JOIN sec.users u ON u.id = cs.user_id
                  WHERE cs.user_id = @UserId AND cs.closed_at IS NULL AND cs.state = TRUE;";
@@ -86,9 +94,17 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
                        cs.opened_at, cs.closed_at,
                        cs.opening_amount, cs.declared_amount, cs.expected_amount, cs.difference, cs.notes,
                        COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.cash_session_id = cs.id AND s.state), 0) AS TotalSales,
+                       -- Solo lo que entra al cajón: si la venta se cobró por QR o tarjeta no hay
+                       -- efectivo que contar. Se descuenta el vuelto entregado.
+                       COALESCE(ROUND((SELECT SUM(sp.amount_given - COALESCE(sp.""amount returned"", 0))
+                                   FROM sale_payments sp
+                                        INNER JOIN payment_methods pm ON pm.id = sp.payment_method_id
+                                        INNER JOIN sales sc ON sc.id = sp.sale_id
+                                  WHERE sc.cash_session_id = cs.id AND sc.state AND pm.affects_cash), 2), 0) AS TotalCashSales,
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'expense' AND m.state), 0) AS TotalExpenses,
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'withdrawal' AND m.state), 0) AS TotalWithdrawals,
-                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'income' AND m.state), 0) AS TotalIncome
+                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'income' AND m.state), 0) AS TotalIncome,
+                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'return' AND m.state), 0) AS TotalReturns
                   FROM cash_sessions cs
                   JOIN sec.users u ON u.id = cs.user_id
                  WHERE cs.id = @SessionId AND cs.state = TRUE;";
@@ -165,9 +181,17 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
                        cs.opened_at, cs.closed_at,
                        cs.opening_amount, cs.declared_amount, cs.expected_amount, cs.difference, cs.notes,
                        COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.cash_session_id = cs.id AND s.state), 0) AS TotalSales,
+                       -- Solo lo que entra al cajón: si la venta se cobró por QR o tarjeta no hay
+                       -- efectivo que contar. Se descuenta el vuelto entregado.
+                       COALESCE(ROUND((SELECT SUM(sp.amount_given - COALESCE(sp.""amount returned"", 0))
+                                   FROM sale_payments sp
+                                        INNER JOIN payment_methods pm ON pm.id = sp.payment_method_id
+                                        INNER JOIN sales sc ON sc.id = sp.sale_id
+                                  WHERE sc.cash_session_id = cs.id AND sc.state AND pm.affects_cash), 2), 0) AS TotalCashSales,
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'expense' AND m.state), 0) AS TotalExpenses,
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'withdrawal' AND m.state), 0) AS TotalWithdrawals,
-                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'income' AND m.state), 0) AS TotalIncome
+                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'income' AND m.state), 0) AS TotalIncome,
+                       COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'return' AND m.state), 0) AS TotalReturns
                   FROM cash_sessions cs
                   JOIN sec.users u ON u.id = cs.user_id
                  WHERE cs.state = TRUE
