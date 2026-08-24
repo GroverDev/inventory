@@ -113,12 +113,13 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // La API configura esto en Program.cs, y sin ello las columnas
-        // snake_case no mapean a las propiedades PascalCase: los repositorios
-        // devuelven el valor por defecto en silencio. Sin esta línea las pruebas
-        // que ejercitan repositorios estarían midiendo algo distinto de lo que
-        // corre en producción.
-        Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+        // La configuración real de Dapper (mapeo snake_case y el handler de
+        // DateOnly), no una copia: sin ella los repositorios devuelven el valor
+        // por defecto en silencio y las pruebas medirían algo distinto de lo que
+        // corre en producción. Se llama explícitamente porque una prueba puede
+        // abrir una conexión suelta sin cargar Common.Utilities, y entonces su
+        // ModuleInitializer no habría corrido todavía.
+        Common.Utilities.DapperConfig.Configurar();
 
         await using (var maestro = new NpgsqlConnection(_admin))
         {

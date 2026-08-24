@@ -20,6 +20,11 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> {
   static const _pageSize = 20;
   static final _dayFmt = DateFormat('dd/MM/yyyy');
+
+  /// La fila de cada venta lleva tambien la hora: en un dia de mucho movimiento
+  /// la fecha sola no alcanza para ubicar una venta. Los rangos de arriba siguen
+  /// con _dayFmt, que ahi son dias del calendario.
+  static final _dateTimeFmt = DateFormat('dd/MM/yyyy HH:mm');
   static final _queryFmt = DateFormat('yyyy-MM-dd');
 
   _Quick _quick = _Quick.today;
@@ -287,7 +292,7 @@ class _SalesScreenState extends State<SalesScreen> {
           children: [
             const SizedBox(height: 2),
             Text(
-              '${s.saleDate == null ? '—' : _dayFmt.format(s.saleDate!)}'
+              '${s.saleDate == null ? '—' : _dateTimeFmt.format(s.saleDate!)}'
               '  ·  ${s.sellerName.isEmpty ? '—' : s.sellerName}',
               style: const TextStyle(fontSize: 12),
             ),

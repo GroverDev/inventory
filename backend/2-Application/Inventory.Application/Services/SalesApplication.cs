@@ -180,6 +180,26 @@ public class SalesApplication(
         {
             Guid saleId = Guid.Parse(id);
 
+            // Eliminar solo baja el flag `state`: no repone stock ni mueve caja, pero
+            // saca la venta de los totales y del arqueo. Si se permitiera sobre una
+            // venta viva, el efectivo cobrado desaparecería de los números mientras
+            // sigue en el cajón, y el faltante se le imputaría al cajero. Por eso solo
+            // se admite sobre una venta ya devuelta por completo: en ese punto el stock
+            // volvió y la plata ya se reintegró, así que borrarla no descuadra nada.
+            var sale = await _salesRepository.GetSale(saleId);
+            if (sale.Id == Guid.Empty)
+                throw new CustomException("La venta no existe.");
+
+            bool totalmenteDevuelta = sale.Detail.Count > 0 && sale.Detail.All(linea =>
+                sale.Returns.SelectMany(r => r.Detail)
+                    .Where(d => d.SaleDetailId == linea.Id)
+                    .Sum(d => d.QuantityReturned) >= linea.Quantity);
+
+            if (!totalmenteDevuelta)
+                throw new CustomException(
+                    "Solo se puede eliminar una venta que ya fue devuelta por completo. " +
+                    "Registre primero la devolución: así el stock vuelve y el reintegro queda en caja.");
+
             var rowsAffected = await _salesRepository.DeleteSale(saleId, modifiedBy);
             if (rowsAffected <= 0)
                 throw new CustomException("No se pudo eliminar la venta");

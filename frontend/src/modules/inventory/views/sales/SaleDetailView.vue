@@ -340,6 +340,21 @@
               </div>
             </div>
 
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <small class="text-muted">
+                <i class="fal fa-hand-pointer me-1"></i>
+                Clic en un producto para devolverlo entero.
+              </small>
+              <button
+                type="button" class="btn btn-sm btn-outline-warning"
+                :disabled="returnLines.every(l => l.Available === 0)"
+                @click="toggleReturnAll"
+              >
+                <i class="fal me-1" :class="allReturnLinesFull ? 'fa-times' : 'fa-check-double'"></i>
+                {{ allReturnLinesFull ? 'Quitar todo' : 'Devolver todo' }}
+              </button>
+            </div>
+
             <div class="table-responsive">
               <table class="table table-sm align-middle mb-0">
                 <thead>
@@ -357,7 +372,12 @@
                     v-for="(line, i) in returnLines" :key="i"
                     :class="line.QuantityReturned > 0 ? 'table-warning' : ''"
                   >
-                    <td class="fw-semibold small">{{ line.ProductName }}</td>
+                    <td
+                      class="fw-semibold small"
+                      :class="line.Available > 0 ? 'cursor-pointer' : ''"
+                      :title="line.Available > 0 ? 'Devolver este producto entero' : ''"
+                      @click="line.Available > 0 && (line.QuantityReturned = line.Available)"
+                    >{{ line.ProductName }}</td>
                     <td class="text-center">{{ line.Quantity }}</td>
                     <td class="text-center text-danger">
                       {{ line.AlreadyReturned > 0 ? line.AlreadyReturned : '—' }}
@@ -557,6 +577,18 @@ const returnTotal = computed(() =>
   returnLines.value.reduce((s, l) => s + l.QuantityReturned * l.UnitPrice, 0)
 );
 
+// Todas las líneas ya en su máximo: el botón pasa a limpiar, así el mismo
+// control sirve para deshacer y no queda sin salida.
+const allReturnLinesFull = computed(() =>
+  returnLines.value.some(l => l.Available > 0) &&
+  returnLines.value.every(l => l.QuantityReturned >= l.Available)
+);
+
+const toggleReturnAll = () => {
+  const vaciar = allReturnLinesFull.value;
+  returnLines.value.forEach(l => { l.QuantityReturned = vaciar ? 0 : l.Available; });
+};
+
 const openReturnModal = () => {
   returnReason.value = '';
 
@@ -632,6 +664,14 @@ const confirmReturn = async () => {
 </script>
 
 <style scoped>
+/* Producto clicable en el modal de devolución: lo lleva a su máximo. */
+.cursor-pointer {
+  cursor: pointer;
+}
+.cursor-pointer:hover {
+  text-decoration: underline;
+}
+
 /* Cabecera info */
 .info-label {
   font-size: 0.72rem;

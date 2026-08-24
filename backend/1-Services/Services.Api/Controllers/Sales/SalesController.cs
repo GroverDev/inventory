@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Common.Utilities;
 using Inventory.Application;
 using Inventory.Domain;
+using Seguridad.Application;
 using Services.Api.Utils;
 using Services.Api.jwt;
 
@@ -18,8 +19,11 @@ namespace Services.Api.Controllers.Sales;
 [ApiController]
 public class SalesController(
     ISalesApplication _salesApplication,
+    IRolesApplication _rolesApplication,
     IOptions<JwtSettings> _jwtSettings) : ControllerBase
 {
+    private const string FormRoute = "sales-admin";
+
     // POST api/Sales
     [HttpPost()]
     public async Task<ActionResult<Response<string>>> CreateSale([FromBody] SaleRequest saleRequest)
@@ -58,9 +62,18 @@ public class SalesController(
     [HttpDelete("{id}")]
     public async Task<ActionResult<Response<bool>>> Delete(string id)
     {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no valido" } });
 
-        var respuesta = await _salesApplication.DeleteSale(id, 1);
+        // Eliminar una venta la saca de los totales sin reponer stock ni mover
+        // caja: es una operación de corrección, no la vía normal para deshacer
+        // una venta (para eso está la devolución).
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "delete"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para eliminar ventas." } };
+
+        var respuesta = await _salesApplication.DeleteSale(id, datos.UserId);
         return respuesta;
     }
 

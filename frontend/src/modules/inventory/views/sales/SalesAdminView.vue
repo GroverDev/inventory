@@ -181,9 +181,10 @@
                           <span class="fal fa-eye"></span>
                         </button>
                         <button
+                          v-if="canDelete"
                           type="button"
                           class="btn btn-outline-danger btn-sm"
-                          title="Eliminar"
+                          title="Eliminar (solo ventas ya devueltas por completo)"
                           @click="removeSale(sale.Id)"
                         >
                           <span class="fal fa-trash-alt"></span>
@@ -248,7 +249,7 @@
                             @click="viewDetail(sale.Id)">
                             <span class="fal fa-eye me-1"></span>Ver Detalle
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-danger"
+                          <button v-if="canDelete" type="button" class="btn btn-sm btn-outline-danger"
                             @click="removeSale(sale.Id)">
                             <span class="fal fa-trash-alt"></span>
                           </button>
@@ -295,6 +296,7 @@ import useSales from '@/modules/inventory/composables/useSales';
 import type { Sale } from '@/modules/inventory/models/sale.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import utils from '@/utils/msg';
+import usePermissions from '@/modules/common/composables/usePermissions';
 
 const PAGE_SIZE = 50;
 
@@ -305,6 +307,11 @@ const periodTotals = ref({ Subtotal: 0, Discounts: 0, Total: 0, Returned: 0, Net
 const allSellers = ref<string[]>([]);
 
 const { getSales, deleteSale } = useSales();
+
+// Eliminar no repone stock ni mueve caja: se reserva para quien tenga el
+// permiso de borrado del formulario, no para todo el que ve las ventas.
+const { can } = usePermissions();
+const canDelete = computed(() => can('sales-admin', 'delete'));
 const router = useRouter();
 
 // ── Helpers de fecha ──────────────────────────────────────
@@ -420,7 +427,12 @@ const getSalesData = async (page: number) => {
 const viewDetail = (id: string) => router.push({ name: 'sale-detail', params: { id } });
 
 const removeSale = async (id: string) => {
-  const ok = await utils.showMessageQuestion('¿Desea eliminar esta venta?');
+  // El backend además lo valida: eliminar solo se admite sobre una venta ya
+  // devuelta por completo, porque no repone stock ni mueve caja.
+  const ok = await utils.showMessageQuestion(
+    'Eliminar saca la venta de los totales, pero NO repone stock ni devuelve el dinero. ' +
+    'Para deshacer una venta use Registrar Devolución. ¿Eliminar de todos modos?'
+  );
   if (ok) {
     const { ok: deleted } = await deleteSale(id);
     if (deleted) {
