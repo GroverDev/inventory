@@ -319,10 +319,14 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
     final cobros = [...sale.payments]
       ..sort((a, b) => b.amountGiven.compareTo(a.amountGiven));
     var methodId = _paymentMethods
-            .where((m) => cobros.isNotEmpty && m.id == cobros.first.paymentMethodId)
+            .where((m) =>
+                cobros.isNotEmpty && m.id == cobros.first.paymentMethodId)
             .map((m) => m.id)
             .firstOrNull ??
-        _paymentMethods.where((m) => m.affectsCash).map((m) => m.id).firstOrNull ??
+        _paymentMethods
+            .where((m) => m.affectsCash)
+            .map((m) => m.id)
+            .firstOrNull ??
         _paymentMethods.firstOrNull?.id;
 
     final confirmed = await showModalBottomSheet<bool>(
@@ -335,6 +339,15 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
         ),
         child: StatefulBuilder(
           builder: (context, setSheet) {
+            // Todas las lineas ya en su maximo: el boton pasa a limpiar, asi el
+            // mismo control sirve para deshacer y no queda sin salida.
+            final devolvible = {
+              for (final d in sale.detail)
+                d.id: d.quantity - sale.returnedFor(d.id)
+            };
+            final todoPuesto = devolvible.values.any((v) => v > 0) &&
+                sale.detail.every((d) => (qty[d.id] ?? 0) >= devolvible[d.id]!);
+
             double total = 0;
             for (final d in sale.detail) {
               // Precio efectivamente cobrado: el servidor reembolsa sobre este,
@@ -364,9 +377,11 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
                     initialValue: methodId,
-                    decoration: const InputDecoration(labelText: 'Reintegrar por'),
+                    decoration:
+                        const InputDecoration(labelText: 'Reintegrar por'),
                     items: _paymentMethods
-                        .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
+                        .map((m) =>
+                            DropdownMenuItem(value: m.id, child: Text(m.name)))
                         .toList(),
                     onChanged: (v) => setSheet(() => methodId = v),
                   ),
@@ -381,6 +396,30 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
                       ),
                     ),
                   const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Tocá un producto para devolverlo entero.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: devolvible.values.every((v) => v == 0)
+                            ? null
+                            : () => setSheet(() {
+                                  for (final d in sale.detail) {
+                                    qty[d.id] =
+                                        todoPuesto ? 0 : devolvible[d.id]!;
+                                  }
+                                }),
+                        icon: Icon(todoPuesto ? Icons.close : Icons.done_all,
+                            size: 18),
+                        label:
+                            Text(todoPuesto ? 'Quitar todo' : 'Devolver todo'),
+                      ),
+                    ],
+                  ),
                   ...sale.detail.map((d) {
                     final already = sale.returnedFor(d.id);
                     final available = d.quantity - already;
@@ -390,21 +429,28 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(d.productName,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                            // Tocar la linea la lleva a su maximo: devolver un
+                            // producto entero sin contar toques en el +.
+                            child: InkWell(
+                              onTap: available > 0
+                                  ? () => setSheet(() => qty[d.id] = available)
+                                  : null,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(d.productName,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600)),
+                                  Text(
+                                    'Disponible: $available'
+                                    '${already > 0 ? '  ·  ya devuelto: $already' : ''}',
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                Text(
-                                  'Disponible: $available'
-                                  '${already > 0 ? '  ·  ya devuelto: $already' : ''}',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey),
-                                ),
-                              ],
+                                        fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           _stepper(
