@@ -11,7 +11,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/totp_setup_screen.dart';
 import 'features/auth/totp_verify_screen.dart';
-import 'features/home/home_screen.dart';
+import 'features/home/main_shell.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/theme_provider.dart';
@@ -103,7 +103,7 @@ class _Root extends StatelessWidget {
       case AuthStatus.unknown:
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       case AuthStatus.authenticated:
-        return const HomeScreen();
+        return const MainShell();
       case AuthStatus.totpRequired:
         return const TotpVerifyScreen();
       case AuthStatus.totpSetupRequired:

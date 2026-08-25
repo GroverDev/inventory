@@ -263,6 +263,26 @@ class AppTheme {
           fontSize: 19,
         ),
       ),
+      // Material 3 le da 80 dp de alto a la barra inferior y en un teléfono de
+      // gama baja eso se come una franja notable de la pantalla. 64 dp sigue
+      // siendo cómodo para el pulgar y deja las etiquetas visibles, que con
+      // cuatro secciones hacen falta: los iconos solos no se adivinan.
+      navigationBarTheme: NavigationBarThemeData(
+        height: 64,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: isLight ? AppPalette.canvas : scheme.surface,
+        indicatorColor:
+            isLight ? AppPalette.color5 : scheme.primary.withValues(alpha: 0.24),
+        elevation: 0,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => typography.labelMedium?.copyWith(
+            fontSize: 11.5,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+          ),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: isLight ? 1.5 : 0,

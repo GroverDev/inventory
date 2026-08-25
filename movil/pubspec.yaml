@@ -1,7 +1,7 @@
 name: inventory_movil
 description: App móvil de inventario, punto de venta y pedidos (consume el backend .NET existente).
 publish_to: "none"
-version: 1.2.0+5
+version: 1.2.0+6
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

@@ -80,6 +80,24 @@ class SaleService {
     return res.data;
   }
 
+  /// GET api/CashSession?dateFrom=&dateTo= — sesiones de caja del rango, de la
+  /// más reciente a la más vieja. El servidor decide el alcance: si el usuario
+  /// es solo Cajero le devuelve únicamente las suyas.
+  /// Las fechas van en `yyyy-MM-dd`.
+  Future<List<CashSession>> cashSessions({
+    required String dateFrom,
+    required String dateTo,
+  }) async {
+    final res = await _api.get<List<CashSession>>(
+      'api/CashSession',
+      (data) => ((data as List?) ?? [])
+          .map((e) => CashSession.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      query: {'dateFrom': dateFrom, 'dateTo': dateTo},
+    );
+    return res.data ?? const [];
+  }
+
   /// POST api/CashSession/open
   Future<void> openSession(double openingAmount) async {
     await _api.post<String>(

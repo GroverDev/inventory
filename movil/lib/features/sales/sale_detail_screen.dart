@@ -588,18 +588,14 @@ class _SaleDetailScreenState extends State<SaleDetailScreen> {
       );
 
   Widget _statusBadge(SaleFull sale) {
-    final Color color;
-    final String label;
-    if (!sale.isActive) {
-      color = Colors.red;
-      label = 'Devuelta total';
-    } else if (sale.hasReturns) {
-      color = Colors.orange;
-      label = 'Devolución parcial';
-    } else {
-      color = Colors.green;
-      label = 'Activa';
-    }
+    // El estado sale de `sale_status` (v_sales_net), no de is_active a secas:
+    // así una venta devuelta entera en varias parciales dice "Devuelta total"
+    // igual que en el listado y en la web.
+    final (Color color, String label) = switch (sale.effectiveStatus) {
+      SaleStatus.activa => (Colors.green, 'Activa'),
+      SaleStatus.conDevolucion => (Colors.orange, 'Devolución parcial'),
+      SaleStatus.devueltaTotal => (Colors.red, 'Devuelta total'),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

@@ -21,6 +21,29 @@ String _toStr(dynamic v) => v?.toString() ?? '';
 /// esas está `formatApiDate` en `purchase.dart`.
 DateTime? _toInstanteLocal(String v) => DateTime.tryParse(v)?.toLocal();
 
+/// Estado de una venta frente a sus devoluciones: es `v_sales_net.sale_status`,
+/// la misma definición que usan el listado web y el dashboard.
+///
+/// `anulada` en la vista significa `sales.is_active = false`, que en esta app
+/// solo ocurre cuando se devolvió la venta entera (de una vez o sumando varias
+/// devoluciones parciales); por eso se muestra como "Devuelta total".
+enum SaleStatus { activa, conDevolucion, devueltaTotal }
+
+/// Traduce `sale_status`. Si el backend no lo manda —API vieja— se deduce de lo
+/// que sí llegó, para que la pantalla nunca quede sin estado.
+SaleStatus _toStatus(dynamic raw, {required bool isActive, required bool hasReturns}) {
+  switch (raw?.toString()) {
+    case 'anulada':
+      return SaleStatus.devueltaTotal;
+    case 'con_devolucion':
+      return SaleStatus.conDevolucion;
+    case 'activa':
+      return SaleStatus.activa;
+  }
+  if (!isActive) return SaleStatus.devueltaTotal;
+  return hasReturns ? SaleStatus.conDevolucion : SaleStatus.activa;
+}
+
 /// Resultado paginado de `GET api/Sales`.
 class SalesPage {
   final List<SaleSummary> items;
@@ -28,6 +51,8 @@ class SalesPage {
   final double periodSubtotal;
   final double periodDiscounts;
   final double periodTotal;
+  final double periodReturned;
+  final double periodNet;
 
   SalesPage({
     required this.items,
@@ -35,17 +60,26 @@ class SalesPage {
     required this.periodSubtotal,
     required this.periodDiscounts,
     required this.periodTotal,
+    this.periodReturned = 0,
+    this.periodNet = 0,
   });
 
-  factory SalesPage.fromJson(Map<String, dynamic> json) => SalesPage(
-        items: ((json['Items'] as List?) ?? [])
-            .map((e) => SaleSummary.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        totalCount: _toInt(json['TotalCount']),
-        periodSubtotal: _toDouble(json['PeriodSubtotal']),
-        periodDiscounts: _toDouble(json['PeriodDiscounts']),
-        periodTotal: _toDouble(json['PeriodTotal']),
-      );
+  factory SalesPage.fromJson(Map<String, dynamic> json) {
+    final total = _toDouble(json['PeriodTotal']);
+    final returned = _toDouble(json['PeriodReturned']);
+    return SalesPage(
+      items: ((json['Items'] as List?) ?? [])
+          .map((e) => SaleSummary.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      totalCount: _toInt(json['TotalCount']),
+      periodSubtotal: _toDouble(json['PeriodSubtotal']),
+      periodDiscounts: _toDouble(json['PeriodDiscounts']),
+      periodTotal: total,
+      periodReturned: returned,
+      // Sin PeriodNet (API vieja) el neto es el bruto menos lo devuelto.
+      periodNet: json['PeriodNet'] == null ? total - returned : _toDouble(json['PeriodNet']),
+    );
+  }
 }
 
 /// Cabecera de venta para el listado.
@@ -59,6 +93,12 @@ class SaleSummary {
   final double total;
   final bool isActive;
 
+  /// Lo devuelto de esta venta y lo que quedó cobrado. Vienen de `v_sales_net`;
+  /// el listado tiene que mostrar el neto, no el facturado.
+  final double totalReturned;
+  final double netTotal;
+  final SaleStatus status;
+
   SaleSummary({
     required this.id,
     required this.customerName,
@@ -68,18 +108,31 @@ class SaleSummary {
     required this.totalDiscounts,
     required this.total,
     required this.isActive,
+    this.totalReturned = 0,
+    required this.netTotal,
+    required this.status,
   });
 
-  factory SaleSummary.fromJson(Map<String, dynamic> json) => SaleSummary(
-        id: _toStr(json['Id']),
-        customerName: _toStr(json['CustomerName']),
-        sellerName: _toStr(json['SellerName']),
-        saleDate: _toInstanteLocal(_toStr(json['SaleDate'])),
-        subtotal: _toDouble(json['Subtotal']),
-        totalDiscounts: _toDouble(json['TotalDiscounts']),
-        total: _toDouble(json['Total']),
-        isActive: json['IsActive'] == true,
-      );
+  factory SaleSummary.fromJson(Map<String, dynamic> json) {
+    final total = _toDouble(json['Total']);
+    final returned = _toDouble(json['TotalReturned']);
+    final isActive = json['IsActive'] == true;
+    return SaleSummary(
+      id: _toStr(json['Id']),
+      customerName: _toStr(json['CustomerName']),
+      sellerName: _toStr(json['SellerName']),
+      saleDate: _toInstanteLocal(_toStr(json['SaleDate'])),
+      subtotal: _toDouble(json['Subtotal']),
+      totalDiscounts: _toDouble(json['TotalDiscounts']),
+      total: total,
+      isActive: isActive,
+      totalReturned: returned,
+      netTotal: json['NetTotal'] == null ? total - returned : _toDouble(json['NetTotal']),
+      status: _toStatus(json['SaleStatus'], isActive: isActive, hasReturns: returned > 0),
+    );
+  }
+
+  bool get hasReturns => status != SaleStatus.activa;
 }
 
 /// Venta completa de `GET api/Sales/{id}`.
@@ -97,6 +150,14 @@ class SaleFull {
   final List<SalePaymentInfo> payments;
   final List<SaleReturnInfo> returns;
 
+  /// `v_sales_net.sale_status`: la misma fuente que usa el listado, para que el
+  /// detalle no pueda contradecirlo.
+  final SaleStatus status;
+
+  /// Lo devuelto según el servidor. Se usa como respaldo cuando `Returns` llega
+  /// vacío (API vieja); si no, manda la suma de las devoluciones.
+  final double _serverTotalReturned;
+
   SaleFull({
     required this.id,
     required this.customerName,
@@ -110,35 +171,58 @@ class SaleFull {
     required this.detail,
     required this.payments,
     required this.returns,
-  });
+    required this.status,
+    double serverTotalReturned = 0,
+  }) : _serverTotalReturned = serverTotalReturned;
 
-  factory SaleFull.fromJson(Map<String, dynamic> json) => SaleFull(
-        id: _toStr(json['Id']),
-        customerName: _toStr(json['CustomerName']),
-        sellerName: _toStr(json['SellerName']),
-        saleDate: _toInstanteLocal(_toStr(json['SaleDate'])),
-        subtotal: _toDouble(json['Subtotal']),
-        totalDiscounts: _toDouble(json['TotalDiscounts']),
-        headerDiscountAmount: _toDouble(json['HeaderDiscountAmount']),
-        total: _toDouble(json['Total']),
-        isActive: json['IsActive'] == true,
-        detail: ((json['Detail'] as List?) ?? [])
-            .map((e) => SaleDetailItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        payments: ((json['Payments'] as List?) ?? [])
-            .map((e) => SalePaymentInfo.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        returns: ((json['Returns'] as List?) ?? [])
-            .map((e) => SaleReturnInfo.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+  factory SaleFull.fromJson(Map<String, dynamic> json) {
+    final returns = ((json['Returns'] as List?) ?? [])
+        .map((e) => SaleReturnInfo.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final serverReturned = _toDouble(json['TotalReturned']);
+    final isActive = json['IsActive'] == true;
+    return SaleFull(
+      id: _toStr(json['Id']),
+      customerName: _toStr(json['CustomerName']),
+      sellerName: _toStr(json['SellerName']),
+      saleDate: _toInstanteLocal(_toStr(json['SaleDate'])),
+      subtotal: _toDouble(json['Subtotal']),
+      totalDiscounts: _toDouble(json['TotalDiscounts']),
+      headerDiscountAmount: _toDouble(json['HeaderDiscountAmount']),
+      total: _toDouble(json['Total']),
+      isActive: isActive,
+      detail: ((json['Detail'] as List?) ?? [])
+          .map((e) => SaleDetailItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      payments: ((json['Payments'] as List?) ?? [])
+          .map((e) => SalePaymentInfo.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      returns: returns,
+      serverTotalReturned: serverReturned,
+      status: _toStatus(json['SaleStatus'],
+          isActive: isActive,
+          hasReturns: returns.isNotEmpty || serverReturned > 0),
+    );
+  }
 
-  bool get hasReturns => returns.isNotEmpty;
+  bool get hasReturns => returns.isNotEmpty || _serverTotalReturned > 0;
 
-  double get totalReturned =>
-      returns.fold(0.0, (s, r) => s + r.totalReturned);
+  double get totalReturned => returns.isEmpty
+      ? _serverTotalReturned
+      : returns.fold(0.0, (s, r) => s + r.totalReturned);
 
   double get netTotal => total - totalReturned;
+
+  /// Estado a mostrar en el detalle. Si ninguna línea tiene unidades pendientes
+  /// la venta está devuelta entera, aunque `sale_status` diga parcial: eso pasa
+  /// con devoluciones viejas, de antes de que `is_full_return` mirara lo
+  /// acumulado y apagara `is_active`.
+  SaleStatus get effectiveStatus {
+    if (status != SaleStatus.conDevolucion) return status;
+    final todoDevuelto = detail.isNotEmpty &&
+        detail.every((d) => d.quantity - returnedFor(d.id) <= 0);
+    return todoDevuelto ? SaleStatus.devueltaTotal : SaleStatus.conDevolucion;
+  }
 
   /// Unidades ya devueltas para una línea de detalle concreta.
   int returnedFor(String saleDetailId) => returns

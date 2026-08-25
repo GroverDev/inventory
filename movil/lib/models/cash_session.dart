@@ -19,6 +19,17 @@ class CashSession {
   /// Efectivo reintegrado por devoluciones en la sesion: sale del cajon.
   final double totalReturns;
 
+  /// Lo que el cajero declaro al cerrar. Null mientras la caja sigue abierta.
+  final double? declaredAmount;
+
+  /// Esperado y diferencia tal como quedaron grabados en el cierre. Se prefieren
+  /// a los calculados: son la foto del arqueo en el momento en que se hizo.
+  final double? expectedAmount;
+  final double? difference;
+
+  /// Observacion del cierre (el motivo del faltante o sobrante, normalmente).
+  final String notes;
+
   CashSession({
     required this.id,
     required this.userId,
@@ -32,15 +43,29 @@ class CashSession {
     this.totalWithdrawals = 0,
     this.totalIncome = 0,
     this.totalReturns = 0,
+    this.declaredAmount,
+    this.expectedAmount,
+    this.difference,
+    this.notes = '',
   });
 
   bool get isOpen => closedAt == null;
 
-  /// Efectivo esperado en caja al momento del arqueo.
-  double get expectedCash => double.parse(
+  /// Efectivo esperado en caja al momento del arqueo. En una sesion ya cerrada
+  /// se usa el valor grabado en el cierre; en una abierta se calcula.
+  double get expectedCash =>
+      expectedAmount ??
+      double.parse(
         (openingAmount + totalCashSales - totalExpenses - totalWithdrawals + totalIncome - totalReturns)
             .toStringAsFixed(2),
       );
+
+  /// Sobrante (positivo) o faltante (negativo) del arqueo. Null si sigue abierta.
+  double? get cashDifference {
+    if (difference != null) return difference;
+    if (declaredAmount == null) return null;
+    return double.parse((declaredAmount! - expectedCash).toStringAsFixed(2));
+  }
 
   factory CashSession.fromJson(Map<String, dynamic> j) => CashSession(
         id: (j['Id'] ?? '').toString(),
@@ -61,6 +86,10 @@ class CashSession {
         totalWithdrawals: (j['TotalWithdrawals'] ?? 0).toDouble(),
         totalIncome: (j['TotalIncome'] ?? 0).toDouble(),
         totalReturns: (j['TotalReturns'] ?? 0).toDouble(),
+        declaredAmount: (j['DeclaredAmount'] as num?)?.toDouble(),
+        expectedAmount: (j['ExpectedAmount'] as num?)?.toDouble(),
+        difference: (j['Difference'] as num?)?.toDouble(),
+        notes: j['Notes']?.toString() ?? '',
       );
 }
 

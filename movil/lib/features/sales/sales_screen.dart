@@ -34,6 +34,8 @@ class _SalesScreenState extends State<SalesScreen> {
   final List<SaleSummary> _items = [];
   int _totalCount = 0;
   double _periodTotal = 0;
+  double _periodReturned = 0;
+  double _periodNet = 0;
   int _page = 1;
 
   bool _loading = false;
@@ -114,6 +116,8 @@ class _SalesScreenState extends State<SalesScreen> {
         _items.addAll(res.items);
         _totalCount = res.totalCount;
         _periodTotal = res.periodTotal;
+        _periodReturned = res.periodReturned;
+        _periodNet = res.periodNet;
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -195,12 +199,24 @@ class _SalesScreenState extends State<SalesScreen> {
               ),
               if (_totalCount > 0)
                 Text(
-                  '$_totalCount venta(s) · ${currency(_periodTotal)}',
+                  '$_totalCount venta(s) · ${currency(_periodNet)}',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.bold),
                 ),
             ],
           ),
+          // El total de arriba ya va neto de devoluciones; si hubo alguna se
+          // aclara acá, para que el número no parezca no cuadrar con la suma
+          // de lo facturado.
+          if (_periodReturned > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Facturado ${currency(_periodTotal)} · devuelto − ${currency(_periodReturned)}',
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 11, color: Colors.orange),
+              ),
+            ),
         ],
       ),
     );
@@ -297,16 +313,27 @@ class _SalesScreenState extends State<SalesScreen> {
               style: const TextStyle(fontSize: 12),
             ),
             const SizedBox(height: 4),
-            _statusBadge(s.isActive),
+            _statusBadge(s.status),
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(currency(s.total),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 15)),
+            // Con devoluciones se muestra el neto y el facturado tachado: el
+            // importe grande tiene que ser lo que quedó cobrado.
+            if (s.totalReturned > 0)
+              Text(currency(s.total),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey,
+                    decoration: TextDecoration.lineThrough,
+                  )),
+            Text(currency(s.netTotal),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: s.totalReturned > 0 ? Colors.orange : null)),
             if (s.totalDiscounts > 0)
               Text('− ${currency(s.totalDiscounts)}',
                   style: const TextStyle(fontSize: 11, color: Colors.green)),
@@ -316,9 +343,12 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  Widget _statusBadge(bool isActive) {
-    final color = isActive ? Colors.green : Colors.red;
-    final label = isActive ? 'Activa' : 'Devuelta';
+  Widget _statusBadge(SaleStatus status) {
+    final (Color color, String label) = switch (status) {
+      SaleStatus.activa => (Colors.green, 'Activa'),
+      SaleStatus.conDevolucion => (Colors.orange, 'Devolución parcial'),
+      SaleStatus.devueltaTotal => (Colors.red, 'Devuelta total'),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
