@@ -297,19 +297,25 @@
                   <div class="col-6 col-md-3">
                     <div class="card border text-center py-2 mb-0">
                       <small class="text-muted d-block">Subtotal</small>
-                      <strong>Bs. {{ formatNum(sessionSales.reduce((a,s)=>a+s.Subtotal,0)) }}</strong>
+                      <strong>Bs. {{ formatNum(salesTotals.subtotal) }}</strong>
                     </div>
                   </div>
                   <div class="col-6 col-md-3">
                     <div class="card border text-center py-2 mb-0">
                       <small class="text-muted d-block">Descuentos</small>
-                      <strong class="text-danger">Bs. {{ formatNum(sessionSales.reduce((a,s)=>a+s.TotalDiscounts,0)) }}</strong>
+                      <strong class="text-danger">Bs. {{ formatNum(salesTotals.discounts) }}</strong>
                     </div>
                   </div>
                   <div class="col-6 col-md-3">
+                    <!-- Lo cobrado, ya neto de devoluciones. Si hubo alguna se aclara
+                         debajo el facturado, para que el número no parezca no cuadrar
+                         con la suma de la columna Total. -->
                     <div class="card border border-success text-center py-2 mb-0">
-                      <small class="text-muted d-block">Total facturado</small>
-                      <strong class="text-success">Bs. {{ formatNum(sessionSales.reduce((a,s)=>a+s.Total,0)) }}</strong>
+                      <small class="text-muted d-block">Total cobrado</small>
+                      <strong class="text-success">Bs. {{ formatNum(salesTotals.net) }}</strong>
+                      <small v-if="salesTotals.returned > 0" class="text-warning">
+                        Facturado Bs. {{ formatNum(salesTotals.billed) }} · devuelto − Bs. {{ formatNum(salesTotals.returned) }}
+                      </small>
                     </div>
                   </div>
                 </div>
@@ -334,14 +340,23 @@
                             <i class="fal" :class="expandedSales.has(sale.Id) ? 'fa-chevron-down' : 'fa-chevron-right'" style="font-size:.7rem;"></i>
                           </td>
                           <td><small>{{ formatDate(sale.SaleDate) }}</small></td>
-                          <td class="fw-semibold small">{{ sale.CustomerName }}</td>
+                          <td class="fw-semibold small">
+                            {{ sale.CustomerName }}
+                            <span v-if="sale.SaleStatus === 'anulada'" class="badge bg-danger ms-1">Anulada</span>
+                          </td>
                           <td><small class="text-muted">{{ sale.SellerName }}</small></td>
                           <td>
                             <small v-for="p in sale.Payments" :key="p.PaymentMethodName" class="badge bg-secondary bg-opacity-10 text-secondary border me-1">
                               {{ p.PaymentMethodName }}
                             </small>
                           </td>
-                          <td class="text-end fw-semibold text-success small">Bs. {{ formatNum(sale.Total) }}</td>
+                          <!-- Con devolución se muestra el neto y el facturado tachado: el
+                               importe que cuenta es lo que quedó cobrado. -->
+                          <td class="text-end fw-semibold small" :class="returnedOf(sale) > 0 ? 'text-warning' : 'text-success'">
+                            <span v-if="returnedOf(sale) > 0" class="text-muted text-decoration-line-through me-1">
+                              Bs. {{ formatNum(sale.Total) }}
+                            </span>Bs. {{ formatNum(netOf(sale)) }}
+                          </td>
                         </tr>
                         <!-- Detalle de productos -->
                         <tr v-if="expandedSales.has(sale.Id)">
@@ -428,7 +443,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import type { CashSession, SessionSale } from '@/modules/inventory/models/cashSession.model';
 import { MovementTypeLabels } from '@/modules/inventory/models/cashMovement.model';
 import useCashSession from '@/modules/inventory/composables/useCashSession';
@@ -506,6 +521,29 @@ const toggleSale = (id: string) => {
   expandedSales.value = new Set(expandedSales.value);
 };
 
+/**
+ * La API vieja no netea las ventas del turno: la consulta leía `sales` y no
+ * `v_sales_net`, así que TotalReturned y NetTotal llegan en 0 y SaleStatus vacío.
+ * Con SaleStatus vacío se toma el facturado como neto, en vez de mostrar Bs. 0,00
+ * en toda la tabla.
+ */
+const isNetAware = (s: SessionSale): boolean => !!s.SaleStatus;
+const returnedOf = (s: SessionSale): number => (isNetAware(s) ? s.TotalReturned : 0);
+const netOf = (s: SessionSale): number => (isNetAware(s) ? s.NetTotal : s.Total);
+
+const salesTotals = computed(() =>
+  sessionSales.value.reduce(
+    (acc, s) => ({
+      subtotal:  acc.subtotal  + s.Subtotal,
+      discounts: acc.discounts + s.TotalDiscounts,
+      billed:    acc.billed    + s.Total,
+      returned:  acc.returned  + returnedOf(s),
+      net:       acc.net       + netOf(s),
+    }),
+    { subtotal: 0, discounts: 0, billed: 0, returned: 0, net: 0 },
+  ),
+);
+
 const exportSessionSales = () => {
   if (!selectedSession.value) return;
   const rows: object[] = [];
@@ -520,7 +558,9 @@ const exportSessionSales = () => {
         PrecioUnitario: d.UnitPrice,
         Descuento: d.LineTotalDiscounts,
         Subtotal: d.LineTotal,
-        TotalVenta: sale.Total,
+        Facturado: sale.Total,
+        Devuelto: returnedOf(sale),
+        TotalVenta: netOf(sale),
         MetodoPago: sale.Payments.map(p => p.PaymentMethodName).join(' / '),
       });
     }

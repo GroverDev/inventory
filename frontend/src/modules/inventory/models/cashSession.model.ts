@@ -58,6 +58,12 @@ export interface SessionSale {
   HeaderDiscountAmount: number;
   Total: number;
   IsActive: boolean;
+
+  /** Suma de las devoluciones de la venta. Total no la descuenta; NetTotal sí. */
+  TotalReturned: number;
+  NetTotal: number;
+  /** activa | con_devolucion | anulada. Vacío en APIs viejas que no lo mandan. */
+  SaleStatus: string;
   Detail: SessionSaleDetail[];
   Payments: SessionSalePayment[];
 }
