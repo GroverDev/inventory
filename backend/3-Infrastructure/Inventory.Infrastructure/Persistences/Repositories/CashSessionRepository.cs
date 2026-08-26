@@ -125,13 +125,17 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
         {
             db.Open();
 
+            // v_sales_net y no sales, igual que el listado de ventas: si no, el
+            // detalle de la sesión mostraría los importes facturados y una venta
+            // devuelta seguiría contando entera.
             const string salesSql = @"
                 SELECT s.id, s.customer_id, c.full_name AS CustomerName,
                        s.sale_date, s.subtotal, s.total_discounts,
                        COALESCE(s.header_discount_amount, 0) AS HeaderDiscountAmount,
                        s.total, s.is_active,
+                       s.total_returned, s.net_total, s.sale_status,
                        COALESCE(u.full_name, '') AS SellerName
-                  FROM sales s
+                  FROM v_sales_net s
                  INNER JOIN customers c ON c.id = s.customer_id
                  LEFT  JOIN sec.users u ON u.id = s.created_by
                  WHERE s.state

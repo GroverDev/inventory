@@ -98,6 +98,23 @@ class SaleService {
     return res.data ?? const [];
   }
 
+  /// GET api/CashSession/{id}/sales — las ventas de esa sesión, de la primera a
+  /// la última. Se filtra por `cash_session_id`, no por fecha: un turno que
+  /// cruza la medianoche, o dos sesiones del mismo cajero en el mismo día,
+  /// siguen quedando separados.
+  ///
+  /// La API no pagina esta lista (son las ventas de un solo turno) y devuelve
+  /// cada venta con su detalle y sus cobros; acá alcanza con la cabecera.
+  Future<List<SaleSummary>> sessionSales(String sessionId) async {
+    final res = await _api.get<List<SaleSummary>>(
+      'api/CashSession/$sessionId/sales',
+      (data) => ((data as List?) ?? [])
+          .map((e) => SaleSummary.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+    return res.data ?? const [];
+  }
+
   /// POST api/CashSession/open
   Future<void> openSession(double openingAmount) async {
     await _api.post<String>(

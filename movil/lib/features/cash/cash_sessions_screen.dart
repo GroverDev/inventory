@@ -6,6 +6,7 @@ import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/cash_session.dart';
 import '../../services/sale_service.dart';
+import 'cash_session_detail_screen.dart';
 
 enum _Quick { today, week, month, custom }
 
@@ -224,7 +225,7 @@ class _CashSessionsScreenState extends State<CashSessionsScreen> {
     // con el texto del sistema ampliado la columna del importe desbordaba.
     return Card(
       child: InkWell(
-        onTap: () => _openArqueo(s),
+        onTap: () => _openDetail(s),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -304,91 +305,15 @@ class _CashSessionsScreenState extends State<CashSessionsScreen> {
     );
   }
 
-  // ── Arqueo ─────────────────────────────────────────────────
-  /// Mismo desglose que el diálogo de cerrar caja, pero de lectura: es el
-  /// formato que el cajero ya conoce del momento del arqueo.
-  Future<void> _openArqueo(CashSession s) async {
-    final diff = s.cashDifference;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Sesión del ${_dayFmt.format(s.openedAt)}',
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _kv('Abierta', _dateTimeFmt.format(s.openedAt)),
-            _kv('Cerrada',
-                s.isOpen ? 'en curso' : _dateTimeFmt.format(s.closedAt!)),
-            if (s.userFullName.isNotEmpty) _kv('Cajero', s.userFullName),
-            const Divider(height: 20),
-            _kv('Fondo inicial', currency(s.openingAmount)),
-            _kv('Ventas', currency(s.totalSales)),
-            if (s.totalCashSales != s.totalSales)
-              _kv('  en efectivo', currency(s.totalCashSales)),
-            if (s.totalExpenses > 0)
-              _kv('Gastos', '− ${currency(s.totalExpenses)}'),
-            if (s.totalWithdrawals > 0)
-              _kv('Retiros', '− ${currency(s.totalWithdrawals)}'),
-            if (s.totalIncome > 0) _kv('Ingresos', currency(s.totalIncome)),
-            if (s.totalReturns > 0)
-              _kv('Devoluciones', '− ${currency(s.totalReturns)}',
-                  color: Colors.orange),
-            const Divider(height: 20),
-            _kv(s.isOpen ? 'Esperado en caja' : 'Esperado',
-                currency(s.expectedCash),
-                bold: true),
-            if (!s.isOpen) ...[
-              _kv('Declarado', currency(s.declaredAmount ?? 0), bold: true),
-              if (diff != null)
-                _kv('Diferencia',
-                    '${diff >= 0 ? '+ ' : '− '}${currency(diff.abs())}',
-                    bold: true,
-                    color: diff == 0
-                        ? null
-                        : (diff > 0 ? Colors.blue : Colors.red)),
-            ],
-            if (s.notes.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              const Text('Observaciones',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey)),
-              const SizedBox(height: 2),
-              Text(s.notes,
-                  style: const TextStyle(
-                      fontSize: 13, fontStyle: FontStyle.italic)),
-            ],
-          ],
-        ),
-      ),
+  /// El arqueo y las ventas del turno se abren en su propia pantalla: acá el
+  /// detalle era un bottom sheet y no había forma de llegar desde ahí a las
+  /// ventas que lo componen.
+  Future<void> _openDetail(CashSession s) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => CashSessionDetailScreen(session: s)),
     );
+    // Se devolvió una venta del turno: los totales de la sesión cambiaron.
+    if (changed == true) _load();
   }
-
-  Widget _kv(String label, String value, {bool bold = false, Color? color}) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(label,
-                  style: TextStyle(
-                      fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-            ),
-            const SizedBox(width: 12),
-            Text(value,
-                style: TextStyle(
-                    fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                    color: color)),
-          ],
-        ),
-      );
 }

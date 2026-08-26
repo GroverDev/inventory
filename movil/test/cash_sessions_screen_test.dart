@@ -7,6 +7,7 @@ import 'package:inventory_movil/core/storage/auth_storage.dart';
 import 'package:inventory_movil/core/theme/app_theme.dart';
 import 'package:inventory_movil/features/cash/cash_sessions_screen.dart';
 import 'package:inventory_movil/models/cash_session.dart';
+import 'package:inventory_movil/models/sale_history.dart';
 import 'package:inventory_movil/services/sale_service.dart';
 
 /// Las cuatro formas en que puede quedar un turno: en curso, cuadrado, con
@@ -87,6 +88,41 @@ class _FakeSaleService extends SaleService {
           difference: -8.86,
         )),
       ];
+
+  /// Las ventas del turno, tal como las manda `GET api/CashSession/{id}/sales`.
+  /// Solo c3 tiene ventas: c2 sirve para el caso de la sesión sin ninguna.
+  @override
+  Future<List<SaleSummary>> sessionSales(String sessionId) async {
+    if (sessionId != 'c3') return const [];
+    return [
+      SaleSummary.fromJson({
+        'Id': 'v1',
+        'CustomerName': 'Juan Pérez',
+        'SellerName': 'Ana Quispe',
+        'SaleDate': '2026-08-23T14:30:00Z',
+        'Subtotal': 110.0,
+        'TotalDiscounts': 0.0,
+        'Total': 110.0,
+        'IsActive': true,
+        'TotalReturned': 0.0,
+        'NetTotal': 110.0,
+        'SaleStatus': 'activa',
+      }),
+      SaleSummary.fromJson({
+        'Id': 'v2',
+        'CustomerName': 'María Luna',
+        'SellerName': 'Ana Quispe',
+        'SaleDate': '2026-08-23T18:05:00Z',
+        'Subtotal': 190.66,
+        'TotalDiscounts': 0.0,
+        'Total': 190.66,
+        'IsActive': true,
+        'TotalReturned': 33.40,
+        'NetTotal': 157.26,
+        'SaleStatus': 'con_devolucion',
+      }),
+    ];
+  }
 }
 
 Widget _app({double textScale = 1.0}) {
@@ -140,12 +176,17 @@ void main() {
         findsOneWidget);
   });
 
-  testWidgets('el arqueo abre con el desglose y la diferencia', (tester) async {
+  testWidgets('el detalle abre en otra pantalla, con el desglose y la diferencia',
+      (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Sobrante Bs 49.74'));
     await tester.pumpAndSettle();
+
+    // Pantalla propia, no un bottom sheet: el historial queda atrás.
+    expect(find.text('Sesión del 23/08/2026'), findsOneWidget);
+    expect(find.text('Faltante Bs 8.86'), findsNothing);
 
     expect(find.text('Fondo inicial'), findsOneWidget);
     expect(find.text('Devoluciones'), findsOneWidget);
@@ -160,7 +201,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('el arqueo de una caja abierta no inventa un declarado',
+  testWidgets('el detalle de una caja abierta no inventa un declarado',
       (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
@@ -208,5 +249,43 @@ void main() {
     expect(s.isOpen, isTrue);
     expect(s.expectedCash, 248.86);
     expect(s.cashDifference, isNull);
+  });
+
+  testWidgets('el detalle lista las ventas del turno con su neto',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sobrante Bs 49.74'));
+    await tester.pumpAndSettle();
+
+    // El arqueo ocupa la primera pantalla: las ventas están más abajo.
+    await tester.scrollUntilVisible(find.text('María Luna'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ventas del turno'), findsOneWidget);
+    expect(find.text('2 venta(s) · Bs 267.26'), findsOneWidget);
+    expect(find.text('Juan Pérez'), findsOneWidget);
+    // La devuelta muestra el neto, no lo facturado.
+    expect(find.text('Bs 157.26'), findsOneWidget);
+    expect(find.text('Devolución parcial'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('una sesión sin ventas lo dice, no queda cargando',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cuadró'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+        find.text('No se registraron ventas en esta sesión.'), 200,
+        scrollable: find.byType(Scrollable).first);
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('2 venta(s) · Bs 267.26'), findsNothing);
   });
 }
