@@ -43,7 +43,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
         // el principio activo. Con 1.200 productos por cargar, esa fricción es
         // la diferencia entre que el catálogo se llene y que quede vacío.
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -68,7 +68,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task Los_equivalentes_se_deducen_de_la_composicion()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -99,7 +99,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
         // Los antigripales son casi siempre combinaciones, y es donde un campo
         // de texto fallaría: "PARACETAMOL/CLORFENAMINA" no se puede comparar.
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -129,7 +129,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
         // Dos marcas del mismo medicamento pueden traer excipientes distintos
         // (una con lactosa, otra sin). Siguen siendo equivalentes.
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -156,7 +156,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task Guardar_dos_veces_reemplaza_la_composicion_y_no_la_duplica()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -196,7 +196,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task Una_alternativa_cargada_a_mano_gana_sobre_el_equivalente_deducido()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -235,7 +235,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task La_sugerencia_comercial_convive_con_el_equivalente_deducido()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -270,7 +270,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task Lo_disponible_se_sugiere_antes_que_lo_barato_pero_agotado()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -304,7 +304,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task Se_puede_ver_en_que_fichas_se_ofrece_un_producto()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));
@@ -338,7 +338,7 @@ public class RubroFarmaciaTests(TenantDatabaseFixture db)
     public async Task El_orden_fijado_manda_y_se_puede_devolver_al_automatico()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var repo = new Inventory.Infrastructure.PharmaRepository(
             db.ContextoApp(TenantDatabaseFixture.TenantUno));

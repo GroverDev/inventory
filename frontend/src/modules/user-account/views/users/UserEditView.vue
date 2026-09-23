@@ -304,6 +304,61 @@
           </div>
         </div>
 
+        <!-- Panel: Sucursales habilitadas (solo en modo edición) -->
+        <div v-if="user.Uuid" class="col-12 col-xl-6">
+          <div class="panel panel-icon">
+            <div class="panel-hdr">
+              <h2>Sucursales <span class="fw-300"><i>habilitadas</i></span></h2>
+            </div>
+            <div class="panel-container show">
+              <div class="panel-content pt-0">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <button v-if="canUpdateUsers" type="button" class="btn btn-sm btn-primary" @click="saveBranches">
+                    <span class="fal fa-save me-1"></span>Guardar Sucursales
+                  </button>
+                  <small class="text-muted ms-auto">
+                    <strong>{{ enabledBranchIds.length }}</strong> / {{ userBranches.length }} habilitadas
+                  </small>
+                </div>
+
+                <div v-if="userBranches.length === 0" class="text-center py-3">
+                  <small class="text-muted">No hay sucursales activas.</small>
+                </div>
+                <table v-else class="table table-sm align-middle mb-2">
+                  <thead>
+                    <tr>
+                      <th>Sucursal</th>
+                      <th class="text-center">Habilitada</th>
+                      <th class="text-center">Predeterminada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="branch in userBranches" :key="branch.BranchId">
+                      <td>
+                        <label class="mb-0" :for="`branch-${branch.BranchId}`">{{ branch.Name }}</label>
+                      </td>
+                      <td class="text-center">
+                        <input type="checkbox" class="form-check-input" :id="`branch-${branch.BranchId}`"
+                          :value="branch.BranchId" v-model="enabledBranchIds" :disabled="!canUpdateUsers"
+                          @change="keepDefaultConsistent" />
+                      </td>
+                      <td class="text-center">
+                        <input type="radio" class="form-check-input" name="defaultBranch"
+                          :value="branch.BranchId" v-model="defaultBranchId"
+                          :disabled="!canUpdateUsers || !enabledBranchIds.includes(branch.BranchId)" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <small class="text-muted">
+                  <i class="fal fa-info-circle me-1"></i>
+                  Al iniciar sesión entra a la predeterminada; puede cambiar a cualquier otra habilitada desde la barra superior.
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Panel 3: Sesiones Activas (solo en modo edición, con permiso) -->
         <div v-if="user.Uuid && canReadSessions" class="col-12">
           <div class="panel panel-icon">
@@ -379,6 +434,7 @@ import utils from '@/utils/msg';
 
 import { User } from '@/modules/user-account/models/users.model';
 import { Role } from '@/modules/user-account/models/role.model';
+import type { UserBranch } from '@/modules/user-account/models/branch.model';
 import { Session } from '@/modules/user-account/models/session.model';
 import useUser from '@/modules/user-account/composables/useUser';
 import useRole from '@/modules/user-account/composables/useRole';
@@ -388,12 +444,13 @@ import usePermissions from '@/modules/common/composables/usePermissions';
 const router = useRouter();
 const route = useRoute();
 
-const { getUserById, createUser, updateUser, getUserRoles, assignRolesToUser } = useUser();
+const { getUserById, createUser, updateUser, getUserRoles, assignRolesToUser, getUserBranches, assignBranchesToUser } = useUser();
 const { getRoles } = useRole();
 const { getUserSessions, closeSession, closeAllUserSessions } = useSessions();
 const { can } = usePermissions();
 const canReadSessions = computed(() => can('active-sessions', 'read'));
 const canDeleteSessions = computed(() => can('active-sessions', 'delete'));
+const canUpdateUsers = computed(() => can('users-admin', 'update'));
 
 const user = ref(new User());
 const isSaved = ref(false);
@@ -401,6 +458,9 @@ const showPassword = ref(false);
 const allRoles = ref<Role[]>([]);
 const selectedRoleIds = ref<number[]>([]);
 const sessions = ref<Session[]>([]);
+const userBranches = ref<UserBranch[]>([]);
+const enabledBranchIds = ref<string[]>([]);
+const defaultBranchId = ref('');
 
 const allRolesSelected = computed(() =>
   selectedRoleIds.value.length === allRoles.value.length && allRoles.value.length > 0
@@ -431,6 +491,7 @@ onMounted(async () => {
   if (userId && userId !== '0') {
     await getUser(userId);
     await loadUserRoles(userId);
+    await loadUserBranches(userId);
     if (canReadSessions.value) await loadSessions(userId);
   } else {
     user.value.Uuid = '';
@@ -462,6 +523,40 @@ const saveRoles = async () => {
   const { ok } = await assignRolesToUser(user.value.Uuid, selectedRoleIds.value);
   if (ok) {
     await utils.showMessageModal({ Description: 'Los roles se asignaron correctamente.', MessageType: 'success' });
+  }
+};
+
+const loadUserBranches = async (uuid: string) => {
+  const { ok, Data } = await getUserBranches(uuid);
+  if (!ok) return;
+  userBranches.value = Data;
+  enabledBranchIds.value = Data.filter(b => b.Enabled).map(b => b.BranchId);
+  defaultBranchId.value = Data.find(b => b.IsDefault)?.BranchId ?? '';
+};
+
+/// Una sucursal deshabilitada no puede ser la predeterminada, y con una sola
+/// habilitada no hay nada que elegir.
+const keepDefaultConsistent = () => {
+  if (!enabledBranchIds.value.includes(defaultBranchId.value)) defaultBranchId.value = '';
+  if (!defaultBranchId.value && enabledBranchIds.value.length === 1) defaultBranchId.value = enabledBranchIds.value[0]!;
+};
+
+const saveBranches = async () => {
+  if (enabledBranchIds.value.length === 0) {
+    await utils.showMessageModal({ Description: 'Habilite al menos una sucursal: sin ninguna, el usuario no podrá iniciar sesión.', MessageType: 'warning' });
+    return;
+  }
+  if (!defaultBranchId.value) {
+    await utils.showMessageModal({ Description: 'Elija la sucursal predeterminada.', MessageType: 'warning' });
+    return;
+  }
+  const confirmed = await utils.showMessageQuestion('¿Desea guardar las sucursales del usuario?');
+  if (!confirmed) return;
+
+  const { ok } = await assignBranchesToUser(user.value.Uuid, enabledBranchIds.value, defaultBranchId.value);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'Las sucursales se guardaron. El cambio se aplica al usuario en su próxima renovación de sesión.', MessageType: 'success' });
+    await loadUserBranches(user.value.Uuid);
   }
 };
 
@@ -518,6 +613,7 @@ const saveUser = async () => {
         isSaved.value = true;
         user.value.Uuid = newUuid;
         await loadUserRoles(newUuid);
+        await loadUserBranches(newUuid);
         await utils.showMessageModal({ Description: 'El usuario se creó correctamente. Ahora asigne sus roles y presione «Guardar Roles».', MessageType: 'success' });
       }
     } else {

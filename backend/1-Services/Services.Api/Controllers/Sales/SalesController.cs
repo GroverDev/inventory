@@ -18,6 +18,7 @@ namespace Services.Api.Controllers.Sales;
 [Authorize]
 [ApiController]
 public class SalesController(
+    global::Inventory.Application.IBranchApplication _branchApplication,
     ISalesApplication _salesApplication,
     IRolesApplication _rolesApplication,
     IOptions<JwtSettings> _jwtSettings) : ControllerBase
@@ -81,12 +82,16 @@ public class SalesController(
     [HttpGet]
     public async Task<ActionResult<Response<SalesPagedResponse>>> GetSales(
         string saleDateInitial, string saleDateEnd,
-        int page = 1, int pageSize = 50, string? sellerName = null)
+        int page = 1, int pageSize = 50, string? sellerName = null, string? branch = null)
     {
         var datos = TokenData.GetData(HttpContext);
         if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
 
-        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Roles, page, pageSize, sellerName);
+        // branch: vacío = sucursal activa, un id o "all" (ver BranchScope).
+        var (branches, scopeError) = await BranchScope.Resolve(branch, datos.UserId, _branchApplication);
+        if (scopeError != null) return new Response<SalesPagedResponse>() { ok = false, Message = new Msg() { MessageType = "warning", Description = scopeError } };
+
+        return await _salesApplication.GetSales(saleDateInitial, saleDateEnd, datos.UserId, datos.Roles, page, pageSize, sellerName, branches);
     }
 
     // GET api/Sales/GUID

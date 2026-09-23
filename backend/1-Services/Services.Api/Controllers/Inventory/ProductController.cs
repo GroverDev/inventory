@@ -15,7 +15,9 @@ namespace Services.Api.Controllers.Inventory;
 [Route("api/[controller]")]
 [Authorize]
 [ApiController]
-public class ProductController(IProductApplication _productApplication, IRolesApplication _rolesApplication) : ControllerBase
+public class ProductController(IProductApplication _productApplication, IRolesApplication _rolesApplication,
+                               IProductBranchSettingsApplication _branchSettingsApplication,
+                               IBranchApplication _branchApplication) : ControllerBase
 {
     // Formulario (route) al que pertenece este controlador, usado para verificar permisos por acción.
     private const string FormRoute = "products-admin";
@@ -115,6 +117,34 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
         return await _productApplication.ActivateTracking(id, modo);
     }
 
+    // GET api/Product/guid/branch-settings
+    // Precio, mínimo y stock del producto en cada sucursal activa.
+    [HttpGet("{id:guid}/branch-settings")]
+    public async Task<ActionResult<Response<List<ProductBranchSettingResponse>>>> GetBranchSettings(Guid id)
+    {
+        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+
+        return await _branchSettingsApplication.GetSettings(id);
+    }
+
+    // PUT api/Product/guid/branch-settings
+    // Excepciones de precio y mínimo por sucursal. Una fila con los dos valores
+    // vacíos devuelve esa sucursal a los valores base.
+    [HttpPut("{id:guid}/branch-settings")]
+    public async Task<ActionResult<Response<bool>>> SaveBranchSettings(Guid id, [FromBody] List<ProductBranchSettingRequest> settings)
+    {
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
+
+        ValidationResult result = new ProductBranchSettingRequestValidator().Validate(settings ?? []);
+        if (!result.IsValid) return ErrorsValidation<bool>.GetResponse(result.Errors);
+
+        return await _branchSettingsApplication.SaveSettings(id, settings ?? [], datos.UserId);
+    }
+
     // DELETE api/Product/5
     [HttpDelete("{id}")]
     public async Task<ActionResult<Response<bool>>> Delete(string id)
@@ -133,12 +163,19 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
 
     // GET: api/Product
     [HttpGet]
-    public async Task<ActionResult<Response<List<ProductResponse>>>> GetProducts(string productName="")
+    // branch: de qué sucursales se suma el stock. Vacío = la activa (el POS y
+    // los listados); un id o "all" para el reporte de stock (ver BranchScope).
+    public async Task<ActionResult<Response<List<ProductResponse>>>> GetProducts(string productName="", string? branch = null)
     {
-       if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
         if(productName == "ALL")   productName = "";
         if (productName.Length > 100) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "El nombre del producto no puede tener mas de 100 caracteres" } });
-        var respuesta = await _productApplication.GetProducts(productName);
+
+        var (branches, scopeError) = await BranchScope.Resolve(branch, datos.UserId, _branchApplication);
+        if (scopeError != null) return new Response<List<ProductResponse>>() { ok = false, Message = new Msg() { MessageType = "warning", Description = scopeError } };
+
+        var respuesta = await _productApplication.GetProducts(productName, branches);
         return respuesta;
     }
 

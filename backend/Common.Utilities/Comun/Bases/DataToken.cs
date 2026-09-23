@@ -6,6 +6,9 @@ public class DataToken
 {
     public int UserId { get; set; } = 0;
     public int TenantId { get; set; } = 0;
+
+    /// <summary>Sucursal activa de la sesión. Viaja en el JWT.</summary>
+    public Guid BranchId { get; set; } = Guid.Empty;
     public string Uuid { get; set; } = "";
     public int SessionId { get; set; }
     public string Email { get; set; } = "";
@@ -31,5 +34,6 @@ public class TokenDataConst
     public const string ROL = "Rol";
     public const string EMAIL = "Email";
     public const string TENANT_ID = "TenantId";
+    public const string BRANCH_ID = "BranchId";
     public const string ROLES = "Roles";
 }

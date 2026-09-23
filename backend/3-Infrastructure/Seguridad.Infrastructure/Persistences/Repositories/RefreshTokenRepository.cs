@@ -20,7 +20,7 @@ namespace Seguridad.Infrastructure;
 public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshTokenRepository
 {
     public async Task<long> Create(
-        int userId, int tenantId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt)
+        int userId, int tenantId, Guid branchId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt)
     {
         using var db = _context.CreateAuthConnection;
         try
@@ -28,15 +28,16 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             db.Open();
             const string query = @"
                 INSERT INTO sec.refresh_tokens
-                    (user_id, tenant_id, session_id, token_hash, device, login_from, expires_at)
+                    (user_id, tenant_id, branch_id, session_id, token_hash, device, login_from, expires_at)
                 VALUES
-                    (@user_id, @tenant_id, @session_id, @token_hash, @device, @login_from, @expires_at)
+                    (@user_id, @tenant_id, @branch_id, @session_id, @token_hash, @device, @login_from, @expires_at)
                 RETURNING id";
 
             return await db.ExecuteScalarAsync<long>(query, new
             {
                 user_id = userId,
                 tenant_id = tenantId,
+                branch_id = branchId,
                 session_id = sessionId,
                 token_hash = tokenHash,
                 device = device ?? "",
@@ -55,7 +56,7 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
         {
             db.Open();
             const string query = @"
-                SELECT id, user_id, tenant_id, session_id, token_hash, device, login_from,
+                SELECT id, user_id, tenant_id, branch_id, session_id, token_hash, device, login_from,
                        created_at, expires_at, revoked_at, replaced_by
                 FROM sec.refresh_tokens
                 WHERE token_hash = @token_hash";
@@ -78,7 +79,7 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
         {
             db.Open();
             const string query = @"
-                SELECT id, user_id, tenant_id, session_id, token_hash, device, login_from,
+                SELECT id, user_id, tenant_id, branch_id, session_id, token_hash, device, login_from,
                        created_at, expires_at, revoked_at, replaced_by
                 FROM sec.refresh_tokens
                 WHERE id = @id AND tenant_id = @tenant_id";
@@ -128,6 +129,24 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             return rows.ToList();
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<List<ConnectedUserResponse>>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<int> SetBranchForSession(int userId, int sessionId, Guid branchId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            const string query = @"
+                UPDATE sec.refresh_tokens
+                   SET branch_id = @branch_id
+                 WHERE user_id = @user_id AND session_id = @session_id
+                   AND revoked_at IS NULL AND expires_at > now()";
+
+            return await db.ExecuteAsync(query, new { user_id = userId, session_id = sessionId, branch_id = branchId });
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
         finally { db.Close(); }
     }
 
@@ -192,7 +211,7 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
         finally { db.Close(); }
     }
 
-    public async Task<LoginResponse?> GetLoginDataForRefresh(int userId, string device, string loginFrom)
+    public async Task<LoginResponse?> GetLoginDataForRefresh(int userId, string device, string loginFrom, Guid? preferredBranch)
     {
         // Sin tenant: el refresh llega con el access token vencido o ausente, así
         // que no hay claim del cual sacarlo. El tenant sale de esta misma consulta
@@ -225,6 +244,10 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
                 RolName = fila["rol_name"].ToString() ?? "",
                 Roles = fila["roles"].ToString() ?? ""
             };
+
+            // La sesión sigue en la sucursal en la que estaba, salvo que al
+            // usuario se la hayan quitado mientras tanto.
+            await LoginBranches.Assign(db, usuario, preferredBranch);
 
             // Una reconexión abre sesión nueva: el JWT emitido lleva su SessionId
             // y queda registrada en la auditoría igual que un login normal.

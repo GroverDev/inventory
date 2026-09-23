@@ -190,6 +190,20 @@ export default {
       meta: { requiresAuth: true, title: 'PV - Control de Stock', titleForm: 'Control de Stock' },
     },
     {
+      path: 'stock-transfers',
+      name: 'stock-transfers',
+      component: () => import(/* webpackChunkName: "stock-transfers" */ '@/modules/inventory/views/stock-transfers/StockTransfersView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Traspasos', titleForm: 'Traspasos entre Sucursales' },
+    },
+    {
+      path: 'stock-transfer/:id',
+      name: 'stock-transfer',
+      component: () => import(/* webpackChunkName: "stock-transfer" */ '@/modules/inventory/views/stock-transfers/StockTransferView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Traspaso', titleForm: 'Traspasos entre Sucursales' },
+    },
+    {
       path: 'stock-expiry',
       name: 'stock-expiry',
       component: () => import(/* webpackChunkName: "stock-expiry" */ '@/modules/inventory/views/stock-inventory/StockExpiryView.vue'),

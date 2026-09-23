@@ -8,6 +8,36 @@ namespace Inventory.Infrastructure;
 
 public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailRepository, InventoryDbContext _DbContext):IPurchaseRepository
 {
+    /// <summary>
+    /// Bloquea el pedido para modificarlo y devuelve su estado, o null si no
+    /// existe.
+    /// </summary>
+    /// <remarks>
+    /// Un pedido se gestiona desde la sucursal que lo hizo: es la que recibe la
+    /// mercadería, y recibirlo desde otra metería el stock en la sucursal
+    /// equivocada. La base lo impide igual (FK compuesta de purchases_delivery),
+    /// pero así el mensaje dice de qué sucursal es.
+    /// </remarks>
+    private static async Task<int?> LockPurchaseInBranch(System.Data.IDbConnection db, System.Data.IDbTransaction transaction, object idParam)
+    {
+        var fila = await db.QuerySingleOrDefaultAsync<(int Status, bool MismaSucursal, string Sucursal)>(@"
+            SELECT p.purchase_status_id, p.branch_id = public.current_branch(), b.name
+              FROM purchases p
+              JOIN branches b ON b.id = p.branch_id
+             WHERE p.id = @Id AND p.state
+               FOR UPDATE OF p",
+            idParam, transaction);
+
+        if (fila == default) return null;
+
+        if (!fila.MismaSucursal)
+            throw new CustomException(
+                $"El pedido es de la sucursal «{fila.Sucursal}»: se gestiona desde esa sucursal.",
+                MessageTypes.Warning);
+
+        return fila.Status;
+    }
+
     /// <summary>Nombre del índice único que hace idempotente la recepción.</summary>
     private const string OperationUidConstraint = "uq_purchases_delivery_operation_uid";
 
@@ -139,9 +169,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
             {
                 // Una orden con recepciones ya movió stock: editarla dejaría el
                 // pedido y el inventario contando historias distintas.
-                var currentStatus = await db.QuerySingleOrDefaultAsync<int?>(
-                    "SELECT purchase_status_id FROM purchases WHERE id = @Id AND state FOR UPDATE",
-                    new { purchase.Id }, transaction);
+                var currentStatus = await LockPurchaseInBranch(db, transaction, new { purchase.Id });
 
                 if (currentStatus is null)
                     throw new CustomException("La orden de compra no existe.", MessageTypes.Warning);
@@ -228,9 +256,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
             try
             {
                 // 1. Bloqueo pesimista: serializa recepciones sobre la misma orden.
-                var currentStatus = await db.QuerySingleOrDefaultAsync<int?>(
-                    "SELECT purchase_status_id FROM purchases WHERE id = @Id AND state FOR UPDATE",
-                    new { Id = purchaseDelivery.PurchaseId }, transaction);
+                var currentStatus = await LockPurchaseInBranch(db, transaction, new { Id = purchaseDelivery.PurchaseId });
 
                 if (currentStatus is null)
                     throw new CustomException("La orden de compra no existe.", MessageTypes.Warning);
@@ -326,9 +352,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
             using var transaction = db.BeginTransaction();
             try
             {
-                var currentStatus = await db.QuerySingleOrDefaultAsync<int?>(
-                    "SELECT purchase_status_id FROM purchases WHERE id = @Id AND state FOR UPDATE",
-                    new { Id = id }, transaction);
+                var currentStatus = await LockPurchaseInBranch(db, transaction, new { Id = id });
 
                 if (currentStatus is null)
                     throw new CustomException("La orden de compra no existe.", MessageTypes.Warning);
@@ -380,9 +404,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
             using var transaction = db.BeginTransaction();
             try
             {
-                var currentStatus = await db.QuerySingleOrDefaultAsync<int?>(
-                    "SELECT purchase_status_id FROM purchases WHERE id = @Id AND state FOR UPDATE",
-                    new { Id = id }, transaction);
+                var currentStatus = await LockPurchaseInBranch(db, transaction, new { Id = id });
 
                 if (currentStatus is null)
                     throw new CustomException("La orden de compra no existe.", MessageTypes.Warning);
@@ -427,7 +449,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
         return numberRows;
     }
 
-    public async Task<List<PurchaseProductResponse>> GetPurchases(DateOnly purchaseDateInitial, DateOnly purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus)
+    public async Task<List<PurchaseProductResponse>> GetPurchases(DateOnly purchaseDateInitial, DateOnly purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus, Guid[]? branches = null)
     {
         List<PurchaseProductResponse> listPurchases = [];
         using var db = _DbContext.CreateConnection;
@@ -439,12 +461,17 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
             // SQL con comillas rompe la compilación de formas confusas.
             string sqlQuery = """
                         SELECT p.id, p.purchase_date, p.total, p.is_active, ps.description as PurchaseStatusName, p.purchase_status_id,
-                               p.provider_id, pr.provider_name, p.estimated_delivery_date
+                               p.provider_id, pr.provider_name, p.estimated_delivery_date,
+                               b.name AS BranchName
                           FROM purchases p
                                INNER JOIN purchases_status ps ON ps.id = p.purchase_status_id
                                INNER JOIN providers pr        ON pr.id = p.provider_id
+                               INNER JOIN branches b          ON b.id = p.branch_id
                          WHERE p.state
                            AND p.is_active
+                           -- Los pedidos que recibe esta sucursal, o las que pida
+                           -- un reporte (ya validadas contra las del usuario).
+                           AND p.branch_id = ANY(COALESCE(@Branches::uuid[], ARRAY[public.current_branch()]))
                            AND p.purchase_date >= @PurchaseDateInitial
                            AND p.purchase_date <= @PurchaseDateEnd
                            -- 0 significa "todos los estados": es un valor que el
@@ -461,7 +488,8 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                 {
                     PurchaseDateInitial = purchaseDateInitial,
                     PurchaseDateEnd = purchaseDateEnd,
-                    PurchaseStatusId = (int)purchaseStatus
+                    PurchaseStatusId = (int)purchaseStatus,
+                    Branches = branches
                 });
             listPurchases = result!.ToList();
 
@@ -489,6 +517,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
                         SELECT id, purchase_date, total, is_active
                          FROM purchases
                         WHERE state
+                          AND branch_id = public.current_branch()
                           AND purchase_date= @PurchaseDate;                ";
 
             var result = await db.QueryAsync<Purchase>(sqlQuery,
@@ -544,9 +573,7 @@ public class PurchaseRepository(IPurchaseDetailRepository _purchaseDetailReposit
             using var transaction = db.BeginTransaction();
             try
             {
-                var currentStatus = await db.QuerySingleOrDefaultAsync<int?>(
-                    "SELECT purchase_status_id FROM purchases WHERE id = @Id AND state FOR UPDATE",
-                    new { Id = id }, transaction);
+                var currentStatus = await LockPurchaseInBranch(db, transaction, new { Id = id });
 
                 if (currentStatus is null)
                     throw new CustomException("La orden de compra no existe.", MessageTypes.Warning);

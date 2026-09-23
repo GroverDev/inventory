@@ -4,10 +4,14 @@ export class Product {
   public ProductCode: string = '';
   public ProductName: string = '';
   public Description: string = '';
+  /** Precio en la sucursal activa (su excepción, o el base). */
   public SalePrice: number = 0;
+  /** Precio del catálogo, igual en todas las sucursales. Es el que se edita. */
+  public BaseSalePrice?: number;
   public BarCode: string = '';
   public CurrentStock: number = 0;
   public MinReorderQuantity: number = 0;
+  public BaseMinReorderQuantity?: number;
   public AvailableInPos: boolean = false;
   /** La venta exige respaldo: receta, permiso. Del núcleo, no de un rubro. */
   public RequiresAuthorization: boolean = false;

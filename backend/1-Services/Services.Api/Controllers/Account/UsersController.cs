@@ -14,7 +14,7 @@ namespace Services.Api.Controllers.Security;
 [ApiExplorerSettings(GroupName = "SECURITY")]
 [Route("api/[controller]")]
 [ApiController]
-public class UsersController(IUsersApplication _usersApplication): ControllerBase
+public class UsersController(IUsersApplication _usersApplication, IRolesApplication _rolesApplication): ControllerBase
 {
     [HttpPost("GetUsers")]
 public async Task<ActionResult<Response<List<UsersResponse>>>> Get([FromBody] UserSearchRequest userSearchRequest)
@@ -85,6 +85,27 @@ public async Task<ActionResult<Response<bool>>> AssignRolesToUser(Guid uuid, [Fr
     var datos = TokenData.GetData(HttpContext);
     var resp = await _usersApplication.AssignRolesToUser(uuid, request.RoleIds, datos.UserId);
     return Ok(resp);
+}
+
+[HttpGet("{uuid}/branches")]
+public async Task<ActionResult<Response<List<UserBranchResponse>>>> GetBranchesByUser(Guid uuid)
+{
+    if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+    return Ok(await _usersApplication.GetBranchesByUser(uuid));
+}
+
+[HttpPut("{uuid}/branches")]
+public async Task<ActionResult<Response<bool>>> AssignBranchesToUser(Guid uuid, [FromBody] UserBranchesRequest request)
+{
+    var datos = TokenData.GetData(HttpContext);
+    if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
+
+    // Habilitar a alguien en una sucursal decide dónde puede vender y mover
+    // stock: exige poder modificar usuarios, no solo verlos.
+    if (!await _rolesApplication.HasFormPermission(datos.UserId, "users-admin", "update"))
+        return Ok(new Response<bool> { ok = false, Message = new Msg { MessageType = "warning", Description = "No tiene permiso para modificar usuarios." } });
+
+    return Ok(await _usersApplication.AssignBranchesToUser(uuid, request, datos.UserId));
 }
 
 [HttpPut("me/password")]

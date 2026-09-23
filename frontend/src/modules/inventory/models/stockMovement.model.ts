@@ -55,6 +55,8 @@ export class LotTraceabilityResponse {
   Cliente: string = ''
   DocumentNumber: string | null = null
   Cellphone: string | null = null
+  /** Sucursal donde se hizo la venta: el retiro se busca en toda la farmacia. */
+  BranchName: string = ''
 }
 
 /** Una unidad serializada disponible para vender. */
@@ -93,6 +95,8 @@ export class WriteOffDetailResponse {
   Observation: string | null = null
   Created: string = ''
   CreatedBy: number = 0
+  /** Sucursal donde se registró la merma. */
+  BranchName: string = ''
 }
 
 /** Mermas acumuladas de un producto en el período consultado. */

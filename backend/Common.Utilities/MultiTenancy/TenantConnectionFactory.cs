@@ -17,6 +17,12 @@ public static class TenantConnectionFactory
     public const string TenantSetting = "app.tenant_id";
 
     /// <summary>
+    /// Variable de sesión con la sucursal activa. La lee <c>public.current_branch()</c>,
+    /// DEFAULT de <c>branch_id</c> en las tablas operativas.
+    /// </summary>
+    public const string BranchSetting = "app.branch_id";
+
+    /// <summary>
     /// Devuelve una conexión <b>cerrada</b> que fija <c>app.tenant_id</c> en cuanto
     /// se abra.
     /// </summary>
@@ -60,12 +66,21 @@ public static class TenantConnectionFactory
             if (!tenant.HasTenant) return;
 
             using var cmd = connection.CreateCommand();
-            cmd.CommandText = $"SELECT set_config('{TenantSetting}', @tenant, false)";
+            cmd.CommandText =
+                $"SELECT set_config('{TenantSetting}', @tenant, false), set_config('{BranchSetting}', @branch, false)";
 
             var parametro = cmd.CreateParameter();
             parametro.ParameterName = "tenant";
             parametro.Value = tenant.TenantId!.Value.ToString();
             cmd.Parameters.Add(parametro);
+
+            // Se fija siempre, aunque sea vacío: la conexión física puede venir
+            // del pool con la sucursal de otro request, y dejarla haría que
+            // este escribiera en una sucursal ajena.
+            var sucursal = cmd.CreateParameter();
+            sucursal.ParameterName = "branch";
+            sucursal.Value = tenant.BranchId?.ToString() ?? "";
+            cmd.Parameters.Add(sucursal);
 
             cmd.ExecuteNonQuery();
         };

@@ -18,6 +18,20 @@ public class SaleReturnRepository(InventoryDbContext _DbContext) : ISaleReturnRe
             using var transaction = db.BeginTransaction();
             try
             {
+                // La devolución se registra en la sucursal de la venta: lo devuelto
+                // vuelve a la existencia de la que salió, y el reintegro sale de una
+                // caja de esa sucursal. La base lo exige igual (FK compuesta de
+                // sale_returns); esto es para que el mensaje diga dónde hacerla.
+                var sucursalVenta = await db.QuerySingleOrDefaultAsync<(bool Misma, string Nombre)>(@"
+                    SELECT s.branch_id = public.current_branch(), b.name
+                      FROM sales s JOIN branches b ON b.id = s.branch_id
+                     WHERE s.id = @SaleId",
+                    new { saleReturn.SaleId }, transaction);
+
+                if (sucursalVenta != default && !sucursalVenta.Misma)
+                    throw new CustomException(
+                        $"La venta se hizo en la sucursal «{sucursalVenta.Nombre}»: la devolución se registra desde esa sucursal.");
+
                 // Insertar cabecera de devolución
                 saleReturn.Id = Guid.NewGuid();
                 string sqlReturn = @"

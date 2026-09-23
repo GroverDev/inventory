@@ -1,4 +1,5 @@
 using Common.Utilities;
+using Common.Utilities.Comun.Bases;
 using Seguridad.Domain;
 
 namespace Seguridad.Application;
@@ -24,19 +25,34 @@ public interface IAuthenticationApplication
     Task<int> RecordSuccessfulLogin(LoginRequest login, int userId);
 
     /// <summary>
+    /// Fija la sucursal default del usuario en <paramref name="data"/>, para el
+    /// camino de dispositivo de confianza: Login() no la resuelve cuando la
+    /// cuenta tiene TOTP, porque antes del segundo factor no se revelan las
+    /// sucursales. ok=false si el usuario no tiene ninguna habilitada.
+    /// </summary>
+    Task<Response<bool>> AssignBranch(LoginResponse data);
+
+    /// <summary>
     /// Emite y persiste un refresh token nuevo. Devuelve el valor en claro,
     /// que solo se entrega al cliente en esta llamada. <paramref name="sessionId"/>
     /// es el SessionId (sec.users_login) vigente al emitirlo: queda ligado a la
     /// fila para poder revocar en memoria el access token correspondiente si
     /// esta sesión se cierra desde el panel de administración.
     /// </summary>
-    Task<string> IssueRefreshToken(int userId, int tenantId, int sessionId, string device, string loginFrom, int days);
+    Task<string> IssueRefreshToken(int userId, int tenantId, Guid branchId, int sessionId, string device, string loginFrom, int days);
 
     /// <summary>
     /// Canjea un refresh token por datos de sesión frescos y rota el token.
     /// El <see cref="LoginResponse.Token"/> (JWT) lo completa el controlador.
     /// </summary>
     Task<Response<LoginResponse>> Refresh(RefreshTokenRequest request, int days);
+
+    /// <summary>
+    /// Cambia la sesión en curso a otra sucursal en la que el usuario esté
+    /// habilitado. Devuelve los datos para emitir el JWT nuevo (el controlador
+    /// lo firma) y si la sesión se renueva con refresh token.
+    /// </summary>
+    Task<(Response<LoginResponse> Resp, bool Renewable)> SwitchBranch(DataToken session, Guid branchId);
 
     /// <summary>Revoca un refresh token (cierre de sesión explícito).</summary>
     Task<Response<bool>> RevokeRefreshToken(string refreshToken);

@@ -40,6 +40,9 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                        INNER JOIN products p ON p.id = sm.product_id
                        LEFT JOIN stock_items si ON si.id = sm.stock_item_id
                  WHERE sm.product_id = @ProductId
+                   -- El historial es el de la sucursal: stock_before y
+                   -- stock_after son saldos de sus existencias.
+                   AND sm.branch_id = public.current_branch()
                    AND sm.state
                    AND (@StockItemId::uuid IS NULL OR sm.stock_item_id = @StockItemId)
                  ORDER BY sm.created DESC;
@@ -66,7 +69,10 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                        estado         AS Estado,
                        valor_en_riesgo AS ValorEnRiesgo
                   FROM v_stock_por_vencer
-                 WHERE @Dias <= 0 OR expiry_date <= CURRENT_DATE + @Dias
+                 -- Lo que vence en esta sucursal: es lo que se puede rotar o dar
+                 -- de baja desde acá.
+                 WHERE branch_id = public.current_branch()
+                   AND (@Dias <= 0 OR expiry_date <= CURRENT_DATE + @Dias)
                  ORDER BY expiry_date;
             ";
             var result = await db.QueryAsync<StockExpiryResponse>(sql, new { Dias = dias });
@@ -91,13 +97,13 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
             string sql = @"
                 SELECT lot_code, '' AS serial_number, expiry_date, product_code, product_name,
                        sale_id, sale_date, quantity,
-                       cliente, document_number, cellphone
+                       cliente, document_number, cellphone, branch_name
                   FROM v_trazabilidad_lote
                  WHERE upper(trim(lot_code)) = upper(trim(@LotCode))
                 UNION ALL
                 SELECT '' AS lot_code, serial_number, expiry_date, product_code, product_name,
                        sale_id, sale_date, 1 AS quantity,
-                       cliente, document_number, cellphone
+                       cliente, document_number, cellphone, branch_name
                   FROM v_trazabilidad_serie
                  WHERE upper(trim(serial_number)) = upper(trim(@LotCode))
                  ORDER BY sale_date DESC;
@@ -122,6 +128,7 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                 SELECT id AS stock_item_id, serial_number, expiry_date
                   FROM stock_items
                  WHERE product_id = @ProductId
+                   AND branch_id = public.current_branch()
                    AND serial_number IS NOT NULL
                    AND quantity > 0
                    AND state
@@ -190,11 +197,11 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                 // venció es una existencia puntual. Se valida que pertenezca al
                 // producto para no dar de baja el lote de otro por un id mal armado.
                 bool perteneceAlProducto = await db.ExecuteScalarAsync<bool>(
-                    "SELECT EXISTS(SELECT 1 FROM stock_items WHERE id = @StockItemId AND product_id = @ProductId)",
+                    "SELECT EXISTS(SELECT 1 FROM stock_items WHERE id = @StockItemId AND product_id = @ProductId AND branch_id = public.current_branch())",
                     new { StockItemId = stockItemId, movement.ProductId }, transaction);
 
                 if (!perteneceAlProducto)
-                    throw new CustomException("La existencia indicada no pertenece a este producto.");
+                    throw new CustomException("La existencia indicada no pertenece a este producto en esta sucursal.");
 
                 var saldo = await db.QueryFirstAsync<(Guid StockItemId, decimal StockBefore, decimal StockAfter)>(
                     "SELECT stock_item_id, stock_before, stock_after FROM fn_mover_stock(@ProductId, @Delta, @UserId, @StockItemId)",
@@ -227,7 +234,7 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
         finally { db.Close(); }
     }
 
-    public async Task<WriteOffReportResponse> GetWriteOffs(DateTime desde, DateTime hasta, Guid? productId)
+    public async Task<WriteOffReportResponse> GetWriteOffs(DateTime desde, DateTime hasta, Guid? productId, Guid[]? branches = null)
     {
         using var db = _DbContext.CreateConnection;
         try
@@ -244,14 +251,15 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
 
             string sqlDetalle = @"
                 SELECT product_id, product_code, product_name, lot_code, expiry_date,
-                       cantidad, valor_perdido, reason, observation, created, created_by
+                       cantidad, valor_perdido, reason, observation, created, created_by, branch_name
                   FROM v_mermas
                  WHERE created >= @Inicio AND created < @Fin
+                   AND branch_id = ANY(COALESCE(@Branches::uuid[], ARRAY[public.current_branch()]))
                    AND (@ProductId::uuid IS NULL OR product_id = @ProductId)
                  ORDER BY created DESC;
             ";
             var detalle = (await db.QueryAsync<WriteOffDetailResponse>(
-                sqlDetalle, new { Inicio = inicio, Fin = fin, ProductId = productId })).ToList();
+                sqlDetalle, new { Inicio = inicio, Fin = fin, ProductId = productId, Branches = branches })).ToList();
 
             string sqlPorProducto = @"
                 SELECT product_id, product_code, product_name,
@@ -260,12 +268,13 @@ public class StockMovementRepository(InventoryDbContext _DbContext) : IStockMove
                        count(*)           AS Eventos
                   FROM v_mermas
                  WHERE created >= @Inicio AND created < @Fin
+                   AND branch_id = ANY(COALESCE(@Branches::uuid[], ARRAY[public.current_branch()]))
                    AND (@ProductId::uuid IS NULL OR product_id = @ProductId)
                  GROUP BY product_id, product_code, product_name
                  ORDER BY ValorPerdido DESC;
             ";
             var porProducto = (await db.QueryAsync<WriteOffByProductResponse>(
-                sqlPorProducto, new { Inicio = inicio, Fin = fin, ProductId = productId })).ToList();
+                sqlPorProducto, new { Inicio = inicio, Fin = fin, ProductId = productId, Branches = branches })).ToList();
 
             return new WriteOffReportResponse
             {

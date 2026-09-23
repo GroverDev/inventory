@@ -39,7 +39,7 @@ public class MfaController(
         if (refreshable)
         {
             string rawRefresh = await _authenticationApplication.IssueRefreshToken(
-                data.UserId, data.TenantId, data.SesionId, device,
+                data.UserId, data.TenantId, data.BranchId, data.SesionId, device,
                 Enum.GetName(typeof(Seguridad.Domain.Enums.InicioSesionDesde), from) ?? "",
                 _jwtSettings.RefreshTokenDays);
 

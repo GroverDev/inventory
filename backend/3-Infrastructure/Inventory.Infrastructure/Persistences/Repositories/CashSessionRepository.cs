@@ -72,7 +72,10 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
                        COALESCE((SELECT SUM(m.amount) FROM cash_movements m WHERE m.cash_session_id = cs.id AND m.movement_type = 'return' AND m.state), 0) AS TotalReturns
                   FROM cash_sessions cs
                   JOIN sec.users u ON u.id = cs.user_id
-                 WHERE cs.user_id = @UserId AND cs.closed_at IS NULL AND cs.state = TRUE;";
+                 WHERE cs.user_id = @UserId AND cs.closed_at IS NULL AND cs.state = TRUE
+                   -- Una caja abierta por usuario y sucursal: la activa es la de
+                   -- la sucursal donde está ahora.
+                   AND cs.branch_id = public.current_branch();";
             var session = await db.QueryFirstOrDefaultAsync<CashSessionResponse>(sql, new { UserId = userId });
             if (session != null)
                 session.Movements = await _movementRepository.GetMovementsBySession(session.Id);
@@ -199,6 +202,7 @@ public class CashSessionRepository(InventoryDbContext _DbContext, ICashMovementR
                   FROM cash_sessions cs
                   JOIN sec.users u ON u.id = cs.user_id
                  WHERE cs.state = TRUE
+                   AND cs.branch_id = public.current_branch()
                    AND (cs.closed_at IS NULL OR (cs.opened_at >= @DateFrom AND cs.opened_at < @DateTo))
                    {userFilter}
                  ORDER BY cs.opened_at DESC;";

@@ -17,6 +17,13 @@ public interface IAuthenticationRepository
     Task<int> RecordSuccessfulLogin(LoginRequest login, int userId);
 
     /// <summary>
+    /// Completa las sucursales habilitadas del usuario y fija la activa:
+    /// <paramref name="preferred"/> si sigue habilitado en ella, si no la default.
+    /// Lanza <c>CustomException</c> si no tiene ninguna.
+    /// </summary>
+    Task AssignBranch(LoginResponse usuario, Guid? preferred);
+
+    /// <summary>
     /// Intentos fallidos de <paramref name="email"/> dentro de los últimos
     /// <paramref name="withinMinutes"/> minutos, contados desde el último
     /// login exitoso (un acceso correcto reinicia la cuenta).

@@ -312,8 +312,10 @@ const exportProducts = () => {
     Id: p.Id,
     ProductCode: p.ProductCode,
     ProductName: p.ProductName,
-    SalePrice: p.SalePrice,
-    MinReorderQuantity: p.MinReorderQuantity,
+    // Valores base: la planilla se reimporta como precio del catálogo, y la
+    // excepción de la sucursal activa no debe terminar aplicada a todas.
+    SalePrice: p.BaseSalePrice ?? p.SalePrice,
+    MinReorderQuantity: p.BaseMinReorderQuantity ?? p.MinReorderQuantity,
     AvailableInPos: p.AvailableInPos,
     IsActive: p.IsActive,
     BarCode: p.BarCode,

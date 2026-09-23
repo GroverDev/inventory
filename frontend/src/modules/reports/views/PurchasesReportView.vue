@@ -33,6 +33,7 @@
                   <option :value="3">Tot. Recibido</option>
                 </select>
               </div>
+              <BranchFilter v-model="branch" />
               <div class="col-12 col-md-3 d-flex gap-2">
                 <button class="btn btn-primary btn-sm flex-fill" @click="load">
                   <i class="fal fa-search me-1"></i>Buscar
@@ -81,6 +82,7 @@
                   <thead class="">
                     <tr>
                       <th>Fecha</th>
+                      <th v-if="consolidated">Sucursal</th>
                       <th>Proveedor</th>
                       <th class="text-center">Estado</th>
                       <th>Entrega Est.</th>
@@ -90,6 +92,7 @@
                   <tbody>
                     <tr v-for="p in purchases" :key="p.Id">
                       <td class="text-nowrap">{{ formatDateOnly(p.PurchaseDate) }}</td>
+                      <td v-if="consolidated"><small>{{ p.BranchName }}</small></td>
                       <td>{{ p.ProviderName }}</td>
                       <td class="text-center">
                         <span :class="statusBadge(p.PurchaseStatusId)">{{ statusLabel(p.PurchaseStatusId) }}</span>
@@ -100,7 +103,7 @@
                   </tbody>
                   <tfoot class="fw-bold">
                     <tr>
-                      <td colspan="4">TOTAL</td>
+                      <td :colspan="consolidated ? 5 : 4">TOTAL</td>
                       <td class="text-end">{{ fmt(totalAmount) }}</td>
                     </tr>
                   </tfoot>
@@ -133,6 +136,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import usePurchase from '@/modules/inventory/composables/usePurchase';
+import BranchFilter from '@/modules/reports/components/BranchFilter.vue';
 import type { Purchase } from '@/modules/inventory/models/purchase.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import { todayIso, firstOfMonthIso, formatDateOnly } from '@/utils/dateHelper';
@@ -144,6 +148,10 @@ const today        = todayIso();
 const firstOfMonth = firstOfMonthIso();
 const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today, statusId: 1 });
 
+// '' = sucursal activa, un id, o 'all' (consolidado de las sucursales del usuario).
+const branch = ref('');
+const consolidated = computed(() => branch.value === 'all');
+
 const totalAmount    = computed(() => purchases.value.reduce((s, p) => s + p.Total, 0));
 const uniqueProviders = computed(() => new Set(purchases.value.map(p => p.ProviderId)).size);
 
@@ -152,19 +160,20 @@ const statusBadge = (id: number) => id === 3 ? 'badge bg-success' : id === 2 ? '
 const statusLabel = (id: number) => id === 3 ? 'Tot. Recibido' : id === 2 ? 'Parc. Recibido' : 'Solicitado';
 
 const load = async () => {
-  const { ok, Data } = await getPurchases(filtro.value.dateInitial, filtro.value.dateEnd, filtro.value.statusId);
+  const { ok, Data } = await getPurchases(filtro.value.dateInitial, filtro.value.dateEnd, filtro.value.statusId, branch.value);
   if (ok) purchases.value = Data ?? [];
 };
 
 const exportar = () => {
   const rows = purchases.value.map(p => ({
     Fecha:            formatDateOnly(p.PurchaseDate),
+    Sucursal:         p.BranchName ?? '',
     Proveedor:        p.ProviderName,
     Estado:           statusLabel(p.PurchaseStatusId),
     Entrega_Estimada: p.EstimatedDeliveryDate ? formatDateOnly(p.EstimatedDeliveryDate) : '',
     Total:            p.Total,
   }));
-  rows.push({ Fecha: 'TOTAL', Proveedor: '', Estado: '', Entrega_Estimada: '', Total: totalAmount.value });
+  rows.push({ Fecha: 'TOTAL', Sucursal: '', Proveedor: '', Estado: '', Entrega_Estimada: '', Total: totalAmount.value });
   exportToExcel(rows, `reporte_compras_${filtro.value.dateInitial}_${filtro.value.dateEnd}.xlsx`);
 };
 </script>

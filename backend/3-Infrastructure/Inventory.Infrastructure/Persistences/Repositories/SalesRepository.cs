@@ -17,6 +17,21 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
             using var transaction = db.BeginTransaction();
             try
             {
+                // La caja tiene que ser de la sucursal donde se vende. La base lo
+                // exige igual (FK compuesta sales_caja_misma_sucursal); esto es
+                // para que el mensaje lo diga. Pasa si el punto de venta quedó
+                // abierto con la caja de la sucursal anterior.
+                if (sale.CashSessionId.HasValue)
+                {
+                    bool mismaSucursal = await db.ExecuteScalarAsync<bool>(
+                        "SELECT EXISTS (SELECT 1 FROM cash_sessions WHERE id = @Id AND branch_id = public.current_branch())",
+                        new { Id = sale.CashSessionId }, transaction);
+
+                    if (!mismaSucursal)
+                        throw new CustomException(
+                            "La caja con la que se intenta vender es de otra sucursal. Recargue el punto de venta y abra o elija la caja de esta sucursal.");
+                }
+
                 sale.Id = Guid.NewGuid();
                 string sqlQuery = @"
                        INSERT INTO sales
@@ -39,10 +54,14 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 transaction.Commit();
                 uuid = sale.Id.ToString();
             }
-            catch (Exception ex)
+            // Se relanza el error original, sin envolverlo: envuelto en un
+            // Exception genérico, ExceptionHandler ya no reconoce el RAISE de
+            // Postgres ("Stock insuficiente en esta sucursal...") y el cajero
+            // recibe "Ocurrió un error" en vez del motivo.
+            catch
             {
                 transaction.Rollback();
-                throw new Exception(ex.Message, ex);
+                throw;
             }
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
@@ -91,7 +110,7 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
         return numberRows;
     }
 
-    public async Task<SalesPagedResponse> GetSales(DateTime saleDateInitial, DateTime saleDateEnd, int? userId = null, int page = 1, int pageSize = 50, string? sellerName = null)
+    public async Task<SalesPagedResponse> GetSales(DateTime saleDateInitial, DateTime saleDateEnd, int? userId = null, int page = 1, int pageSize = 50, string? sellerName = null, Guid[]? branches = null)
     {
         SalesPagedResponse result = new();
         using var db = _DbContext.CreateConnection;
@@ -109,6 +128,7 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                        s.total, s.is_active,
                        s.total_returned, s.net_total, s.sale_status,
                        COALESCE(u.full_name, '') AS SellerName,
+                       b.name                    AS BranchName,
                        COUNT(*)                OVER() AS TotalCount,
                        SUM(s.subtotal)         OVER() AS PeriodSubtotal,
                        SUM(s.total_discounts)  OVER() AS PeriodDiscounts,
@@ -119,8 +139,12 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                   -- el listado y sus KPIs no muestren importes brutos.
                   FROM v_sales_net s
                  INNER JOIN customers c ON c.id = s.customer_id
+                 INNER JOIN branches b  ON b.id = s.branch_id
                  LEFT  JOIN sec.users u ON u.id = s.created_by
                  WHERE s.state
+                   -- Sin alcance, la sucursal activa; los reportes pueden pedir
+                   -- otra o varias (ya validadas contra las del usuario).
+                   AND s.branch_id = ANY(COALESCE(@Branches::uuid[], ARRAY[public.current_branch()]))
                    AND s.sale_date >= @SaleDateInitial
                    AND s.sale_date <  @SaleDateEnd
                    {userFilter}
@@ -135,6 +159,7 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 SaleDateEnd     = saleDateEnd,
                 UserId          = userId,
                 SellerName      = sellerName,
+                Branches        = branches,
                 PageSize        = pageSize,
                 Offset          = offset,
             })).ToList();

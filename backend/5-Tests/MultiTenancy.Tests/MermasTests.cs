@@ -33,7 +33,7 @@ public class MermasTests(TenantDatabaseFixture db)
     public async Task Dar_de_baja_reduce_la_cantidad_y_aparece_en_v_mermas()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
         var producto = CrearProductoConLotes(cn, "TEST MERMA VENCIDO", salePrice: 20m);
         cn.Execute("SELECT fn_recibir_lote(@p, 10, 'MERMA-A', '2020-01-01', 1)", new { p = producto });
 
@@ -65,7 +65,7 @@ public class MermasTests(TenantDatabaseFixture db)
     public async Task No_se_puede_dar_de_baja_mas_de_lo_que_hay_en_esa_existencia()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
         var producto = CrearProductoConLotes(cn, "TEST MERMA EXCESO");
         cn.Execute("SELECT fn_recibir_lote(@p, 5, 'MERMA-B', '2020-01-01', 1)", new { p = producto });
 
@@ -88,7 +88,7 @@ public class MermasTests(TenantDatabaseFixture db)
     public async Task No_se_puede_dar_de_baja_una_existencia_de_otro_producto()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
         var productoA = CrearProductoConLotes(cn, "TEST MERMA PRODUCTO A");
         var productoB = CrearProductoConLotes(cn, "TEST MERMA PRODUCTO B");
         cn.Execute("SELECT fn_recibir_lote(@p, 5, 'MERMA-C', '2020-01-01', 1)", new { p = productoB });
@@ -108,7 +108,7 @@ public class MermasTests(TenantDatabaseFixture db)
     public void V_mermas_respeta_el_aislamiento_por_tenant()
     {
         using var admin = db.AbrirComoAdmin();
-        admin.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(admin, TenantDatabaseFixture.TenantUno);
         var producto = CrearProductoConLotes(admin, "TEST MERMA AISLADA");
         admin.Execute("SELECT fn_recibir_lote(@p, 5, 'MERMA-D', '2020-01-01', 1)", new { p = producto });
         var stockItemId = admin.QueryFirst<Guid>(

@@ -30,6 +30,8 @@ export class Purchase {
   public PurchaseStatusId: number = 1;
   public Detail: PurchaseDetail[] = [];
   public ProviderName: string = '';
+  /** Sucursal que hizo el pedido (reportes consolidados). */
+  public BranchName?: string;
   public PurchaseStatusName: string = '';
 }
 

@@ -238,7 +238,7 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
         return respuesta;
     }
 
-    public async Task<Response<List<PurchaseProductResponse>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus)
+    public async Task<Response<List<PurchaseProductResponse>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus, Guid[]? branches = null)
     {
         Response<List<PurchaseProductResponse>> purchases = new() { Data = [] };
         try
@@ -270,7 +270,7 @@ public class PurchaseApplication(IPurchaseRepository _purchaseRepository): IPurc
                 throw new CustomException("Fecha desde, no puede ser mayor a la Fecha hasta.", MessageTypes.Warning);
             #endregion
 
-            var respList = await _purchaseRepository.GetPurchases(diaDesde, diaHasta, purchaseStatus);
+            var respList = await _purchaseRepository.GetPurchases(diaDesde, diaHasta, purchaseStatus, branches);
 
             foreach (var item in respList)
             {

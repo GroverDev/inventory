@@ -37,7 +37,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                         INSERT INTO products
                               (id, product_name, description, sale_price, bar_code, product_code, current_stock, min_reorder_quantity,
                                available_in_pos, requires_authorization, laboratory_id, category_id, uom_id, is_active, state, created_by, created, modified_by, modified)
-                       VALUES(@Id, @ProductName, @Description, @SalePrice, @BarCode, @ProductCode, @CurrentStock, @MinReorderQuantity,
+                       VALUES(@Id, @ProductName, @Description, @SalePrice, @BarCode, @ProductCode, 0, @MinReorderQuantity,
                                @AvailableInPos, @RequiresAuthorization, @LaboratoryId, @CategoryId, @UomId, @IsActive, @State, @CreatedBy, @Created, @ModifiedBy, @Modified);
                     ";
 
@@ -136,7 +136,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         return numberRows;
     }
 
-    public async Task<List<ProductResponse>> GetProducts(string productName)
+    public async Task<List<ProductResponse>> GetProducts(string productName, Guid[]? branches = null)
     {
         List<ProductResponse> listProducts = new();
         using var db = _DbContext.CreateConnection;
@@ -149,10 +149,12 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.product_code,
                               p.product_name,
                               p.description,
-                              p.sale_price,
+                              COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                              p.sale_price AS base_sale_price,
                               p.is_active,
-                              p.current_stock,
-                              p.min_reorder_quantity,
+                              COALESCE(sa.quantity, 0) AS current_stock,
+                              COALESCE(pbs.min_reorder_quantity, p.min_reorder_quantity) AS min_reorder_quantity,
+                              p.min_reorder_quantity AS base_min_reorder_quantity,
                               p.bar_code,
                               p.available_in_pos,
                               p.requires_authorization,
@@ -164,13 +166,22 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.tracking_mode,
                               uom.unit_name
                          FROM products p
+                              LEFT JOIN (
+                                  -- Stock de la sucursal activa, o la suma de las que
+                                  -- pida un reporte (ya validadas contra las del usuario).
+                                  SELECT product_id, sum(quantity) AS quantity
+                                    FROM v_stock_sucursal
+                                   WHERE branch_id = ANY(COALESCE(@Branches::uuid[], ARRAY[public.current_branch()]))
+                                   GROUP BY product_id
+                              ) sa ON sa.product_id = p.id
+                              LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                               LEFT  JOIN laboratories l ON p.laboratory_id = l.id
                               LEFT JOIN categories c ON p.category_id = c.id
                               INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
                         WHERE p.state
                           AND product_name ILIKE @ProductName;
                 ";
-            var result = await db.QueryAsync<ProductResponse>(sqlQuery, new { ProductName = productName });
+            var result = await db.QueryAsync<ProductResponse>(sqlQuery, new { ProductName = productName, Branches = branches });
             listProducts = result!.ToList();
         }
         catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
@@ -199,13 +210,15 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                        p.product_code,
                        p.product_name,
                        p.description,
-                       p.sale_price,
+                       COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                       p.sale_price AS base_sale_price,
                        p.bar_code,
                        p.available_in_pos,
                        p.requires_authorization,
                        p.is_active,
-                       p.current_stock,
-                       p.min_reorder_quantity,
+                       COALESCE(sa.quantity, 0) AS current_stock,
+                       COALESCE(pbs.min_reorder_quantity, p.min_reorder_quantity) AS min_reorder_quantity,
+                       p.min_reorder_quantity AS base_min_reorder_quantity,
                        p.laboratory_id,
                        l.laboratory_name,
                        p.category_id,
@@ -214,6 +227,8 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                        p.tracking_mode,
                        uom.unit_name
                   FROM products p
+                       LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                       LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                        LEFT  JOIN laboratories l   ON l.id  = p.laboratory_id
                        LEFT  JOIN categories c     ON c.id  = p.category_id
                        INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
@@ -245,10 +260,12 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.product_code,
                               p.product_name,
                               p.description,
-                              p.sale_price,
+                              COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                              p.sale_price AS base_sale_price,
                               p.is_active,
-                              p.current_stock,
-                              p.min_reorder_quantity,
+                              COALESCE(sa.quantity, 0) AS current_stock,
+                              COALESCE(pbs.min_reorder_quantity, p.min_reorder_quantity) AS min_reorder_quantity,
+                              p.min_reorder_quantity AS base_min_reorder_quantity,
                               p.bar_code,
                               p.laboratory_id,
                               p.available_in_pos,
@@ -260,6 +277,8 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               p.tracking_mode,
                               uom.unit_name
                          FROM products p
+                              LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                              LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                               LEFT  JOIN laboratories l ON p.laboratory_id = l.id
                               LEFT JOIN categories c ON p.category_id = c.id
                               INNER JOIN unit_of_measurement uom ON uom.id = p.uom_id
@@ -291,9 +310,12 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
             db.Open();
             string sqlQuery = @"
                      SELECT p.id,
-                              p.sale_price,
-                              p.current_stock
+                              COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                              p.sale_price AS base_sale_price,
+                              COALESCE(sa.quantity, 0) AS current_stock
                          FROM products p
+                              LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                              LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                         WHERE p.state
                           AND p.id = @Id;
                 ";

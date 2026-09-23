@@ -9,10 +9,13 @@ const usePurchase = () => {
   const getPurchases = async (
     dateInitial: string,
     dateEnd: string,
-    statusId: number
+    statusId: number,
+    /** '' = sucursal activa, un id, o 'all' para el consolidado. */
+    branch = ''
   ): Promise<ResponseArray<Purchase>> => {
     return await get<ResponseArray<Purchase>>(
       `Purchases?purchaseDateInitial=${dateInitial}&purchaseDateEnd=${dateEnd}&purchaseStatus=${statusId}`
+      + (branch ? `&branch=${encodeURIComponent(branch)}` : '')
     );
   }
 

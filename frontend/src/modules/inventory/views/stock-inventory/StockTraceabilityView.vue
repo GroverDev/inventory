@@ -90,6 +90,7 @@
                       <th>Cliente</th>
                       <th>Documento</th>
                       <th>Teléfono</th>
+                      <th>Sucursal</th>
                       <th class="text-center">Cantidad</th>
                       <th class="text-center">Venta</th>
                     </tr>
@@ -105,6 +106,7 @@
                         </a>
                         <span v-else class="text-muted">—</span>
                       </td>
+                      <td><small>{{ v.BranchName }}</small></td>
                       <td class="text-center">{{ v.Quantity }}</td>
                       <td class="text-center">
                         <button type="button" class="btn btn-outline-info btn-sm"
@@ -137,6 +139,7 @@
                         <small class="text-muted d-block">
                           {{ formatDate(v.SaleDate) }}
                           <span v-if="v.DocumentNumber"> · {{ v.DocumentNumber }}</span>
+                          <span v-if="v.BranchName"> · {{ v.BranchName }}</span>
                         </small>
                         <div class="d-flex gap-2 mt-2">
                           <a v-if="v.Cellphone" :href="`tel:${v.Cellphone}`"
@@ -220,6 +223,7 @@ const exportar = () => {
     Cliente: v.Cliente,
     Documento: v.DocumentNumber ?? '',
     Teléfono: v.Cellphone ?? '',
+    Sucursal: v.BranchName,
     Cantidad: v.Quantity,
     Producto: v.ProductName,
     Lote: v.LotCode,

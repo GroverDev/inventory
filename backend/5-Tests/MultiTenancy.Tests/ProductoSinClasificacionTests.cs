@@ -76,7 +76,7 @@ public class ProductoSinClasificacionTests(TenantDatabaseFixture db)
         // Deja constancia de por qué el mapeo no puede caer en Guid.Empty: no es
         // una preferencia de estilo, la FK lo rechaza.
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var ex = Assert.Throws<Npgsql.PostgresException>(() => cn.Execute(@"
             INSERT INTO products
@@ -112,7 +112,7 @@ public class ProductoSinClasificacionTests(TenantDatabaseFixture db)
     public async Task Un_producto_sin_laboratorio_no_desaparece_de_las_consultas()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var nombre = "TEST SIN LABORATORIO";
         var id = CrearProductoSinClasificacion(cn, nombre);

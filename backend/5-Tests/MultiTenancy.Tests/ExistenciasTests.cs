@@ -30,32 +30,20 @@ public class ExistenciasTests(TenantDatabaseFixture db)
     }
 
     [Fact]
-    public void Todo_producto_tiene_al_menos_una_existencia()
+    public void Los_productos_sin_seguimiento_tienen_a_lo_sumo_una_existencia_por_sucursal()
     {
-        // Con tracking_mode = 'none' es exactamente una, la implícita. Un producto
-        // sin ninguna no se puede vender ni ajustar.
-        using var cn = db.AbrirComoAdmin();
-
-        var huerfanos = cn.ExecuteScalar<int>(@"
-            SELECT count(*) FROM products p
-             WHERE NOT EXISTS (SELECT 1 FROM stock_items si
-                                WHERE si.product_id = p.id AND si.tenant_id = p.tenant_id)");
-
-        Assert.Equal(0, huerfanos);
-    }
-
-    [Fact]
-    public void Los_productos_sin_seguimiento_tienen_una_sola_existencia()
-    {
+        // Desde las sucursales, la existencia implícita es por sucursal y se crea
+        // al primer movimiento (fn_existencia_implicita): un producto puede no
+        // tener ninguna en una sucursal donde nunca entró ni salió, pero nunca dos.
         using var cn = db.AbrirComoAdmin();
 
         var duplicados = cn.ExecuteScalar<int>(@"
             SELECT count(*) FROM (
-                SELECT si.product_id
+                SELECT si.product_id, si.branch_id
                   FROM stock_items si
                   JOIN products p ON p.id = si.product_id
                  WHERE p.tracking_mode = 'none'
-                 GROUP BY si.product_id
+                 GROUP BY si.product_id, si.branch_id
                 HAVING count(*) > 1) x");
 
         Assert.Equal(0, duplicados);
@@ -70,14 +58,14 @@ public class ExistenciasTests(TenantDatabaseFixture db)
             new { t = TenantDatabaseFixture.TenantUno });
 
         cn.Execute(@"
-            INSERT INTO stock_items (tenant_id, product_id, lot_code, expiry_date, quantity)
-            VALUES (@t, @p, 'LOTE-A', '2027-01-01', 10)",
-            new { t = TenantDatabaseFixture.TenantUno, p = producto });
+            INSERT INTO stock_items (tenant_id, branch_id, product_id, lot_code, expiry_date, quantity)
+            VALUES (@t, @b, @p, 'LOTE-A', '2027-01-01', 10)",
+            new { t = TenantDatabaseFixture.TenantUno, b = db.SucursalDe(TenantDatabaseFixture.TenantUno), p = producto });
 
         var ex = Assert.Throws<Npgsql.PostgresException>(() => cn.Execute(@"
-            INSERT INTO stock_items (tenant_id, product_id, lot_code, expiry_date, quantity)
-            VALUES (@t, @p, 'LOTE-A', '2027-01-01', 5)",
-            new { t = TenantDatabaseFixture.TenantUno, p = producto }));
+            INSERT INTO stock_items (tenant_id, branch_id, product_id, lot_code, expiry_date, quantity)
+            VALUES (@t, @b, @p, 'LOTE-A', '2027-01-01', 5)",
+            new { t = TenantDatabaseFixture.TenantUno, b = db.SucursalDe(TenantDatabaseFixture.TenantUno), p = producto }));
 
         Assert.Equal("23505", ex.SqlState);   // unique_violation
 
@@ -96,8 +84,8 @@ public class ExistenciasTests(TenantDatabaseFixture db)
             new { t = TenantDatabaseFixture.TenantUno });
 
         var ex = Assert.Throws<Npgsql.PostgresException>(() => cn.Execute(@"
-            INSERT INTO stock_items (tenant_id, product_id, quantity) VALUES (@t, @p, 1)",
-            new { t = TenantDatabaseFixture.TenantUno, p = producto }));
+            INSERT INTO stock_items (tenant_id, branch_id, product_id, quantity) VALUES (@t, @b, @p, 1)",
+            new { t = TenantDatabaseFixture.TenantUno, b = db.SucursalDe(TenantDatabaseFixture.TenantUno), p = producto }));
 
         Assert.Equal("23505", ex.SqlState);
     }
@@ -110,8 +98,8 @@ public class ExistenciasTests(TenantDatabaseFixture db)
             "SELECT id FROM products WHERE tenant_id = @t LIMIT 1", new { t = db.TenantDos });
 
         var ex = Assert.Throws<Npgsql.PostgresException>(() => cn.Execute(@"
-            INSERT INTO stock_items (tenant_id, product_id, quantity) VALUES (@t, @p, 1)",
-            new { t = TenantDatabaseFixture.TenantUno, p = productoAjeno }));
+            INSERT INTO stock_items (tenant_id, branch_id, product_id, quantity) VALUES (@t, @b, @p, 1)",
+            new { t = TenantDatabaseFixture.TenantUno, b = db.SucursalDe(TenantDatabaseFixture.TenantUno), p = productoAjeno }));
 
         Assert.Equal("23503", ex.SqlState);   // foreign_key_violation
     }

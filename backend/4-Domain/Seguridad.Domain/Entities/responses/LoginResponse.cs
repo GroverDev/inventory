@@ -7,6 +7,15 @@ public class LoginResponse
         /// <summary>Tenant al que pertenece el usuario. Viaja en el JWT.</summary>
         public int TenantId { get; set; }
 
+        /// <summary>Sucursal activa de la sesión. Viaja en el JWT.</summary>
+        public Guid BranchId { get; set; }
+
+        /// <inheritdoc cref="BranchId"/>
+        public string BranchName { get; set; } = "";
+
+        /// <summary>Sucursales en las que el usuario puede trabajar, la default primero.</summary>
+        public List<BranchOption> Branches { get; set; } = [];
+
         public string Uuid { get; set; } = Guid.Empty.ToString();
         public int SesionId { get; set; }
         public string FullName { get; set; }="";

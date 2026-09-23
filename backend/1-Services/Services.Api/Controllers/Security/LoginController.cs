@@ -142,6 +142,13 @@ public class LoginController(
                 if (trustedDevice)
                 {
                     resp.Data.RequireTotp = false;
+
+                    // Login() tampoco resolvió la sucursal: con TOTP no se
+                    // revelan las sucursales antes del segundo factor.
+                    var branch = await _authenticationApplication.AssignBranch(resp.Data);
+                    if (!branch.ok)
+                        return Ok(new Response<LoginResponse> { ok = false, Message = branch.Message });
+
                     // Login() no registró la sesión: se cortó temprano al ver
                     // RequireTotp, antes de la auditoría y el last_access que
                     // hace el camino normal. Sin esto el JWT queda con
@@ -230,6 +237,32 @@ public class LoginController(
         return Ok(await _authenticationApplication.RevokeRefreshToken(request.RefreshToken));
     }
 
+    /// <summary>
+    /// Pasa la sesión en curso a otra sucursal: devuelve un JWT nuevo con esa
+    /// sucursal. El refresh token no cambia; su fila recuerda la sucursal nueva.
+    /// </summary>
+    [Authorize]
+    [DisableRateLimiting]
+    [HttpPost("switch-branch")]
+    public async Task<ActionResult<Response<LoginResponse>>> SwitchBranch([FromBody] SwitchBranchRequest request)
+    {
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
+
+        var (resp, renewable) = await _authenticationApplication.SwitchBranch(datos, request.BranchId);
+
+        if (resp.ok)
+        {
+            // Misma duración que el token actual: corto si la sesión se renueva
+            // con refresh, largo si no tiene cómo (se quedaría sin sesión al
+            // vencer).
+            resp.Data!.Token = TokenJwt.GetToken(resp.Data, _jwtSettings.Secret,
+                renewable ? _jwtSettings.TimeTokenRefreshable : _jwtSettings.TimeToken);
+        }
+
+        return Ok(resp);
+    }
+
     private async Task IssueTokens(LoginResponse data, InicioSesionDesde from, string device)
     {
         bool refreshable = UsesRefreshToken(from);
@@ -240,7 +273,7 @@ public class LoginController(
         if (!refreshable) return;
 
         string raw = await _authenticationApplication.IssueRefreshToken(
-            data.UserId, data.TenantId, data.SesionId, device, Enum.GetName(typeof(InicioSesionDesde), from) ?? "",
+            data.UserId, data.TenantId, data.BranchId, data.SesionId, device, Enum.GetName(typeof(InicioSesionDesde), from) ?? "",
             _jwtSettings.RefreshTokenDays);
 
         if (UsesRefreshCookie(from))

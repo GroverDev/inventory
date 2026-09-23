@@ -109,6 +109,37 @@ export const useAuthStore = defineStore('auth', () => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
   }
 
+  /// Actualiza la sucursal activa y la lista de habilitadas, conservando el
+  /// resto del usuario. Lo usan el cambio de sucursal y el refresh, que puede
+  /// devolver otra sucursal si al usuario le quitaron la que tenía.
+  const setBranchInfo = (info: Pick<User, 'BranchId' | 'BranchName' | 'Branches'>) => {
+    if (!user.value || !info?.BranchId) return
+    user.value = {
+      ...user.value,
+      BranchId: info.BranchId,
+      BranchName: info.BranchName,
+      Branches: info.Branches ?? [],
+    }
+  }
+
+  /// Pasa la sesión a otra sucursal. El backend valida que el usuario esté
+  /// habilitado y devuelve un token nuevo con esa sucursal.
+  const switchBranch = async (branchId: string): Promise<boolean> => {
+    const resp = await post<ResponseObject<User>>('Login/switch-branch', { BranchId: branchId });
+    if (!resp.ok) return false
+
+    setToken(resp.Data.Token)
+    setBranchInfo(resp.Data)
+    return true
+  }
+
+  /// Vuelve a pedir las sucursales habilitadas (por ejemplo tras crear una).
+  /// Renovar la sesión las trae sin necesitar otro endpoint.
+  const refreshBranches = async (): Promise<boolean> => {
+    const { tryRefreshSession } = await import('@/modules/common/composables/api/refreshSession')
+    return tryRefreshSession()
+  }
+
   const completarTotp = (newUser: User) => {
     setAuth(newUser.Token, newUser);
     pendingUser.value = null;
@@ -178,6 +209,9 @@ export const useAuthStore = defineStore('auth', () => {
     setAuth,
     setToken,
     setAccessMenu,
+    setBranchInfo,
+    switchBranch,
+    refreshBranches,
     clearSession,
     completarTotp,
     logout,

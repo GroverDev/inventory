@@ -18,6 +18,8 @@ export class Sale {
   public Id: string = '';
   public CustomerId: string = '';
   public CustomerName: string = '';
+  /** Sucursal de la venta (reportes consolidados). */
+  public BranchName?: string;
   public SellerName: string = '';
   public SaleDate: string = '';
   public Subtotal: number = 0;

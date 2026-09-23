@@ -40,6 +40,9 @@ public class InventoryMappingConfig : IRegister
         // Laboratory
         config.NewConfig<Laboratory, LaboratoryRequest>().TwoWays();
 
+        // Branch
+        config.NewConfig<Branch, BranchRequest>().TwoWays();
+
         // Customer
         config.NewConfig<Customer, CustomerRequest>().TwoWays();
 

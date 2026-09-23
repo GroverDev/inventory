@@ -28,6 +28,13 @@ public class AdminRepository(SeguridadDbContext _context) : IAdminRepository
     /// el schema <c>siat</c> (sin tenant_id y fuera de alcance) y todo <c>sec</c>
     /// relativo a usuarios, roles y permisos, que el reinicio conserva.
     /// </para>
+    /// <para>
+    /// También se conservan, por el mismo motivo, <c>public.branches</c> y
+    /// <c>sec.users_branches</c>: las sucursales y quién trabaja en cada una son
+    /// la organización, no datos de negocio. Y los catálogos farmacéuticos
+    /// (<c>pharma_forms</c>, <c>pharma_routes</c>, <c>pharma_substances</c>), que
+    /// la siembra no vuelve a crear.
+    /// </para>
     /// </remarks>
     private static readonly (string Schema, string Table)[] TenantDataTables =
     [
@@ -40,10 +47,22 @@ public class AdminRepository(SeguridadDbContext _context) : IAdminRepository
         ("public", "sales"),
         ("public", "cash_sessions"),
         ("public", "stock_movements"),
+        ("public", "stock_transfer_lots"),
+        ("public", "stock_transfer_detail"),
+        ("public", "stock_transfers"),
         ("public", "purchases_delivery_detail"),
         ("public", "purchases_delivery"),
         ("public", "purchases_detail"),
         ("public", "purchases"),
+        // Todo lo que cuelga de products, antes de products. Faltaba stock_items
+        // desde que existen las existencias: el DELETE de products chocaba
+        // contra su FK y el reinicio entero fallaba.
+        ("public", "stock_items"),
+        ("public", "product_branch_settings"),
+        ("public", "product_alternatives"),
+        ("public", "product_components"),
+        ("public", "product_leaflet"),
+        ("public", "product_pharma"),
         ("public", "products_providers"),
         ("public", "products"),
         ("public", "discounts"),

@@ -106,6 +106,28 @@ export default {
       },
     },
     {
+      path: 'branches-admin',
+      name: 'branches-admin',
+      component: () => import(/* webpackChunkName: "branches-admin" */ '@/modules/user-account/views/branches/BranchesAdminView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Sucursales',
+        titleForm: 'Sucursales'
+      },
+    },
+    {
+      path: 'branch-edit/:id',
+      name: 'branch-edit',
+      component: () => import(/* webpackChunkName: "branch-edit" */ '@/modules/user-account/views/branches/BranchEditView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: {
+        requiresAuth: true,
+        title: 'PV - Sucursales',
+        titleForm: 'Sucursales'
+      },
+    },
+    {
       path: 'active-sessions',
       name: 'active-sessions',
       component: () => import(/* webpackChunkName: "active-sessions" */ '@/modules/user-account/views/sessions/SessionsAdminView.vue'),

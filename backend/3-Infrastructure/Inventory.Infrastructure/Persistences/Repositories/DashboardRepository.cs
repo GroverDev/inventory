@@ -21,6 +21,9 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
         {
             db.Open();
 
+            // Todo el tablero es de la sucursal activa: es lo que la persona tiene
+            // delante. La vista consolidada de la farmacia va en los reportes.
+
             // Rangos calculados en C# para evitar diferencias de zona horaria con DATE().
             //
             // "Hoy" es el día del calendario boliviano, no el del servidor: el
@@ -40,6 +43,7 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
                        CAST(COUNT(*) AS INTEGER)         AS KpiCount
                   FROM v_sales_net
                  WHERE state
+                   AND branch_id = public.current_branch()
                    AND sale_date >= @Start
                    AND sale_date  < @End;",
                 new { Start = todayStart, End = todayEnd });
@@ -53,6 +57,7 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
                        CAST(COUNT(*) AS INTEGER)         AS KpiCount
                   FROM v_sales_net
                  WHERE state
+                   AND branch_id = public.current_branch()
                    AND sale_date >= @Start
                    AND sale_date  < @End;",
                 new { Start = monthStart, End = todayEnd });
@@ -65,15 +70,18 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
                 SELECT 0                                AS KpiTotal,
                        CAST(COUNT(*) AS INTEGER)        AS KpiCount
                   FROM purchases
-                 WHERE state AND is_active AND purchase_status_id = 1;");
+                 WHERE state AND is_active AND purchase_status_id = 1
+                   AND branch_id = public.current_branch();");
             dashboard.PendingPurchasesCount = pending.KpiCount;
 
             // Productos con stock bajo mínimo
             var lowStock = await db.QueryFirstAsync<SalesKpiRow>(@"
                 SELECT 0                                AS KpiTotal,
                        CAST(COUNT(*) AS INTEGER)        AS KpiCount
-                  FROM products
-                 WHERE state AND is_active AND current_stock < min_reorder_quantity;");
+                  FROM products p
+                       LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                       LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
+                 WHERE p.state AND p.is_active AND COALESCE(sa.quantity, 0) < COALESCE(pbs.min_reorder_quantity, p.min_reorder_quantity);");
             dashboard.LowStockCount = lowStock.KpiCount;
 
             // Últimas 5 ventas del día
@@ -82,6 +90,7 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
                   FROM v_sales_net s
                  INNER JOIN customers c ON c.id = s.customer_id
                  WHERE s.state
+                   AND s.branch_id = public.current_branch()
                    AND s.sale_date >= @Start
                    AND s.sale_date  < @End
                  ORDER BY s.sale_date DESC
@@ -91,10 +100,14 @@ public class DashboardRepository(InventoryDbContext _DbContext) : IDashboardRepo
 
             // Top 5 productos con stock crítico
             var criticalStock = await db.QueryAsync<DashboardLowStockProduct>(@"
-                SELECT p.id, p.product_name, p.product_code, p.current_stock, p.min_reorder_quantity
+                SELECT p.id, p.product_name, p.product_code,
+                       COALESCE(sa.quantity, 0) AS current_stock,
+                       COALESCE(pbs.min_reorder_quantity, p.min_reorder_quantity) AS min_reorder_quantity
                   FROM products p
-                 WHERE p.state AND p.is_active AND p.current_stock < p.min_reorder_quantity
-                 ORDER BY p.current_stock ASC
+                       LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                       LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
+                 WHERE p.state AND p.is_active AND COALESCE(sa.quantity, 0) < COALESCE(pbs.min_reorder_quantity, p.min_reorder_quantity)
+                 ORDER BY COALESCE(sa.quantity, 0) ASC
                  LIMIT 5;");
             dashboard.LowStockProducts = criticalStock.ToList();
         }

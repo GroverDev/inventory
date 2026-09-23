@@ -1,4 +1,5 @@
-﻿using Common.Utilities;
+﻿using System.Data;
+using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Dapper;
 using Seguridad.Domain;
@@ -67,6 +68,7 @@ public async Task<string> CreateUser(Users user, int userId)
                                     (id,  user_name, password,   email, full_name ,  last_access,  change_password, is_active,  created_by, created, modified_by, modified, uuid)
                              VALUES (@Id, @UserName,@Password, @Email, @FullName, @LastAccess, @ChangePassword, @IsActive, @CreatedBy, now(),  @ModifiedBy, now() ,@Uuid);";
             await db.ExecuteAsync(sqlQuery, user, transaction);
+            await HabilitarEnSucursalActiva(db, transaction, user);
             transaction.Commit();
         }
         catch (CustomException ex)
@@ -85,6 +87,20 @@ public async Task<string> CreateUser(Users user, int userId)
     finally { db.Close(); }
     return user.Uuid.ToString();
 }
+/// <summary>
+/// Habilita al usuario nuevo en la sucursal activa de quien lo crea, como su
+/// default. Sin ninguna sucursal no podría iniciar sesión.
+/// </summary>
+/// <remarks>
+/// tenant_id y branch_id salen de la sesión (DEFAULT y current_branch()), igual
+/// que en el resto de los INSERT: sin sucursal en la sesión, falla en vez de
+/// elegir una a ciegas.
+/// </remarks>
+private static Task HabilitarEnSucursalActiva(IDbConnection db, IDbTransaction transaction, Users user) =>
+    db.ExecuteAsync(@"INSERT INTO sec.users_branches (user_id, branch_id, is_default, created_by, modified_by)
+                      VALUES (@Id, public.current_branch(), true, @CreatedBy, @CreatedBy)",
+                    user, transaction);
+
 public async Task<bool> CreateUserOutPassword(Users user, int userId)
 {
     var ok = false;
@@ -109,6 +125,7 @@ public async Task<bool> CreateUserOutPassword(Users user, int userId)
                                     (id,  user_name, password,   email, full_name ,  last_access,  change_password, is_active,  created_by, created, modified_by, modified, uuid)
                              VALUES (@Id, @UserName,@Password, @Email, @FullName, @LastAccess, @ChangePassword, @IsActive, @CreatedBy, now(),  @ModifiedBy, now() ,@Uuid);";
             await db.ExecuteAsync(sqlQuery, user, transaction);
+            await HabilitarEnSucursalActiva(db, transaction, user);
             transaction.Commit();
             ok = true;
         }
@@ -315,6 +332,89 @@ public async Task<List<Roles>> GetRolesByUserUuid(Guid uuid)
         return [.. result];
     }
     catch (Exception ex) { throw ExceptionHandler.HandleException<List<Roles>>(ex); }
+    finally { db.Close(); }
+}
+
+public async Task<List<UserBranchResponse>> GetBranchesByUserUuid(Guid uuid)
+{
+    using var db = _context.CreateConnection;
+    try
+    {
+        db.Open();
+        // Todas las sucursales activas, habilitadas o no: la pantalla muestra la
+        // lista completa para marcar y desmarcar.
+        const string query = @"
+            SELECT b.id AS branch_id, b.name,
+                   ub.user_id IS NOT NULL         AS enabled,
+                   coalesce(ub.is_default, false) AS is_default
+              FROM public.branches b
+              LEFT JOIN sec.users_branches ub
+                     ON ub.branch_id = b.id
+                    AND ub.user_id = (SELECT id FROM sec.users WHERE uuid = @Uuid)
+             WHERE b.state AND b.is_active
+             ORDER BY b.name";
+        var result = await db.QueryAsync<UserBranchResponse>(query, new { Uuid = uuid });
+        return [.. result];
+    }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<List<UserBranchResponse>>(ex); }
+    finally { db.Close(); }
+}
+
+public async Task AssignBranchesToUser(Guid uuid, List<Guid> branchIds, Guid defaultBranchId, int modifiedBy)
+{
+    // Sin sucursales, o con una default que no está entre ellas, el usuario no
+    // podría iniciar sesión.
+    branchIds = branchIds.Distinct().ToList();
+    if (branchIds.Count == 0)
+        throw new CustomException("El usuario debe quedar habilitado en al menos una sucursal.");
+    if (!branchIds.Contains(defaultBranchId))
+        throw new CustomException("La sucursal por defecto debe estar entre las habilitadas.");
+
+    using var db = _context.CreateConnection;
+    try
+    {
+        db.Open();
+        using var transaction = db.BeginTransaction();
+        try
+        {
+            int userId = await db.ExecuteScalarAsync<int>(
+                "SELECT id FROM sec.users WHERE uuid = @Uuid AND is_active",
+                new { Uuid = uuid }, transaction);
+
+            if (userId == 0) throw new CustomException("Usuario no encontrado o inactivo.");
+
+            // Solo sucursales activas de esta farmacia: las de otra no se ven
+            // (RLS) y la FK compuesta las rechazaría de todos modos.
+            int validas = await db.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM public.branches WHERE id = ANY(@Ids) AND state AND is_active",
+                new { Ids = branchIds.ToArray() }, transaction);
+
+            if (validas != branchIds.Count)
+                throw new CustomException("Alguna de las sucursales elegidas no existe o está inactiva.");
+
+            // Reemplazo completo. Borra también las filas de sucursales dadas de
+            // baja, que la pantalla no muestra y ya no sirven.
+            await db.ExecuteAsync("DELETE FROM sec.users_branches WHERE user_id = @UserId",
+                new { UserId = userId }, transaction);
+
+            await db.ExecuteAsync(@"
+                INSERT INTO sec.users_branches (user_id, branch_id, is_default, created_by, modified_by)
+                SELECT @UserId, b, b = @DefaultId, @ModifiedBy, @ModifiedBy
+                  FROM unnest(@Ids) AS b",
+                new { UserId = userId, Ids = branchIds.ToArray(), DefaultId = defaultBranchId, ModifiedBy = modifiedBy },
+                transaction);
+
+            transaction.Commit();
+        }
+        catch (CustomException) { transaction.Rollback(); throw; }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            throw new Exception(ex.Message, ex);
+        }
+    }
+    catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+    catch (Exception ex) { throw ExceptionHandler.HandleException<bool>(ex); }
     finally { db.Close(); }
 }
 

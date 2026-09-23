@@ -22,8 +22,10 @@ const useStockMovement = () => {
   };
 
   /** Reporte de mermas por vencimiento: cuánto se perdió en el período, por producto y en detalle. */
-  const getWriteOffs = async (desde: string, hasta: string, productId?: string): Promise<ResponseObject<WriteOffReportResponse>> => {
-    const query = productId ? `&productId=${encodeURIComponent(productId)}` : '';
+  /** branch: '' = sucursal activa, un id, o 'all' para el consolidado. */
+  const getWriteOffs = async (desde: string, hasta: string, productId?: string, branch = ''): Promise<ResponseObject<WriteOffReportResponse>> => {
+    const query = (productId ? `&productId=${encodeURIComponent(productId)}` : '')
+      + (branch ? `&branch=${encodeURIComponent(branch)}` : '');
     return await get<ResponseObject<WriteOffReportResponse>>(
       `StockMovement/write-offs?desde=${desde}&hasta=${hasta}${query}`);
   };

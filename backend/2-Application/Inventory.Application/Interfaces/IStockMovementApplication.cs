@@ -13,5 +13,5 @@ public interface IStockMovementApplication
     Task<Response<List<StockSerialResponse>>> GetAvailableSerials(string productId);
     Task<Response<bool>> CreateAdjustment(StockAdjustmentRequest request, int userId);
     Task<Response<bool>> CreateWriteOff(StockWriteOffRequest request, int userId);
-    Task<Response<WriteOffReportResponse>> GetWriteOffs(DateTime desde, DateTime hasta, string? productId);
+    Task<Response<WriteOffReportResponse>> GetWriteOffs(DateTime desde, DateTime hasta, string? productId, Guid[]? branches = null);
 }

@@ -27,6 +27,12 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
     /// <summary>Farmacia creada por el fixture mediante la provisión real.</summary>
     public int TenantDos { get; private set; }
 
+    /// <summary>Sucursal Principal de cada farmacia: la que crean la migración y la provisión.</summary>
+    private readonly Dictionary<int, Guid> _sucursales = [];
+
+    /// <summary>Sucursal Principal de <paramref name="tenantId"/>.</summary>
+    public Guid SucursalDe(int tenantId) => _sucursales[tenantId];
+
     private const string RolPrueba = "app_pos_test";
 
     private readonly string _admin   = Env("TEST_PG_ADMIN",
@@ -49,19 +55,56 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
         return cn;
     }
 
-    /// <summary>Conexión con los privilegios de la aplicación, actuando como un tenant.</summary>
+    /// <summary>
+    /// Conexión con los privilegios de la aplicación, actuando como un tenant desde
+    /// su sucursal Principal.
+    /// </summary>
     public NpgsqlConnection AbrirComoApp(int tenantId)
     {
         var cn = AbrirComoApp();
-        cn.Execute("SELECT set_config('app.tenant_id', @t, false)", new { t = tenantId.ToString() });
+        FijarTenant(cn, tenantId);
         return cn;
     }
+
+    /// <summary>
+    /// Fija tenant y sucursal Principal en una conexión, como hace
+    /// <c>TenantConnectionFactory</c> en la aplicación. Sin la sucursal, todo
+    /// INSERT en una tabla operativa falla por <c>branch_id</c> nulo.
+    /// </summary>
+    public void FijarTenant(System.Data.IDbConnection cn, int tenantId) => FijarTenant(cn, tenantId, SucursalDe(tenantId));
+
+    /// <inheritdoc cref="FijarTenant(System.Data.IDbConnection, int)"/>
+    public void FijarTenant(System.Data.IDbConnection cn, int tenantId, Guid sucursal) =>
+        cn.Execute("SELECT set_config('app.tenant_id', @t, false), set_config('app.branch_id', @b, false)",
+                   new { t = tenantId.ToString(), b = sucursal.ToString() });
+
+    /// <summary>Conexión con los privilegios de la aplicación, operando desde una sucursal dada.</summary>
+    public NpgsqlConnection AbrirComoApp(int tenantId, Guid sucursal)
+    {
+        var cn = AbrirComoApp();
+        FijarTenant(cn, tenantId, sucursal);
+        return cn;
+    }
+
+    private static Common.Utilities.MultiTenancy.TenantContext Contexto(int tenantId, Guid sucursal)
+    {
+        var tenant = new Common.Utilities.MultiTenancy.TenantContext();
+        tenant.SetTenant(tenantId);
+        tenant.SetBranch(sucursal);
+        return tenant;
+    }
+
+    private Common.Utilities.MultiTenancy.TenantContext Contexto(int tenantId) => Contexto(tenantId, SucursalDe(tenantId));
 
     /// <summary>
     /// Contexto de datos apuntando a la base desechable, para ejercitar los
     /// repositorios que abren su propia conexión en vez de recibirla.
     /// </summary>
-    public Inventory.Infrastructure.InventoryDbContext ContextoApp(int tenantId)
+    public Inventory.Infrastructure.InventoryDbContext ContextoApp(int tenantId) =>
+        ContextoApp(tenantId, SucursalDe(tenantId));
+
+    /// <summary>Igual que <see cref="ContextoApp(int)"/>, operando desde una sucursal dada.</summary>
+    public Inventory.Infrastructure.InventoryDbContext ContextoApp(int tenantId, Guid sucursal)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -70,8 +113,7 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
             })
             .Build();
 
-        var tenant = new Common.Utilities.MultiTenancy.TenantContext();
-        tenant.SetTenant(tenantId);
+        var tenant = Contexto(tenantId, sucursal);
 
         return new Inventory.Infrastructure.InventoryDbContext(config, tenant);
     }
@@ -91,8 +133,7 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
             })
             .Build();
 
-        var tenant = new Common.Utilities.MultiTenancy.TenantContext();
-        tenant.SetTenant(tenantId);
+        var tenant = Contexto(tenantId);
 
         return new Seguridad.Infrastructure.SeguridadDbContext(config, tenant);
     }
@@ -157,6 +198,8 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
                 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES    IN SCHEMA public, sec TO {RolPrueba};
                 GRANT USAGE, SELECT                 ON ALL SEQUENCES IN SCHEMA public, sec TO {RolPrueba};
                 GRANT EXECUTE ON FUNCTION public.current_tenant() TO {RolPrueba};
+                GRANT EXECUTE ON FUNCTION public.current_branch() TO {RolPrueba};
+                GRANT EXECUTE ON FUNCTION sec.fn_auth_branches(integer) TO {RolPrueba};
                 GRANT EXECUTE ON FUNCTION sec.fn_auth_lookup(varchar, integer) TO {RolPrueba};
                 GRANT EXECUTE ON FUNCTION sec.fn_provision_tenant(varchar, varchar, varchar, varchar, varchar) TO {RolPrueba};
                 GRANT EXECUTE ON FUNCTION sec.fn_seed_tenant_master_data(integer) TO {RolPrueba};
@@ -174,6 +217,11 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
                     f = "Administrador de Prueba",
                     p = "$pbkdf2-sha512$60000$hash-de-prueba-sin-uso"
                 });
+
+            foreach (var t in new[] { TenantUno, TenantDos })
+                _sucursales[t] = await db.ExecuteScalarAsync<Guid>(
+                    "SELECT id FROM public.branches WHERE tenant_id = @t ORDER BY created, id LIMIT 1",
+                    new { t });
         }
 
         _appConn = new NpgsqlConnectionStringBuilder(_admin)

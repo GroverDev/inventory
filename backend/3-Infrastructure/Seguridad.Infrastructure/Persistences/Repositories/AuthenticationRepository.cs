@@ -63,6 +63,10 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
                 return usuario;
             }
 
+            // Recién acá, con el segundo factor ya descartado: antes de verificar
+            // el TOTP no se revela en qué sucursales trabaja la cuenta.
+            await LoginBranches.Assign(db, usuario);
+
             if (mfaRequired)
             {
                 // Admin requires TOTP but user hasn't configured it yet: issue real JWT so setup can proceed
@@ -89,6 +93,21 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
         finally { db.Close(); }
 
         return usuario;
+    }
+
+    public async Task AssignBranch(LoginResponse usuario, Guid? preferred)
+    {
+        // Sin tenant: lo usa el camino de dispositivo de confianza, que completa
+        // la sesión antes de que exista el JWT.
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            await LoginBranches.Assign(db, usuario, preferred);
+        }
+        catch (CustomException ex) { throw new CustomException(ex.Message, ex); }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<LoginResponse>(ex); }
+        finally { db.Close(); }
     }
 
     public async Task<int> RecentFailedAttempts(string email, int withinMinutes)
@@ -154,6 +173,8 @@ public class AuthenticationRepository(SeguridadDbContext _context) : IAuthentica
             usuario.RolId = fila["rol_id"].ToString() != "" ? Convert.ToInt32(fila["rol_id"].ToString()) : 0;
             usuario.RolName = fila["rol_name"].ToString() ?? "";
             usuario.Roles = fila["roles"].ToString() ?? "";
+
+            await LoginBranches.Assign(db, usuario);
 
             var loginRequest = new LoginRequest
             {

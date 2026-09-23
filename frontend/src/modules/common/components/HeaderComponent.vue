@@ -61,6 +61,29 @@
 
     </div>
 
+    <!-- Sucursal activa: todo lo que se registra queda en ella -->
+    <div v-if="authStore.getUser?.BranchName" class="dropdown me-2 flex-shrink-0">
+      <button v-if="branchOptions.length > 1" type="button"
+        class="btn btn-sm btn-outline-primary dropdown-toggle text-truncate" style="max-width: 14rem"
+        data-bs-toggle="dropdown" aria-expanded="false" :title="`Sucursal: ${authStore.getUser.BranchName}`">
+        <i class="fal fa-store-alt me-1"></i>{{ authStore.getUser.BranchName }}
+      </button>
+      <span v-else class="badge bg-primary-subtle text-primary-emphasis border text-truncate d-inline-block"
+        style="max-width: 14rem" :title="`Sucursal: ${authStore.getUser.BranchName}`">
+        <i class="fal fa-store-alt me-1"></i>{{ authStore.getUser.BranchName }}
+      </span>
+      <div v-if="branchOptions.length > 1" class="dropdown-menu dropdown-menu-end">
+        <h6 class="dropdown-header">Cambiar de sucursal</h6>
+        <button v-for="branch in branchOptions" :key="branch.BranchId" type="button"
+          class="dropdown-item d-flex justify-content-between align-items-center"
+          :class="{ active: branch.BranchId === authStore.getUser.BranchId }"
+          @click="changeBranch(branch)">
+          <span>{{ branch.Name }}</span>
+          <small v-if="branch.IsDefault" class="ms-3 opacity-75">predeterminada</small>
+        </button>
+      </div>
+    </div>
+
     <!-- Settings -->
     <button type="button" class="btn btn-system hidden-mobile" @click="layoutStore.toggleSettingsDrawer()" aria-label="Open Settings">
       <svg class="sa-icon sa-icon-2x">
@@ -694,7 +717,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useAuthStore } from "@/modules/auth/stores/auth.store";
 import { useRouter } from "vue-router";
 import { useThemeStore } from '@/stores/themeStore';
@@ -703,6 +726,7 @@ import { useApp } from '@/composables/useApp';
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseArray, ResponseObject } from '@/modules/common/models';
 import utils from '@/utils/msg';
+import type { BranchOption } from '@/modules/auth/models/user.model';
 
 interface TrustedDevice {
   Id: number;
@@ -750,6 +774,22 @@ const submitChangePwd = async () => {
   if (resp.ok) {
     closePwdModal();
     await utils.showMessageModal({ Description: 'Contraseña actualizada correctamente.', MessageType: 'success' });
+  }
+};
+
+const branchOptions = computed<BranchOption[]>(() => authStore.getUser?.Branches ?? []);
+
+const changeBranch = async (branch: BranchOption) => {
+  if (branch.BranchId === authStore.getUser?.BranchId) return;
+
+  const confirmed = await utils.showMessageQuestion(
+    `¿Pasar a la sucursal «${branch.Name}»? Las ventas, cajas y movimientos que registre desde ahora quedarán en ella.`);
+  if (!confirmed) return;
+
+  if (await authStore.switchBranch(branch.BranchId)) {
+    // Recarga completa: lo que está en pantalla (stock, caja abierta) es de la
+    // sucursal anterior, y cada vista lo volvería a pedir por su cuenta.
+    window.location.reload();
   }
 };
 

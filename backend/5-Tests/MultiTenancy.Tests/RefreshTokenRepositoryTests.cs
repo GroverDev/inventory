@@ -35,14 +35,19 @@ public class RefreshTokenRepositoryTests(TenantDatabaseFixture db)
         int userId = SembrarUsuarioEn(db.TenantDos, "refresh-1@test.local");
         var repo = Repo(db.TenantDos);
 
-        long id = await repo.Create(userId, db.TenantDos, sessionId: 111, "hash-1", "device-1", "Web", DateTime.UtcNow.AddDays(30));
+        var sucursal = Guid.NewGuid();
+        long id = await repo.Create(userId, db.TenantDos, sucursal, sessionId: 111, "hash-1", "device-1", "Web", DateTime.UtcNow.AddDays(30));
 
         using var admin = db.AbrirComoAdmin();
-        var (tenantGuardado, sessionGuardado) = admin.QueryFirst<(int, int?)>(
-            "SELECT tenant_id, session_id FROM sec.refresh_tokens WHERE id = @id", new { id });
+        var (tenantGuardado, sucursalGuardada, sessionGuardado) = admin.QueryFirst<(int, Guid?, int?)>(
+            "SELECT tenant_id, branch_id, session_id FROM sec.refresh_tokens WHERE id = @id", new { id });
 
         Assert.Equal(db.TenantDos, tenantGuardado);
+        Assert.Equal(sucursal, sucursalGuardada);
         Assert.Equal(111, sessionGuardado);
+
+        // El refresh la lee de vuelta para conservar la sucursal de la sesión.
+        Assert.Equal(sucursal, (await repo.GetByHash("hash-1"))!.BranchId);
     }
 
     [Fact]
@@ -52,9 +57,9 @@ public class RefreshTokenRepositoryTests(TenantDatabaseFixture db)
         int userDos = SembrarUsuarioEn(db.TenantDos, "refresh-tenant2@test.local");
 
         await Repo(TenantDatabaseFixture.TenantUno).Create(
-            userUno, TenantDatabaseFixture.TenantUno, 201, "hash-tenant1", "d1", "Web", DateTime.UtcNow.AddDays(30));
+            userUno, TenantDatabaseFixture.TenantUno, Guid.NewGuid(), 201, "hash-tenant1", "d1", "Web", DateTime.UtcNow.AddDays(30));
         await Repo(db.TenantDos).Create(
-            userDos, db.TenantDos, 202, "hash-tenant2", "d2", "Web", DateTime.UtcNow.AddDays(30));
+            userDos, db.TenantDos, Guid.NewGuid(), 202, "hash-tenant2", "d2", "Web", DateTime.UtcNow.AddDays(30));
 
         var conectadosEnDos = await Repo(db.TenantDos).GetActiveForTenant(db.TenantDos);
 
@@ -68,7 +73,7 @@ public class RefreshTokenRepositoryTests(TenantDatabaseFixture db)
         int userId = SembrarUsuarioEn(db.TenantDos, "refresh-2@test.local");
         var repo = Repo(db.TenantDos);
 
-        long id = await repo.Create(userId, db.TenantDos, 301, "hash-2", "d", "Web", DateTime.UtcNow.AddDays(30));
+        long id = await repo.Create(userId, db.TenantDos, Guid.NewGuid(), 301, "hash-2", "d", "Web", DateTime.UtcNow.AddDays(30));
 
         Assert.Null(await repo.GetByIdForTenant(id, TenantDatabaseFixture.TenantUno));
         Assert.NotNull(await repo.GetByIdForTenant(id, db.TenantDos));
@@ -81,11 +86,11 @@ public class RefreshTokenRepositoryTests(TenantDatabaseFixture db)
         int userDos = SembrarUsuarioEn(db.TenantDos, "refresh-cierre2@test.local");
 
         await Repo(TenantDatabaseFixture.TenantUno).Create(
-            userUno, TenantDatabaseFixture.TenantUno, 401, "hash-c1", "d", "Web", DateTime.UtcNow.AddDays(30));
+            userUno, TenantDatabaseFixture.TenantUno, Guid.NewGuid(), 401, "hash-c1", "d", "Web", DateTime.UtcNow.AddDays(30));
         await Repo(db.TenantDos).Create(
-            userDos, db.TenantDos, 402, "hash-c2", "d", "Web", DateTime.UtcNow.AddDays(30));
+            userDos, db.TenantDos, Guid.NewGuid(), 402, "hash-c2", "d", "Web", DateTime.UtcNow.AddDays(30));
         await Repo(db.TenantDos).Create(
-            userDos, db.TenantDos, 403, "hash-c3", "d2", "Web", DateTime.UtcNow.AddDays(30));
+            userDos, db.TenantDos, Guid.NewGuid(), 403, "hash-c3", "d2", "Web", DateTime.UtcNow.AddDays(30));
 
         var revocados = await Repo(db.TenantDos).RevokeAllForUserInTenant(userDos, db.TenantDos);
 

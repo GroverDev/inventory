@@ -25,6 +25,7 @@
                 <label class="form-label">Fecha Fin</label>
                 <input type="date" class="form-control form-control-sm" v-model="filtro.hasta" />
               </div>
+              <BranchFilter v-model="branch" />
               <div class="col-12 col-md-3 d-flex gap-2">
                 <button class="btn btn-primary btn-sm flex-fill" @click="load">
                   <i class="fal fa-search me-1"></i>Buscar
@@ -112,6 +113,7 @@
                     <thead>
                       <tr>
                         <th>Fecha</th>
+                        <th v-if="consolidated">Sucursal</th>
                         <th>Producto</th>
                         <th>Lote</th>
                         <th class="text-center">Cantidad</th>
@@ -122,6 +124,7 @@
                     <tbody>
                       <tr v-for="(d, i) in reporte.Detalle" :key="i">
                         <td class="text-nowrap"><small>{{ fmtDate(d.Created) }}</small></td>
+                        <td v-if="consolidated"><small>{{ d.BranchName }}</small></td>
                         <td>{{ d.ProductName }}</td>
                         <td><code class="bg-body-secondary rounded px-2 py-1 small">{{ d.LotCode || '—' }}</code></td>
                         <td class="text-center">{{ d.Cantidad }}</td>
@@ -142,8 +145,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import useStockMovement from '@/modules/inventory/composables/useStockMovement';
+import BranchFilter from '@/modules/reports/components/BranchFilter.vue';
 import { WriteOffReportResponse } from '@/modules/inventory/models/stockMovement.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
@@ -154,11 +158,15 @@ const cargado = ref(false);
 
 const filtro = ref({ desde: firstOfMonthIso(), hasta: todayIso() });
 
+// '' = sucursal activa, un id, o 'all' (consolidado de las sucursales del usuario).
+const branch = ref('');
+const consolidated = computed(() => branch.value === 'all');
+
 const fmt     = (v: number) => v.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' });
 const fmtDate = (v: string) => new Date(v).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const load = async () => {
-  const { ok, Data } = await getWriteOffs(filtro.value.desde, filtro.value.hasta);
+  const { ok, Data } = await getWriteOffs(filtro.value.desde, filtro.value.hasta, undefined, branch.value);
   if (ok) reporte.value = Data;
   cargado.value = true;
 };
@@ -166,6 +174,7 @@ const load = async () => {
 const exportar = () => {
   const rows = reporte.value.Detalle.map(d => ({
     Fecha:    fmtDate(d.Created),
+    Sucursal: d.BranchName,
     Producto: d.ProductName,
     SKU:      d.ProductCode,
     Lote:     d.LotCode ?? '',

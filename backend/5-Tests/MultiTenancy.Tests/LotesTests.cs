@@ -10,8 +10,14 @@ namespace MultiTenancy.Tests;
 public class LotesTests(TenantDatabaseFixture db)
 {
     /// <summary>Producto propio del test, para no interferir con otros.</summary>
+    /// <remarks>
+    /// Deja la conexión con tenant y sucursal fijados, como la de la aplicación:
+    /// las funciones de stock crean existencias que toman la sucursal de la sesión.
+    /// </remarks>
     private Guid CrearProductoConLotes(NpgsqlConnection cn, string nombre)
     {
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
+
         var id = cn.ExecuteScalar<Guid>(@"
             INSERT INTO products
                 (id, product_name, description, sale_price, available_in_pos,
@@ -24,8 +30,8 @@ public class LotesTests(TenantDatabaseFixture db)
             RETURNING id",
             new { nombre, t = TenantDatabaseFixture.TenantUno });
 
-        cn.Execute("INSERT INTO stock_items (tenant_id, product_id, quantity) VALUES (@t, @p, 0)",
-            new { t = TenantDatabaseFixture.TenantUno, p = id });
+        cn.Execute("INSERT INTO stock_items (tenant_id, branch_id, product_id, quantity) VALUES (@t, @b, @p, 0)",
+            new { t = TenantDatabaseFixture.TenantUno, b = db.SucursalDe(TenantDatabaseFixture.TenantUno), p = id });
         cn.Execute("SELECT fn_activar_lotes(@p)", new { p = id });
         return id;
     }
@@ -106,6 +112,7 @@ public class LotesTests(TenantDatabaseFixture db)
         // La base tiene productos con saldo negativo heredado: el sistema hoy lo
         // permite, y cambiarlo es una decisión de negocio, no de este modelo.
         using var cn = db.AbrirComoAdmin();
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
         var producto = cn.ExecuteScalar<Guid>(
             "SELECT id FROM products WHERE tracking_mode = 'none' AND tenant_id = @t LIMIT 1",
             new { t = TenantDatabaseFixture.TenantUno });
@@ -206,7 +213,7 @@ public class LotesTests(TenantDatabaseFixture db)
         using var cn = db.AbrirComoAdmin();
         // El INSERT del repositorio no nombra tenant_id: lo resuelve el DEFAULT
         // current_tenant(), igual que en la aplicación.
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConLotes(cn, "TEST RECEPCION TIPADA");
         var compra = cn.ExecuteScalar<Guid>(
@@ -269,7 +276,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task La_venta_que_abarca_dos_lotes_se_parte_y_los_importes_cierran()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConLotes(cn, "TEST VENTA DOS LOTES");
         cn.Execute("SELECT fn_recibir_lote(@p, 4,  'VENCE-ANTES',   '2027-01-01', 1)", new { p = producto });
@@ -339,7 +346,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task Lo_devuelto_vuelve_al_lote_del_que_salio()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConLotes(cn, "TEST DEVOLUCION LOTE");
         cn.Execute("SELECT fn_recibir_lote(@p, 10, 'LOTE-DEV', '2027-05-01', 1)", new { p = producto });
@@ -441,7 +448,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task La_trazabilidad_devuelve_a_quien_se_le_vendio_el_lote()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConLotes(cn, "TEST TRAZABILIDAD");
         cn.Execute("SELECT fn_recibir_lote(@p, 10, 'RETIRO-1', '2027-06-01', 1)", new { p = producto });
@@ -522,7 +529,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task La_recepcion_por_series_crea_una_existencia_por_unidad()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConSeries(cn, "TEST SERIES RECEPCION");
         var compra = cn.ExecuteScalar<Guid>(
@@ -583,7 +590,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task La_recepcion_por_series_exige_tantos_numeros_como_unidades()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConSeries(cn, "TEST SERIES FALTANTES");
         var compra = cn.ExecuteScalar<Guid>(
@@ -633,7 +640,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task La_serie_elegida_en_el_mostrador_gana_sobre_FEFO()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConSeries(cn, "TEST VENTA SERIE");
         // FEFO elegiría la primera; el mostrador va a entregar la segunda.
@@ -689,7 +696,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task No_se_puede_vender_una_serie_que_ya_no_esta()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var producto = CrearProductoConSeries(cn, "TEST SERIE AGOTADA");
         cn.Execute("SELECT fn_recibir_serie(@p, 'SN-UNICA', '2027-01-01', 1)", new { p = producto });
@@ -770,7 +777,7 @@ public class LotesTests(TenantDatabaseFixture db)
     public async Task El_historial_por_lote_no_mezcla_movimientos_de_otros_lotes_del_mismo_producto()
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
         var producto = CrearProductoConLotes(cn, "TEST KARDEX POR LOTE");
         cn.Execute("SELECT fn_recibir_lote(@p, 10, 'KARDEX-A', '2027-01-01', 1)", new { p = producto });
         cn.Execute("SELECT fn_recibir_lote(@p, 10, 'KARDEX-B', '2027-02-01', 1)", new { p = producto });

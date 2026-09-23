@@ -2,6 +2,9 @@
 
 public class PurchaseProductResponse
 {
+    /// <summary>Sucursal que hizo el pedido. Lo usan los reportes consolidados.</summary>
+    public string BranchName { get; set; } = "";
+
     public Guid Id { get; set; }
     public DateOnly PurchaseDate { get; set; }
     public decimal Total { get; set; }

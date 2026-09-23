@@ -23,7 +23,7 @@ public class ErroresDeBaseTests(TenantDatabaseFixture db)
     private Exception Traducir(string sql, object? parametros = null)
     {
         using var cn = db.AbrirComoAdmin();
-        cn.Execute($"SET app.tenant_id = '{TenantDatabaseFixture.TenantUno}'");
+        db.FijarTenant(cn, TenantDatabaseFixture.TenantUno);
 
         var original = Assert.ThrowsAny<PostgresException>(() => cn.Execute(sql, parametros));
         return ExceptionHandler.HandleException<bool>(original);

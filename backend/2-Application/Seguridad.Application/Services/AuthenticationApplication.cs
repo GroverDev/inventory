@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Common.Utilities;
+using Common.Utilities.Comun.Bases;
 using Common.Utilities.Exceptions;
 using Common.Utilities.Security;
 using Microsoft.Extensions.Options;
@@ -54,11 +55,11 @@ public class AuthenticationApplication(
         }
     }
 
-    public async Task<string> IssueRefreshToken(int userId, int tenantId, int sessionId, string device, string loginFrom, int days)
+    public async Task<string> IssueRefreshToken(int userId, int tenantId, Guid branchId, int sessionId, string device, string loginFrom, int days)
     {
         string raw = GenerateToken();
         await _refreshTokenRepository.Create(
-            userId, tenantId, sessionId, HashToken(raw), device, loginFrom, DateTime.UtcNow.AddDays(days));
+            userId, tenantId, branchId, sessionId, HashToken(raw), device, loginFrom, DateTime.UtcNow.AddDays(days));
         return raw;
     }
 
@@ -87,7 +88,7 @@ public class AuthenticationApplication(
 
             string loginFrom = Enum.GetName(typeof(Seguridad.Domain.Enums.InicioSesionDesde), request.LoginFrom) ?? "";
             var data = await _refreshTokenRepository.GetLoginDataForRefresh(
-                stored.UserId, request.Device, loginFrom);
+                stored.UserId, request.Device, loginFrom, stored.BranchId);
 
             // Usuario desactivado: el refresh deja de servir de inmediato.
             if (data == null)
@@ -100,7 +101,7 @@ public class AuthenticationApplication(
             // Rotación: el token usado queda revocado y apuntando al nuevo.
             string raw = GenerateToken();
             long newId = await _refreshTokenRepository.Create(
-                stored.UserId, data.TenantId, data.SesionId, HashToken(raw), request.Device, loginFrom, DateTime.UtcNow.AddDays(days));
+                stored.UserId, data.TenantId, data.BranchId, data.SesionId, HashToken(raw), request.Device, loginFrom, DateTime.UtcNow.AddDays(days));
             await _refreshTokenRepository.Revoke(stored.Id, newId);
 
             data.RefreshToken = raw;
@@ -111,6 +112,43 @@ public class AuthenticationApplication(
         catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
 
         return resp;
+    }
+
+    public async Task<(Response<LoginResponse> Resp, bool Renewable)> SwitchBranch(DataToken session, Guid branchId)
+    {
+        var resp = new Response<LoginResponse>() { Data = new LoginResponse() };
+        bool renewable = false;
+        try
+        {
+            // El JWT nuevo repite los datos del actual; solo cambia la sucursal.
+            var data = new LoginResponse
+            {
+                UserId = session.UserId,
+                TenantId = session.TenantId,
+                Uuid = session.Uuid,
+                Email = session.Email,
+                SesionId = session.SessionId,
+                RolName = session.Rol,
+                Roles = session.Roles
+            };
+
+            // Misma regla que el login: solo sucursales activas y habilitadas.
+            // Si la pedida no lo está, AssignBranch cae a la default, y eso acá
+            // es un rechazo, no un cambio silencioso a otra sucursal.
+            await _authenticationRepository.AssignBranch(data, branchId);
+            if (data.BranchId != branchId)
+                throw new CustomException("No está habilitado en esa sucursal, o la sucursal está inactiva.");
+
+            renewable = await _refreshTokenRepository.SetBranchForSession(
+                session.UserId, session.SessionId, branchId) > 0;
+
+            resp.Data = data;
+            resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+
+        return (resp, renewable);
     }
 
     public async Task<Response<bool>> RevokeRefreshToken(string refreshToken)
@@ -136,6 +174,19 @@ public class AuthenticationApplication(
 
     public async Task<int> RecordSuccessfulLogin(LoginRequest login, int userId) =>
         await _authenticationRepository.RecordSuccessfulLogin(login, userId);
+
+    public async Task<Response<bool>> AssignBranch(LoginResponse data)
+    {
+        var resp = new Response<bool>();
+        try
+        {
+            await _authenticationRepository.AssignBranch(data, null);
+            resp.Data = resp.ok = true;
+        }
+        catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+        catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrió un error, por favor comuníquese con Soporte Técnico.", ex); }
+        return resp;
+    }
 
     public async Task<string> IssueTrustedDevice(int userId, int tenantId, string device, int days)
     {

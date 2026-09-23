@@ -13,7 +13,7 @@ namespace Services.Api.Controllers.Inventory;
 [Route("api/[controller]")]
 [Authorize]
 [ApiController]
-public class StockMovementController(IStockMovementApplication _stockMovementApplication) : ControllerBase
+public class StockMovementController(IStockMovementApplication _stockMovementApplication, IBranchApplication _branchApplication) : ControllerBase
 {
     // GET api/StockMovement/expiring?dias=90
     // Existencias por vencer, de la más urgente a la menos.
@@ -96,10 +96,15 @@ public class StockMovementController(IStockMovementApplication _stockMovementApp
     // GET api/StockMovement/write-offs?desde=&hasta=&productId=
     [HttpGet("write-offs")]
     public async Task<ActionResult<Response<WriteOffReportResponse>>> GetWriteOffs(
-        [FromQuery] DateTime desde, [FromQuery] DateTime hasta, [FromQuery] string? productId = null)
+        [FromQuery] DateTime desde, [FromQuery] DateTime hasta, [FromQuery] string? productId = null,
+        [FromQuery] string? branch = null)
     {
-        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
 
-        return await _stockMovementApplication.GetWriteOffs(desde, hasta, productId);
+        var (branches, scopeError) = await BranchScope.Resolve(branch, datos.UserId, _branchApplication);
+        if (scopeError != null) return new Response<WriteOffReportResponse>() { ok = false, Message = new Msg() { MessageType = "warning", Description = scopeError } };
+
+        return await _stockMovementApplication.GetWriteOffs(desde, hasta, productId, branches);
     }
 }

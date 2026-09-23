@@ -13,9 +13,10 @@ const useProduct = () => {
     return await put<ResponseObject<boolean>>(`Product/${product.Id}`, product)
   }
 
-  const getProductsByName = async (name: string): Promise<ResponseArray<Product>> => {
+  /** branch: de qué sucursales se suma el stock. '' = la activa, un id, o 'all'. */
+  const getProductsByName = async (name: string, branch = ''): Promise<ResponseArray<Product>> => {
     return await get<ResponseArray<Product>>(
-      `Product?productName=${name}`,
+      `Product?productName=${name}` + (branch ? `&branch=${encodeURIComponent(branch)}` : ''),
     );
   }
 

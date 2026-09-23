@@ -126,13 +126,13 @@ public class StockMovementApplication(IStockMovementRepository _stockMovementRep
         return resp;
     }
 
-    public async Task<Response<WriteOffReportResponse>> GetWriteOffs(DateTime desde, DateTime hasta, string? productId)
+    public async Task<Response<WriteOffReportResponse>> GetWriteOffs(DateTime desde, DateTime hasta, string? productId, Guid[]? branches = null)
     {
         var resp = new Response<WriteOffReportResponse>() { Data = new WriteOffReportResponse() };
         try
         {
             Guid? id = string.IsNullOrWhiteSpace(productId) ? null : Guid.Parse(productId);
-            resp.Data = await _stockMovementRepository.GetWriteOffs(desde, hasta, id);
+            resp.Data = await _stockMovementRepository.GetWriteOffs(desde, hasta, id, branches);
             resp.ok = true;
         }
         catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }

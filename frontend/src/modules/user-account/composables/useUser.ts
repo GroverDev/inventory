@@ -2,6 +2,7 @@ import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseArray, ResponseObject } from '@/modules/common/models';
 import type { User } from '@/modules/user-account/models/users.model';
 import type { Role } from '@/modules/user-account/models/role.model';
+import type { UserBranch } from '@/modules/user-account/models/branch.model';
 
 const { post, get, put, del } = useApi();
 
@@ -55,6 +56,16 @@ const useUser = () => {
     return await put<ResponseObject<boolean>>(`Users/${uuid}/roles`, { roleIds });
   }
 
+  const getUserBranches = async (uuid: string): Promise<ResponseArray<UserBranch>> => {
+    return await get<ResponseArray<UserBranch>>(`Users/${uuid}/branches`);
+  }
+
+  const assignBranchesToUser = async (
+    uuid: string, branchIds: string[], defaultBranchId: string,
+  ): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/branches`, { branchIds, defaultBranchId });
+  }
+
   const changeUserPassword = async (uuid: string, newPassword: string): Promise<ResponseObject<boolean>> => {
     return await put<ResponseObject<boolean>>(`Users/${uuid}/password`, { newPassword });
   }
@@ -71,6 +82,6 @@ const useUser = () => {
     return await del<ResponseObject<boolean>>(`Users/${uuid}/mfa/required`);
   }
 
-  return { getUsersByName, createUser, updateUser, getUserById, deleteUser, getUserRoles, assignRolesToUser, changeUserPassword, adminResetMfa, adminRequireMfa, adminUnrequireMfa }
+  return { getUsersByName, createUser, updateUser, getUserById, deleteUser, getUserRoles, assignRolesToUser, getUserBranches, assignBranchesToUser, changeUserPassword, adminResetMfa, adminRequireMfa, adminUnrequireMfa }
 }
 export default useUser;

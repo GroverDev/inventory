@@ -209,7 +209,7 @@ public class SalesApplication(
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
         return respuesta;
     }
-    public async Task<Response<SalesPagedResponse>> GetSales(string saleDateInitial, string saleDateEnd, int userId, string rol, int page = 1, int pageSize = 50, string? sellerName = null)
+    public async Task<Response<SalesPagedResponse>> GetSales(string saleDateInitial, string saleDateEnd, int userId, string rol, int page = 1, int pageSize = 50, string? sellerName = null, Guid[]? branches = null)
     {
         Response<SalesPagedResponse> response = new() { Data = new() };
         try
@@ -250,7 +250,8 @@ public class SalesApplication(
                 filterUserId,
                 page,
                 pageSize,
-                filterSeller);
+                filterSeller,
+                branches);
 
             response.ok = true;
         }

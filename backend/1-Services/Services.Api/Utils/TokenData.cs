@@ -55,6 +55,11 @@ public class TokenData
             _ = int.TryParse(currentUser.Claims.FirstOrDefault(c => c.Type == CONST.TENANT_ID)!.Value, out int tenantId);
             datos.TenantId = tenantId;
         }
+        if (currentUser.HasClaim(c => c.Type == CONST.BRANCH_ID))
+        {
+            _ = Guid.TryParse(currentUser.Claims.FirstOrDefault(c => c.Type == CONST.BRANCH_ID)!.Value, out Guid branchId);
+            datos.BranchId = branchId;
+        }
             
 
             //if (datos.IdUsuario == 0 || datos.IdSeguimiento == 0 || datos.CorreoElectronico == "") datos.ok = false;

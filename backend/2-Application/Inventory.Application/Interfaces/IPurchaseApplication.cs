@@ -19,7 +19,7 @@ public interface IPurchaseApplication
     /// <summary>Anula una orden que aún no recibió mercadería.</summary>
     public Task<Response<bool>> CancelPurchase(string id, int modifiedBy);
 
-    public Task<Response<List<PurchaseProductResponse>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus);
+    public Task<Response<List<PurchaseProductResponse>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, Domain.Enums.PurchaseStatusEnum purchaseStatus, Guid[]? branches = null);
 
     public Task<Response<PurchaseRequest>> GetPurchase(string id);
     public Task<Response<bool>> DeletePurchase(string id, int modifiedBy);

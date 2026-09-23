@@ -25,6 +25,7 @@
                 <label class="form-label">Fecha Fin</label>
                 <input type="date" class="form-control form-control-sm" v-model="filtro.dateEnd" />
               </div>
+              <BranchFilter v-model="branch" />
               <div class="col-12 col-md-3 d-flex gap-2">
                 <button class="btn btn-primary btn-sm flex-fill" @click="load">
                   <i class="fal fa-search me-1"></i>Buscar
@@ -85,6 +86,7 @@
                   <thead class="">
                     <tr>
                       <th>Fecha</th>
+                      <th v-if="consolidated">Sucursal</th>
                       <th>Cliente</th>
                       <th class="text-end">Subtotal</th>
                       <th class="text-end">Descuentos</th>
@@ -95,6 +97,7 @@
                   <tbody>
                     <tr v-for="s in sales" :key="s.Id">
                       <td class="text-nowrap">{{ fmtDate(s.SaleDate) }}</td>
+                      <td v-if="consolidated"><small>{{ s.BranchName }}</small></td>
                       <td>{{ s.CustomerName }}</td>
                       <td class="text-end">{{ fmt(s.Subtotal) }}</td>
                       <td class="text-end text-danger">{{ fmt(s.TotalDiscounts) }}</td>
@@ -107,7 +110,7 @@
                   </tbody>
                   <tfoot class="fw-bold">
                     <tr>
-                      <td colspan="2">TOTALES</td>
+                      <td :colspan="consolidated ? 3 : 2">TOTALES</td>
                       <td class="text-end">{{ fmt(totalSubtotal) }}</td>
                       <td class="text-end text-danger">{{ fmt(totalDiscounts) }}</td>
                       <td class="text-end text-warning">
@@ -146,6 +149,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import useSales from '@/modules/inventory/composables/useSales';
+import BranchFilter from '@/modules/reports/components/BranchFilter.vue';
 import type { Sale } from '@/modules/inventory/models/sale.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
@@ -156,6 +160,10 @@ const sales = ref<Sale[]>([]);
 const today = todayIso();
 const firstOfMonth = firstOfMonthIso();
 const filtro = ref({ dateInitial: firstOfMonth, dateEnd: today });
+
+// '' = sucursal activa, un id, o 'all' (consolidado de las sucursales del usuario).
+const branch = ref('');
+const consolidated = computed(() => branch.value === 'all');
 
 const totalSubtotal  = computed(() => sales.value.reduce((s, v) => s + v.Subtotal, 0));
 const totalDiscounts = computed(() => sales.value.reduce((s, v) => s + v.TotalDiscounts, 0));
@@ -168,13 +176,14 @@ const fmt     = (v: number) => v.toLocaleString('es-BO', { style: 'currency', cu
 const fmtDate = (v: string | Date) => new Date(v).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const load = async () => {
-  const { ok, Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd, 1, 10000);
+  const { ok, Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd, 1, 10000, undefined, branch.value);
   if (ok) sales.value = Data?.Items ?? [];
 };
 
 const exportar = () => {
   const rows = sales.value.map(s => ({
     Fecha:       fmtDate(s.SaleDate),
+    Sucursal:    s.BranchName ?? '',
     Cliente:     s.CustomerName,
     Subtotal:    s.Subtotal,
     Descuentos:  s.TotalDiscounts,
@@ -182,7 +191,7 @@ const exportar = () => {
     Devuelto:    s.TotalReturned,
     Total:       s.NetTotal,
   }));
-  rows.push({ Fecha: 'TOTALES', Cliente: '', Subtotal: totalSubtotal.value, Descuentos: totalDiscounts.value, Facturado: totalNet.value + totalReturned.value, Devuelto: totalReturned.value, Total: totalNet.value });
+  rows.push({ Fecha: 'TOTALES', Sucursal: '', Cliente: '', Subtotal: totalSubtotal.value, Descuentos: totalDiscounts.value, Facturado: totalNet.value + totalReturned.value, Devuelto: totalReturned.value, Total: totalNet.value });
   exportToExcel(rows, `reporte_ventas_${filtro.value.dateInitial}_${filtro.value.dateEnd}.xlsx`);
 };
 </script>

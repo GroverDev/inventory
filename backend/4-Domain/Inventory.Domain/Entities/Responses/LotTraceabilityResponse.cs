@@ -21,6 +21,12 @@ public class LotTraceabilityResponse
     public DateTime SaleDate { get; set; }
     public int Quantity { get; set; }
 
+    /// <summary>
+    /// Sucursal donde se hizo la venta. Un retiro de lote se responde para toda
+    /// la farmacia, así que la búsqueda no se limita a la sucursal activa.
+    /// </summary>
+    public string BranchName { get; set; } = "";
+
     /// <summary>Datos de contacto: son el motivo de la consulta.</summary>
     public string Cliente { get; set; } = "";
     public string? DocumentNumber { get; set; }

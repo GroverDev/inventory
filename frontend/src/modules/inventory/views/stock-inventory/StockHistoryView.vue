@@ -175,6 +175,8 @@ const typeLabel = (type: string): string => {
     case 'VENTA': return 'Venta';
     case 'COMPRA': return 'Compra';
     case 'AJUSTE': return 'Ajuste';
+    case 'TRASPASO_SALIDA': return 'Traspaso enviado';
+    case 'TRASPASO_ENTRADA': return 'Traspaso recibido';
     default: return type;
   }
 };
@@ -184,6 +186,8 @@ const typeBadge = (type: string): string => {
     case 'VENTA': return 'bg-danger';
     case 'COMPRA': return 'bg-success';
     case 'AJUSTE': return 'bg-warning text-dark';
+    case 'TRASPASO_SALIDA': return 'bg-primary';
+    case 'TRASPASO_ENTRADA': return 'bg-info text-dark';
     default: return 'bg-secondary';
   }
 };
@@ -193,6 +197,8 @@ const movCardBorder = (type: string): string => {
     case 'VENTA': return 'border-danger';
     case 'COMPRA': return 'border-success';
     case 'AJUSTE': return 'border-warning';
+    case 'TRASPASO_SALIDA': return 'border-primary';
+    case 'TRASPASO_ENTRADA': return 'border-info';
     default: return 'border-secondary';
   }
 };

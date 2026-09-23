@@ -29,6 +29,7 @@
                   <option :value="true">Solo stock bajo mínimo</option>
                 </select>
               </div>
+              <BranchFilter v-model="branch" />
               <div class="col-12 col-md-3 d-flex gap-2">
                 <button class="btn btn-primary btn-sm flex-fill" @click="load">
                   <i class="fal fa-search me-1"></i>Buscar
@@ -146,6 +147,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import useProduct from '@/modules/inventory/composables/useProduct';
+import BranchFilter from '@/modules/reports/components/BranchFilter.vue';
 import type { Product } from '@/modules/inventory/models/product.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import { todayIso } from '@/utils/dateHelper';
@@ -154,6 +156,8 @@ const { getProductsByName } = useProduct();
 const products = ref<Product[]>([]);
 const loaded   = ref(false);
 const filtro   = ref({ name: '', lowOnly: false });
+// De qué sucursales se suma el stock: '' = la activa, un id, o 'all'.
+const branch = ref('');
 
 const displayRows = computed(() =>
   filtro.value.lowOnly
@@ -168,7 +172,7 @@ const totalValue    = computed(() => displayRows.value.reduce((s, p) => s + p.Cu
 const fmt = (v: number) => v.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' });
 
 const load = async () => {
-  const { ok, Data } = await getProductsByName(filtro.value.name);
+  const { ok, Data } = await getProductsByName(filtro.value.name, branch.value);
   if (ok) { products.value = Data ?? []; loaded.value = true; }
 };
 

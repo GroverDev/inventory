@@ -5,7 +5,7 @@ namespace Seguridad.Infrastructure;
 public interface IRefreshTokenRepository
 {
     /// <summary>Persiste un refresh token nuevo y devuelve su id.</summary>
-    Task<long> Create(int userId, int tenantId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt);
+    Task<long> Create(int userId, int tenantId, Guid branchId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt);
 
     Task<RefreshToken?> GetByHash(string tokenHash);
 
@@ -17,6 +17,13 @@ public interface IRefreshTokenRepository
 
     /// <summary>Sesiones activas de todo el tenant, con datos del usuario, para el panel de "usuarios conectados".</summary>
     Task<List<ConnectedUserResponse>> GetActiveForTenant(int tenantId);
+
+    /// <summary>
+    /// Cambia la sucursal de la sesión vigente (la del SessionId del JWT), para
+    /// que el próximo refresh la conserve. Devuelve las filas afectadas: 0 si la
+    /// sesión no tiene refresh token (Postman, o 2FA a medio configurar).
+    /// </summary>
+    Task<int> SetBranchForSession(int userId, int sessionId, Guid branchId);
 
     /// <summary>Marca el token como revocado, opcionalmente indicando cuál lo reemplazó.</summary>
     Task Revoke(long id, long? replacedBy);
@@ -31,6 +38,9 @@ public interface IRefreshTokenRepository
     /// <summary>Igual que <see cref="RevokeAllForUser"/>, acotado al tenant del admin que la pide.</summary>
     Task<List<int>> RevokeAllForUserInTenant(int userId, int tenantId);
 
-    /// <summary>Datos del usuario necesarios para emitir un JWT nuevo.</summary>
-    Task<LoginResponse?> GetLoginDataForRefresh(int userId, string device, string loginFrom);
+    /// <summary>
+    /// Datos del usuario necesarios para emitir un JWT nuevo. Conserva
+    /// <paramref name="preferredBranch"/> si el usuario sigue habilitado en ella.
+    /// </summary>
+    Task<LoginResponse?> GetLoginDataForRefresh(int userId, string device, string loginFrom, Guid? preferredBranch);
 }

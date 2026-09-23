@@ -52,7 +52,11 @@ const doRefresh = async (): Promise<boolean> => {
 
     const newToken = data?.Data?.Token;
     if (data?.ok && newToken) {
-      useAuthStore().setToken(newToken);
+      const auth = useAuthStore();
+      auth.setToken(newToken);
+      // El refresh conserva la sucursal de la sesión, salvo que al usuario se
+      // la hayan quitado: entonces vuelve a su default y hay que reflejarlo.
+      auth.setBranchInfo(data.Data);
       return true;
     }
   } catch {

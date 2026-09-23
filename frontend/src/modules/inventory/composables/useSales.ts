@@ -10,7 +10,8 @@ const useSales = () => {
     return await post<ResponseObject<string>>('Sales', sale);
   }
 
-  const getSales = async (dateInitial: string, dateEnd: string, page = 1, pageSize = 50, sellerName?: string) => {
+  /** branch: '' = sucursal activa, un id, o 'all' para el consolidado. */
+  const getSales = async (dateInitial: string, dateEnd: string, page = 1, pageSize = 50, sellerName?: string, branch = '') => {
     const params = new URLSearchParams({
       saleDateInitial: dateInitial,
       saleDateEnd: dateEnd,
@@ -18,6 +19,7 @@ const useSales = () => {
       pageSize: String(pageSize),
     });
     if (sellerName) params.append('sellerName', sellerName);
+    if (branch) params.append('branch', branch);
     return await get<ResponseObject<SalesPagedResult>>(`Sales?${params}`);
   }
 

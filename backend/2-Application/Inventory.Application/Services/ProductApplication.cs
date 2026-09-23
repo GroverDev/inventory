@@ -82,12 +82,12 @@ public class ProductApplication(
         return respuesta;
     }
 
-    public async Task<Response<List<ProductResponse>>> GetProducts(string productName)
+    public async Task<Response<List<ProductResponse>>> GetProducts(string productName, Guid[]? branches = null)
     {
         Response<List<ProductResponse>> products = new() { Data = new() };
         try
         {
-            products.Data = await _productRepository.GetProducts(productName);
+            products.Data = await _productRepository.GetProducts(productName, branches);
             products.ok = true;
         }
         catch (CustomException ex) { products.SetMessage(MessageTypes.Warning, ex.Message); }

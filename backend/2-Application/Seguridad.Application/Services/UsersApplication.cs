@@ -204,6 +204,32 @@ public async Task<Response<bool>> AssignRolesToUser(Guid uuid, List<int> roleIds
     return resp;
 }
 
+public async Task<Response<List<UserBranchResponse>>> GetBranchesByUser(Guid uuid)
+{
+    var resp = new Response<List<UserBranchResponse>>() { Data = [] };
+    try
+    {
+        resp.Data = await _usersRepository.GetBranchesByUserUuid(uuid);
+        resp.ok = true;
+    }
+    catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+    catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
+    return resp;
+}
+
+public async Task<Response<bool>> AssignBranchesToUser(Guid uuid, UserBranchesRequest request, int modifiedBy)
+{
+    var resp = new Response<bool>();
+    try
+    {
+        await _usersRepository.AssignBranchesToUser(uuid, request.BranchIds, request.DefaultBranchId, modifiedBy);
+        resp.Data = resp.ok = true;
+    }
+    catch (CustomException ex) { resp.SetMessage(MessageTypes.Warning, ex.Message); }
+    catch (Exception ex) { resp.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Soporte Tecnico.", ex); }
+    return resp;
+}
+
 public async Task<int?> GetUserIdByUuid(Guid uuid) =>
     await _mfaRepository.GetUserIdByUuid(uuid);
 }

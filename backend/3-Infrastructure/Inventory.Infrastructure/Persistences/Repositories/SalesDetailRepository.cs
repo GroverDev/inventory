@@ -127,6 +127,7 @@ public class SalesDetailRepository : ISalesDetailRepository
             @"SELECT id, serial_number
                 FROM stock_items
                WHERE product_id = @ProductId
+                 AND branch_id = public.current_branch()
                  AND state
                  AND quantity > 0
                  AND upper(trim(serial_number)) = ANY(@Series)",

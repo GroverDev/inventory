@@ -16,7 +16,7 @@ namespace Services.Api.Controllers.Inventory;
 [Route("api/[controller]")]
 [Authorize]
 [ApiController]
-public class PurchasesController(IPurchaseApplication _purchaseApplication) : ControllerBase
+public class PurchasesController(IPurchaseApplication _purchaseApplication, global::Inventory.Application.IBranchApplication _branchApplication) : ControllerBase
 {
     // POST api/Purchases
     [HttpPost()]
@@ -61,11 +61,16 @@ public class PurchasesController(IPurchaseApplication _purchaseApplication) : Co
     // que no se confunde con un filtro real; es lo que usa la lista del móvil
     // para el "Todos los estados".
     [HttpGet]
-    public async Task<ActionResult<Response<List<PurchaseProductResponse>>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, PurchaseStatusEnum purchaseStatus)
+    // branch: vacío = sucursal activa, un id o "all" (ver BranchScope).
+    public async Task<ActionResult<Response<List<PurchaseProductResponse>>>> GetPurchases(string purchaseDateInitial, string purchaseDateEnd, PurchaseStatusEnum purchaseStatus, string? branch = null)
     {
-        if (!TokenData.GetData(HttpContext).ok) return Unauthorized("Acceso no Autorizado.");
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
 
-        var respuesta = await _purchaseApplication.GetPurchases(purchaseDateInitial, purchaseDateEnd, purchaseStatus);
+        var (branches, scopeError) = await BranchScope.Resolve(branch, datos.UserId, _branchApplication);
+        if (scopeError != null) return new Response<List<PurchaseProductResponse>>() { ok = false, Message = new Msg() { MessageType = "warning", Description = scopeError } };
+
+        var respuesta = await _purchaseApplication.GetPurchases(purchaseDateInitial, purchaseDateEnd, purchaseStatus, branches);
         return respuesta;
     }
 

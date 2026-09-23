@@ -17,6 +17,9 @@ public static class InjectionExtensionsInventoryApplication
         services.AddScoped<ICategoryApplication, CategoryApplication>();
         services.AddScoped<ICustomersApplication, CustomersApplication>();
         services.AddScoped<ILaboratoryApplication, LaboratoryApplication>();
+        services.AddScoped<IBranchApplication, BranchApplication>();
+        services.AddScoped<IStockTransferApplication, StockTransferApplication>();
+        services.AddScoped<IProductBranchSettingsApplication, ProductBranchSettingsApplication>();
         services.AddScoped<IProviderApplication, ProviderApplication>();
         services.AddScoped<ISalesApplication, SalesApplication>();
         services.AddScoped<IProductApplication, ProductApplication>();

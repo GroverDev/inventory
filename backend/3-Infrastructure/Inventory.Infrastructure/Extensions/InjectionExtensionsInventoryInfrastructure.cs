@@ -15,6 +15,9 @@ public static class InjectionExtensionsInventoryInfraestructure
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ICustomersRepository, CustomersRepository>();
         services.AddScoped<ILaboratoryRepository, LaboratoryRepository>();
+        services.AddScoped<IBranchRepository, BranchRepository>();
+        services.AddScoped<IStockTransferRepository, StockTransferRepository>();
+        services.AddScoped<IProductBranchSettingsRepository, ProductBranchSettingsRepository>();
         services.AddScoped<IProviderRepository, ProviderRepository>();
         services.AddScoped<ISalesDetailRepository, SalesDetailRepository>();
         services.AddScoped<ISalesRepository, SalesRepository>();

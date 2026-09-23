@@ -9,6 +9,13 @@ public class RefreshToken
     public long Id { get; set; }
     public int UserId { get; set; }
     public int TenantId { get; set; }
+
+    /// <summary>
+    /// Sucursal activa de la sesión. El refresh la conserva al emitir el JWT
+    /// nuevo. Nula en los tokens anteriores a las sucursales: ahí el refresh
+    /// cae a la sucursal default del usuario.
+    /// </summary>
+    public Guid? BranchId { get; set; }
     public string TokenHash { get; set; } = "";
     public string Device { get; set; } = "";
     public string LoginFrom { get; set; } = "";

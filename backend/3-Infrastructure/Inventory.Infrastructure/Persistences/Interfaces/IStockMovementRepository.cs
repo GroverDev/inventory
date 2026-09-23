@@ -32,7 +32,7 @@ public interface IStockMovementRepository
     Task CreateWriteOff(StockMovement movement, Guid stockItemId, int userId);
 
     /// <summary>Mermas por vencimiento en un rango de fechas, agregadas y en detalle.</summary>
-    Task<WriteOffReportResponse> GetWriteOffs(DateTime desde, DateTime hasta, Guid? productId);
+    Task<WriteOffReportResponse> GetWriteOffs(DateTime desde, DateTime hasta, Guid? productId, Guid[]? branches = null);
 
     Task InsertMovement(StockMovement movement, IDbConnection db, IDbTransaction transaction);
 }

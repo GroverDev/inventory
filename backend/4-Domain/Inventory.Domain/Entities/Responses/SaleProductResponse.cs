@@ -2,6 +2,9 @@
 
 public class SaleProductResponse
 {
+    /// <summary>Sucursal donde se hizo la venta. Lo usan los reportes consolidados.</summary>
+    public string BranchName { get; set; } = "";
+
         public Guid Id { get; set; }
         public Guid CustomerId { get; set; }
         public string CustomerName { get; set; } = "";

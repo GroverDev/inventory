@@ -3,6 +3,9 @@ namespace Inventory.Domain;
 /// <summary>Un evento de baja por vencimiento/pérdida, tal como lo devuelve v_mermas.</summary>
 public class WriteOffDetailResponse
 {
+    /// <summary>Sucursal donde se registró la merma.</summary>
+    public string BranchName { get; set; } = "";
+
     public Guid ProductId { get; set; }
     public string ProductCode { get; set; } = "";
     public string ProductName { get; set; } = "";

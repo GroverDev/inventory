@@ -11,6 +11,14 @@ public class TokenJwt
 {
     public static string GetToken(LoginResponse login, string secret, string timeToken)
     {
+        // Todo JWT de sesión lleva sucursal: sin ella, el middleware lo rechaza
+        // y la base no tiene dónde registrar lo que el usuario haga. Si llega
+        // vacía es que un camino de login se olvidó de resolverla, y conviene
+        // que reviente acá y no en la primera venta.
+        if (login.BranchId == Guid.Empty)
+            throw new InvalidOperationException(
+                "Se intentó emitir un JWT sin sucursal. El camino de login debe resolverla antes.");
+
         string userId = Common.Utilities.CustomCryptography.EncondeUserId.EncodeId(login.UserId);
 
         var tokenHandler = new JwtSecurityTokenHandler();
@@ -25,7 +33,8 @@ public class TokenJwt
                     new Claim("SessionId", login.SesionId.ToString()),
                     new Claim("Rol", login.RolName),
                     new Claim("Roles", login.Roles),
-                    new Claim("TenantId", login.TenantId.ToString())
+                    new Claim("TenantId", login.TenantId.ToString()),
+                    new Claim("BranchId", login.BranchId.ToString())
                 ]
                 ),
             Expires = DateTime.UtcNow.AddMinutes(Convert.ToInt32(timeToken)),

@@ -277,8 +277,9 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
             var r = await db.QueryAsync<ProductEquivalentResponse>("""
                 SELECT p.id            AS ProductId,
                        p.product_name,
-                       p.sale_price,
-                       p.current_stock,
+                       COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                       p.sale_price AS base_sale_price,
+                       COALESCE(sa.quantity, 0) AS current_stock,
                        COALESCE(pp.product_type, '') AS ProductType,
                        COALESCE(pp.presentation, '') AS Presentation,
                        true            AS IsManual,
@@ -286,6 +287,8 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                        pa.show_order
                   FROM product_alternatives pa
                        JOIN products p ON p.id = pa.alternative_id AND p.state AND p.is_active
+                       LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                       LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                        LEFT JOIN product_pharma pp ON pp.product_id = p.id
                  WHERE pa.product_id = @ProductId AND pa.state
                  -- show_order 0 significa "sin fijar": esas van al final del
@@ -293,8 +296,8 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                  -- y después lo más barato". Sugerir algo agotado hace perder el
                  -- tiempo de la venta.
                  ORDER BY NULLIF(pa.show_order, 0) NULLS LAST,
-                          (p.current_stock > 0) DESC,
-                          p.sale_price
+                          (COALESCE(sa.quantity, 0) > 0) DESC,
+                          COALESCE(pbs.sale_price, p.sale_price)
                 """,
                 new { ProductId = productId });
             return [.. r];
@@ -321,14 +324,17 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
             var r = await db.QueryAsync<ProductEquivalentResponse>(@"
                 SELECT p.id            AS ProductId,
                        p.product_name,
-                       p.sale_price,
-                       p.current_stock,
+                       COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                       p.sale_price AS base_sale_price,
+                       COALESCE(sa.quantity, 0) AS current_stock,
                        COALESCE(pp.product_type, '') AS ProductType,
                        COALESCE(pp.presentation, '') AS Presentation,
                        true            AS IsManual,
                        COALESCE(pa.reason, '')       AS Reason
                   FROM product_alternatives pa
                        JOIN products p ON p.id = pa.product_id AND p.state AND p.is_active
+                       LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                       LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                        LEFT JOIN product_pharma pp ON pp.product_id = p.id
                  WHERE pa.alternative_id = @ProductId AND pa.state
                  ORDER BY p.product_name",
@@ -443,8 +449,9 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                 )
                 SELECT p.id            AS ProductId,
                        p.product_name,
-                       p.sale_price,
-                       p.current_stock,
+                       COALESCE(pbs.sale_price, p.sale_price) AS sale_price,
+                       p.sale_price AS base_sale_price,
+                       COALESCE(sa.quantity, 0) AS current_stock,
                        COALESCE(pp.product_type, '') AS ProductType,
                        COALESCE(pp.presentation, '') AS Presentation,
                        false           AS IsManual,
@@ -453,9 +460,11 @@ public class PharmaRepository(InventoryDbContext _DbContext) : IPharmaRepository
                        JOIN composicion otro ON otro.formula = base.formula
                                             AND otro.product_id <> base.product_id
                        JOIN products p ON p.id = otro.product_id AND p.state AND p.is_active
+                       LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
+                       LEFT JOIN product_branch_settings pbs ON pbs.product_id = p.id AND pbs.branch_id = public.current_branch()
                        LEFT JOIN product_pharma pp ON pp.product_id = p.id
                  WHERE base.product_id = @ProductId
-                 ORDER BY (p.current_stock > 0) DESC, p.sale_price",
+                 ORDER BY (COALESCE(sa.quantity, 0) > 0) DESC, COALESCE(pbs.sale_price, p.sale_price)",
                 new { ProductId = productId });
             return [.. r];
         }

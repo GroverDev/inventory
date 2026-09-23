@@ -232,6 +232,7 @@
                     <div class="col-sm-6 col-md-4 mb-3">
                       <label class="form-label d-block" for="precio">
                         Precio de Venta <span class="text-danger">*</span>
+                        <small v-if="product.Id !== '0'" class="text-muted fw-normal">(base)</small>
                       </label>
                       <div class="input-group input-group-sm">
                         <span class="input-group-text bg-transparent">Bs.</span>
@@ -283,6 +284,7 @@
                     <div class="col-sm-6 col-md-4 mb-3">
                       <label class="form-label d-block" for="cantidadReposicion">
                         Stock Mínimo de Reposición <span class="text-danger">*</span>
+                        <small v-if="product.Id !== '0'" class="text-muted fw-normal">(base)</small>
                       </label>
                       <input
                         type="number"
@@ -360,6 +362,12 @@
                       </small>
                     </div>
                   </div>
+
+                  <!--
+                    Excepciones por sucursal. Solo en edición: se cuelgan de un
+                    producto ya creado. Guarda por su cuenta, aparte de la ficha.
+                  -->
+                  <ProductBranchSettings v-if="product.Id !== '0'" :product-id="product.Id" />
 
                   <!--
                     Sección: datos del rubro farmacia.
@@ -777,6 +785,7 @@ import { UnitOfMeasurement } from '@/modules/inventory/models/unitOfMeasurement.
 
 import useProduct from '@/modules/inventory/composables/useProduct';
 import AlternativePickerModal from '@/modules/inventory/components/AlternativePickerModal.vue';
+import ProductBranchSettings from '@/modules/inventory/components/ProductBranchSettings.vue';
 import usePharma from '@/modules/inventory/composables/usePharma';
 import { todayIso } from '@/utils/dateHelper';
 import { renderMarkdown } from '@/utils/markdown';
@@ -1087,6 +1096,10 @@ const getProductXId = async (productId: string) => {
   if (!ok) return;
 
   product.value = productResp;
+  // La ficha edita el catálogo: precio y mínimo base, no los de la sucursal
+  // activa. Si no, guardar copiaría la excepción de esta sucursal a todas.
+  product.value.SalePrice = productResp.BaseSalePrice ?? productResp.SalePrice;
+  product.value.MinReorderQuantity = productResp.BaseMinReorderQuantity ?? productResp.MinReorderQuantity;
   // Laboratorio y categoría son opcionales y llegan con null. El `<select>`
   // compara contra el value="" de su opción «sin asignar»: sin esto no quedaría
   // ninguna seleccionada y el campo se vería vacío en vez de explícitamente
