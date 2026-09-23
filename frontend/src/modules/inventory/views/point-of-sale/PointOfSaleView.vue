@@ -3,7 +3,7 @@
 
     <!-- ── Cabecera: volver + título + estado de caja ── -->
     <div class="pos-top-bar d-flex align-items-center mb-2 gap-2">
-      <button class="btn btn-sm btn-outline-secondary" type="button" @click="router.back()">
+      <button class="btn btn-sm btn-outline-secondary" type="button" @click="leavePos">
         <i class="fal fa-arrow-left me-1"></i>Volver
       </button>
       <h6 class="mb-0 fw-semibold">Punto de Venta</h6>
@@ -66,58 +66,60 @@
             <button type="button" class="btn-close" @click="showCloseCashModal = false"></button>
           </div>
           <div class="modal-body">
-            <!-- Resumen del turno -->
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Fondo inicial</small>
-                  <strong>Bs. {{ formatNum(cashSession.OpeningAmount) }}</strong>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Ventas</small>
-                  <strong class="text-success">Bs. {{ formatNum(cashSession.TotalSales) }}</strong>
-                  <small v-if="cashSession.TotalCashSales !== cashSession.TotalSales" class="text-muted d-block">
-                    en efectivo Bs. {{ formatNum(cashSession.TotalCashSales) }}
-                  </small>
-                </div>
-              </div>
-              <div class="col-6" v-if="cashSession.TotalExpenses > 0">
-                <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Gastos</small>
-                  <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalExpenses) }}</strong>
-                </div>
-              </div>
-              <div class="col-6" v-if="cashSession.TotalWithdrawals > 0">
-                <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Retiros</small>
-                  <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalWithdrawals) }}</strong>
-                </div>
-              </div>
-              <div class="col-6" v-if="cashSession.TotalReturns > 0">
-                <div class="border rounded p-2 text-center">
-                  <small class="text-muted d-block">Devoluciones</small>
-                  <strong class="text-danger">− Bs. {{ formatNum(cashSession.TotalReturns) }}</strong>
-                </div>
-              </div>
+            <!-- Una venta en espera no es un faltante: no se cobró. Pero conviene
+                 resolverla antes de cerrar para que no quede olvidada. -->
+            <div v-if="heldSales.length" class="alert alert-warning py-2 small">
+              <i class="fal fa-hourglass-half me-1"></i>
+              Hay <strong>{{ heldSales.length }}</strong> venta(s) en espera en esta sucursal.
+              <a href="#" class="alert-link" @click.prevent="showCloseCashModal = false; openHeldList()">Revisarlas</a>
             </div>
-            <div class="alert alert-info py-2 small mb-3">
-              <strong>Esperado en caja:</strong> Bs. {{ formatNum(expectedCash) }}
-            </div>
-            <div class="mb-2">
-              <label class="form-label small text-muted">Monto físico contado (Bs.)</label>
-              <input type="number" class="form-control" v-model.number="declaredAmount" min="0" step="0.01" placeholder="0.00" />
-            </div>
-            <div v-if="declaredAmount !== null" class="d-flex justify-content-between small">
-              <span class="text-muted">Diferencia</span>
-              <span :class="(declaredAmount - expectedCash) >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
-                Bs. {{ formatNum(declaredAmount - expectedCash) }}
-              </span>
+            <!-- Conteo a ciegas: se declara lo contado sin ver lo esperado. La
+                 diferencia se calcula en el servidor y se muestra al cerrar. -->
+            <p class="small text-muted mb-3">
+              Cuente y declare lo que tiene. El sistema compara con lo esperado al confirmar el cierre.
+            </p>
+            <div v-for="m in countedMethods" :key="m.Id" class="mb-2">
+              <label class="form-label small mb-1">
+                <i :class="m.IconCss" class="me-1 text-muted"></i><strong>{{ m.Name }}</strong>
+                <span class="text-muted"> · {{ countHint(m) }}</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text">Bs.</span>
+                <input type="number" class="form-control text-end" min="0" step="0.01" placeholder="0.00"
+                  :readonly="m.AffectsCash && countingByDenomination"
+                  v-model.number="declaredCounts[m.Id]" />
+                <button v-if="m.AffectsCash && !closeSettings.RequireDenominations" type="button"
+                  class="btn btn-outline-secondary" :class="{ active: showDenominations }"
+                  title="Contar por billetes y monedas" @click="showDenominations = !showDenominations">
+                  <i class="fal fa-money-bill-wave"></i>
+                </button>
+              </div>
+              <!-- Conteo por billete y moneda: el total va al efectivo declarado. -->
+              <div v-if="m.AffectsCash && (showDenominations || closeSettings.RequireDenominations)"
+                class="border rounded p-2 mt-2">
+                <div class="small text-muted mb-1">
+                  Billetes y monedas<span v-if="closeSettings.RequireDenominations"> (obligatorio)</span>
+                </div>
+                <div class="row g-1">
+                  <div v-for="v in BOB_DENOMINATIONS" :key="v" class="col-6 col-sm-4">
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text justify-content-end" style="min-width:4.2rem">
+                        {{ v >= 1 ? v : v.toFixed(2) }}
+                      </span>
+                      <input type="number" min="0" step="1" class="form-control text-end" placeholder="0"
+                        v-model.number="denominationQty[v]" @input="syncCashFromDenominations" />
+                    </div>
+                  </div>
+                </div>
+                <div class="text-end small mt-1">
+                  Total contado: <strong>Bs. {{ denominationTotal.toFixed(2) }}</strong>
+                </div>
+              </div>
             </div>
             <div class="mb-2 mt-2">
-              <label class="form-label small text-muted">Observaciones (opcional)</label>
-              <textarea class="form-control form-control-sm" rows="2" v-model="closeNotes" placeholder="Ej: faltante por billete roto..."></textarea>
+              <label class="form-label small text-muted">Observaciones</label>
+              <textarea class="form-control form-control-sm" rows="2" v-model="closeNotes"
+                placeholder="Obligatoria si hay una diferencia importante. Ej.: faltante por billete roto..."></textarea>
             </div>
           </div>
           <div class="modal-footer py-2">
@@ -319,11 +321,25 @@
 
         <!-- Items del carrito -->
         <div class="card mb-2 pos-cart-items-card">
-          <div class="card-header py-2 px-3">
+          <div class="card-header py-2 px-3 d-flex align-items-center gap-2">
             <span class="fw-semibold small">
               <i class="fal fa-shopping-cart me-1 text-primary"></i>Carrito
               <span v-if="totalItems > 0" class="badge bg-primary ms-1">{{ totalItems }}</span>
             </span>
+            <!-- Ventas en espera: dejar esta para atender a otro, y retomarla después -->
+            <div class="ms-auto d-flex gap-1">
+              <button type="button" class="btn btn-sm btn-outline-warning py-0 pos-line-btn"
+                :disabled="cart.length === 0" @click="openHoldModal"
+                title="Poner en espera" aria-label="Poner la venta en espera">
+                <i class="fal fa-pause"></i>
+              </button>
+              <button type="button" class="btn btn-sm py-0 pos-line-btn"
+                :class="heldSales.length ? 'btn-warning' : 'btn-outline-secondary'"
+                @click="openHeldList" title="Ventas en espera" aria-label="Ventas en espera">
+                <i class="fal fa-hourglass-half"></i>
+                <span v-if="heldSales.length" class="ms-1 fw-semibold">{{ heldSales.length }}</span>
+              </button>
+            </div>
           </div>
 
           <div v-if="cart.length === 0" class="card-body text-center py-4">
@@ -338,18 +354,24 @@
             >
               <div class="d-flex justify-content-between align-items-start mb-1">
                 <span class="fw-semibold lh-sm" style="font-size:0.85rem">{{ line.ProductName }}</span>
-                <div class="d-flex align-items-center gap-1 ms-1">
+                <!--
+                  En pantallas táctiles estos botones crecen (ver .pos-line-btn) y
+                  se separan: quitar el producto queda lejos del descuento para
+                  que un toque errado no borre la línea.
+                -->
+                <div class="d-flex align-items-center gap-1 ms-1 pos-line-actions">
                   <button
                     type="button"
-                    class="btn btn-sm py-0 px-1 lh-1"
+                    class="btn btn-sm py-0 px-1 lh-1 pos-line-btn"
                     :class="line.DiscountLabel ? 'btn-success' : 'btn-outline-secondary'"
                     @click="openDiscountModal(i)"
-                    title="Aplicar descuento"
-                  ><i class="fal fa-percent" style="font-size:0.68rem"></i></button>
+                    title="Aplicar descuento" aria-label="Aplicar descuento"
+                  ><i class="fal fa-percent pos-line-icon"></i></button>
                   <button
-                    type="button" class="btn btn-link btn-sm text-danger p-0"
+                    type="button" class="btn btn-sm text-danger p-0 pos-line-btn pos-line-remove btn-outline-danger"
                     @click="removeFromCart(i)"
-                  ><i class="fal fa-times-circle"></i></button>
+                    title="Quitar del carrito" aria-label="Quitar del carrito"
+                  ><i class="fal fa-times"></i></button>
                 </div>
               </div>
               <!-- Descuento aplicado en línea -->
@@ -358,8 +380,9 @@
                   <small class="text-success" style="font-size:0.7rem">
                     <i class="fal fa-tag me-1"></i>{{ line.DiscountLabel }}
                   </small>
-                  <button type="button" class="btn btn-link p-0 text-danger lh-1" @click="removeLineDiscount(i)" title="Quitar descuento">
-                    <i class="fal fa-times" style="font-size:0.65rem"></i>
+                  <button type="button" class="btn btn-link p-0 text-danger lh-1 pos-line-btn pos-line-btn-sm"
+                    @click="removeLineDiscount(i)" title="Quitar descuento" aria-label="Quitar descuento">
+                    <i class="fal fa-times pos-line-icon-xs"></i>
                   </button>
                 </div>
                 <small class="text-success fw-semibold" style="font-size:0.7rem">− Bs. {{ formatNum(line.LineTotalDiscounts) }}</small>
@@ -368,14 +391,14 @@
                 <div class="d-flex align-items-center gap-1">
                   <button
                     type="button"
-                    class="btn btn-outline-secondary btn-sm py-0 px-2 lh-1"
-                    @click="decreaseQty(i)"
+                    class="btn btn-outline-secondary btn-sm py-0 px-2 lh-1 pos-line-btn"
+                    @click="decreaseQty(i)" aria-label="Restar uno"
                   >−</button>
                   <span class="fw-bold px-2">{{ line.Quantity }}</span>
                   <button
                     type="button"
-                    class="btn btn-outline-secondary btn-sm py-0 px-2 lh-1"
-                    @click="increaseQty(i)"
+                    class="btn btn-outline-secondary btn-sm py-0 px-2 lh-1 pos-line-btn"
+                    @click="increaseQty(i)" aria-label="Sumar uno"
                   >+</button>
                 </div>
                 <div class="text-end">
@@ -388,6 +411,19 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Deshacer: un toque errado en la X (o en − con cantidad 1) no obliga a
+               volver a buscar el producto. Desaparece sola a los pocos segundos. -->
+          <div v-if="lastRemoved"
+            class="card-footer d-flex align-items-center justify-content-between gap-2 py-2 px-3 pos-undo-bar"
+            role="status">
+            <small class="text-truncate">
+              <i class="fal fa-trash-alt me-1 text-danger"></i>Quitado: <strong>{{ lastRemoved.line.ProductName }}</strong>
+            </small>
+            <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0 pos-line-btn" @click="undoRemove">
+              <i class="fal fa-undo me-1"></i>Deshacer
+            </button>
           </div>
         </div>
 
@@ -646,6 +682,127 @@
         </div>
       </div><!-- /modal descuento -->
 
+      <!-- ════ MODAL: Resultado del arqueo (después de cerrar) ════ -->
+      <div v-if="showCloseResult" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header py-2">
+              <h6 class="modal-title fw-bold"><i class="fal fa-lock me-2"></i>Caja cerrada</h6>
+              <button type="button" class="btn-close" @click="showCloseResult = false"></button>
+            </div>
+            <div class="modal-body">
+              <table v-if="closeResult.length" class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Medio</th>
+                    <th class="text-end">Esperado</th>
+                    <th class="text-end">Declarado</th>
+                    <th class="text-end">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="c in closeResult" :key="c.PaymentMethodId">
+                    <td><i :class="c.IconCss" class="me-1 text-muted"></i>{{ c.Name }}</td>
+                    <td class="text-end">{{ formatNum(c.Expected) }}</td>
+                    <td class="text-end">{{ formatNum(c.Declared) }}</td>
+                    <td class="text-end fw-semibold"
+                      :class="c.Difference === 0 ? 'text-success' : c.Difference > 0 ? 'text-warning-emphasis' : 'text-danger'">
+                      {{ c.Difference > 0 ? '+' : '' }}{{ formatNum(c.Difference) }}
+                      <small class="d-block fw-normal">
+                        {{ c.Difference === 0 ? 'cuadra' : c.Difference > 0 ? 'sobrante' : 'faltante' }}
+                      </small>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else class="mb-0">La caja se cerró correctamente.</p>
+            </div>
+            <div class="modal-footer py-2">
+              <button class="btn btn-primary btn-sm" @click="showCloseResult = false">Aceptar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ MODAL: Poner venta en espera ════ -->
+      <div v-if="showHoldModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content">
+            <div class="modal-header py-2">
+              <h6 class="modal-title fw-bold"><i class="fal fa-pause me-2"></i>Poner en espera</h6>
+              <button type="button" class="btn-close" @click="showHoldModal = false"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-2">
+                La venta queda guardada en esta sucursal y cualquier caja la puede retomar. No reserva stock:
+                los precios y el stock se validan al cobrarla.
+              </p>
+              <label class="form-label small text-muted">Nota para reconocerla (opcional)</label>
+              <input type="text" class="form-control form-control-sm" maxlength="100" v-model.trim="holdLabel"
+                placeholder="Ej.: señor de camisa azul" @keyup.enter="holdCurrentSale" />
+            </div>
+            <div class="modal-footer py-2">
+              <button class="btn btn-outline-secondary btn-sm" @click="showHoldModal = false">Cancelar</button>
+              <button class="btn btn-warning btn-sm" :disabled="holding" @click="holdCurrentSale">
+                <i class="fal fa-pause me-1"></i>Poner en espera
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ MODAL: Ventas en espera ════ -->
+      <div v-if="showHeldList" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content">
+            <div class="modal-header py-2">
+              <h6 class="modal-title fw-bold"><i class="fal fa-hourglass-half me-2"></i>Ventas en espera</h6>
+              <button type="button" class="btn-close" @click="showHeldList = false"></button>
+            </div>
+            <div class="modal-body">
+              <div v-if="heldSales.length === 0" class="text-center py-3">
+                <small class="text-muted">No hay ventas en espera en esta sucursal.</small>
+              </div>
+              <div v-else class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <th>Nota / Cliente</th>
+                      <th>Dejó</th>
+                      <th class="text-center">Ítems</th>
+                      <th class="text-end">Total</th>
+                      <th class="text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="h in heldSales" :key="h.Id">
+                      <td class="text-nowrap"><small>{{ formatHeldTime(h.Created) }}</small></td>
+                      <td>
+                        <div class="fw-semibold">{{ h.Label || '—' }}</div>
+                        <small class="text-muted">{{ h.CustomerName }}</small>
+                      </td>
+                      <td><small>{{ h.UserName }}</small></td>
+                      <td class="text-center">{{ h.ItemsCount }}</td>
+                      <td class="text-end">Bs. {{ formatNum(h.Total) }}</td>
+                      <td class="text-center text-nowrap">
+                        <button type="button" class="btn btn-sm btn-success me-1" @click="resumeHeldSale(h)">
+                          <i class="fal fa-play me-1"></i>Retomar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" @click="discardHeldSale(h)"
+                          title="Descartar" aria-label="Descartar">
+                          <i class="fal fa-trash-alt"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ════ MODAL: Autorización Supervisor (Fase 3) ════ -->
       <div v-if="showSupervisorModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.65)">
         <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -659,7 +816,11 @@
             </div>
 
             <div class="modal-body">
-              <p class="small text-muted mb-3">
+              <p v-if="supervisorPurpose === 'close'" class="small text-muted mb-3">
+                {{ supervisorReason }}
+                Ingresa las credenciales de un supervisor para autorizar el cierre.
+              </p>
+              <p v-else class="small text-muted mb-3">
                 El descuento manual supera el límite permitido para cajeros
                 (<strong>{{ maxCashierDiscountPct }}%</strong> por porcentaje /
                 <strong>Bs. {{ maxCashierDiscountAmount }}</strong> por monto fijo).
@@ -740,21 +901,52 @@
                   </button>
                 </div>
 
-                <div class="input-group input-group-sm" v-if="selectedMethodId">
-                  <span class="input-group-text">Bs.</span>
-                  <input
-                    type="number"
-                    class="form-control"
-                    placeholder="Monto"
-                    v-model.number="currentAmount"
-                    min="0"
-                    step="0.01"
-                    @keyup.enter="addPaymentLine"
-                  />
-                  <button class="btn btn-success" type="button" @click="addPaymentLine" :disabled="currentAmount <= 0">
-                    <i class="fal fa-plus me-1"></i>Agregar
-                  </button>
-                </div>
+                <template v-if="selectedMethodId">
+                  <!-- Efectivo arranca vacío: se escribe lo que el cliente entregó.
+                       Tarjeta o QR arrancan con el saldo: se cobra exacto. -->
+                  <label class="form-label small text-muted mb-1">
+                    {{ methodGivesChange ? 'Efectivo recibido' : 'Monto a cobrar' }}
+                  </label>
+                  <div class="input-group">
+                    <span class="input-group-text">Bs.</span>
+                    <input
+                      ref="amountInputRef"
+                      type="number"
+                      class="form-control form-control-lg text-end"
+                      :class="{ 'is-invalid': exceedsNoChange }"
+                      :placeholder="methodGivesChange ? 'Monto recibido' : 'Monto'"
+                      v-model.number="currentAmount"
+                      min="0"
+                      step="0.01"
+                      @keyup.enter="onAmountEnter"
+                    />
+                    <button class="btn btn-success" type="button" @click="addPaymentLine" :disabled="!canAddPayment">
+                      <i class="fal fa-plus me-1"></i>Agregar
+                    </button>
+                  </div>
+
+                  <!-- Atajos: el monto exacto y los billetes con que suele pagarse -->
+                  <div v-if="methodGivesChange" class="d-flex flex-wrap gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setAmount(pendingAmount)">
+                      Exacto
+                    </button>
+                    <button v-for="v in quickAmounts" :key="v" type="button" class="btn btn-sm btn-outline-secondary"
+                      @click="setAmount(v)">
+                      Bs. {{ v }}
+                    </button>
+                  </div>
+
+                </template>
+              </div>
+
+              <!-- Panel de cobro, siempre visible y de alto fijo (el modal no salta):
+                   primero cuánto cobrar, mientras se escribe cuánto falta, y al
+                   cubrir el total cuánto devolver. -->
+              <div class="rounded p-2 mb-3 text-center d-flex flex-column justify-content-center pos-pay-panel"
+                :class="payPanel.cls">
+                <div class="small">{{ payPanel.label }}</div>
+                <div v-if="payPanel.amount !== null" class="fw-bold pos-pay-amount">Bs. {{ formatNum(payPanel.amount) }}</div>
+                <div v-else class="fw-semibold">{{ payPanel.note }}</div>
               </div>
 
               <!-- Líneas de pago agregadas -->
@@ -789,10 +981,6 @@
                 <div class="d-flex justify-content-between small mb-1" v-if="totalPaid < total">
                   <span class="text-muted">Pendiente</span>
                   <span class="text-danger fw-semibold">Bs. {{ formatNum(total - totalPaid) }}</span>
-                </div>
-                <div class="d-flex justify-content-between small" v-if="totalChange > 0">
-                  <span class="text-muted">Vuelto</span>
-                  <span class="text-success fw-semibold">Bs. {{ formatNum(totalChange) }}</span>
                 </div>
               </div>
 
@@ -855,28 +1043,39 @@
                 </div>
               </div>
 
-              <!-- Métodos de pago -->
-              <div class="d-flex flex-wrap gap-1 justify-content-center mb-4">
-                <span v-for="(p, i) in completedPayments" :key="i"
-                  class="badge bg-secondary px-2 py-1">
-                  <i :class="p.IconCss" class="me-1"></i>{{ p.PaymentMethodName }}
-                  Bs. {{ formatNum2(p.AmountGiven) }}
-                </span>
-              </div>
+              <!-- Métodos de pago: legibles, es lo que se consulta ante un reclamo.
+                   En efectivo, cuánto entregó y cuánto se le devolvió. -->
+              <ul class="list-group mb-4 text-start">
+                <li v-for="(p, i) in completedPayments" :key="i"
+                  class="list-group-item d-flex justify-content-between align-items-center gap-2 py-2">
+                  <span class="fw-semibold">
+                    <i :class="p.IconCss" class="me-2 text-muted"></i>{{ p.PaymentMethodName }}
+                  </span>
+                  <span class="text-end">
+                    <template v-if="p.AmountReturned > 0">
+                      entregó <strong>Bs. {{ formatNum2(p.AmountGiven) }}</strong>
+                      <span class="text-muted mx-1">·</span>
+                      vuelto <strong class="text-success">Bs. {{ formatNum2(p.AmountReturned) }}</strong>
+                    </template>
+                    <strong v-else>Bs. {{ formatNum2(p.AmountGiven) }}</strong>
+                  </span>
+                </li>
+              </ul>
 
               <!-- Botones -->
               <div class="d-grid gap-2">
                 <button class="btn btn-primary btn-lg" @click="newOrder">
                   <i class="fal fa-plus me-2"></i>Nueva Orden
                 </button>
-                <div class="d-flex gap-2">
-                  <button class="btn btn-outline-secondary flex-fill" @click="printReceipt">
-                    <i class="fal fa-print me-1"></i>Imprimir recibo
-                  </button>
-                  <button class="btn btn-outline-warning flex-fill" @click="goToReturn">
-                    <i class="fal fa-undo me-1"></i>Devolver venta
-                  </button>
-                </div>
+                <button class="btn btn-outline-secondary" @click="printReceipt">
+                  <i class="fal fa-print me-1"></i>Imprimir recibo
+                </button>
+                <!-- Una devolución justo después de cobrar es rara: no compite con
+                     las acciones principales, y pide confirmación antes de salir
+                     del punto de venta. -->
+                <button type="button" class="btn btn-link btn-sm text-muted" @click="goToReturn">
+                  <i class="fal fa-undo me-1"></i>Ver venta / Devolver
+                </button>
               </div>
             </div>
 
@@ -1162,15 +1361,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import { Sale } from '@/modules/inventory/models/sale.model';
 import { SaleDetail } from '@/modules/inventory/models/saleDetail.model';
 import { SalePayment, type PaymentMethod } from '@/modules/inventory/models/paymentMethod.model';
 import { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
 import ProductInfoModal from '@/modules/inventory/components/ProductInfoModal.vue';
-import type { CashSession } from '@/modules/inventory/models/cashSession.model';
+import { BOB_DENOMINATIONS, type CashSession, type CashCount, type CashCloseSettings } from '@/modules/inventory/models/cashSession.model';
+import { useApi } from '@/modules/common/composables/api/useApi';
+import type { ResponseObject } from '@/modules/common/models/response.model';
 import { CashMovementRequest } from '@/modules/inventory/models/cashMovement.model';
 import type { Discount } from '@/modules/inventory/models/discount.model';
 import { useAuthStore } from '@/modules/auth/stores/auth.store';
@@ -1186,13 +1387,17 @@ import useDiscount from '@/modules/inventory/composables/useDiscount';
 import useStockMovement from '@/modules/inventory/composables/useStockMovement';
 import type { StockSerialResponse } from '@/modules/inventory/models/stockMovement.model';
 import utils from '@/utils/msg';
+import useHeldSales, { type HeldSale } from '@/modules/inventory/composables/useHeldSales';
 
 const router = useRouter();
 const authStore = useAuthStore();
 
-// Límites cargados desde el backend (appsettings.json → GET /Settings/pos)
+// Topes del descuento manual de la sucursal activa (GET /Settings/pos). El
+// backend los vuelve a aplicar al grabar: acá solo se avisa antes.
 const maxCashierDiscountPct    = ref<number>(15);
 const maxCashierDiscountAmount = ref<number>(50);
+const maxDiscountPct           = ref<number | null>(null);
+const maxDiscountAmount        = ref<number | null>(null);
 
 const { saveSaleApi } = useSales();
 const { getCustomers, getDefaultCustomer, createCustomer } = useCustomer();
@@ -1209,9 +1414,35 @@ const showOpenCashModal = ref(false);
 const showCloseCashModal = ref(false);
 const showMovementModal = ref(false);
 const openingAmount = ref<number>(0);
-const declaredAmount = ref<number>(0);
+// Lo declarado por medio en el cierre, por id de medio. '' = sin completar.
+const declaredCounts = ref<Record<string, number | ''>>({});
+/** Resultado del arqueo, para mostrarlo después de cerrar. */
+const closeResult = ref<CashCount[]>([]);
+const showCloseResult = ref(false);
 const closeNotes = ref('');
 const savingCash = ref(false);
+
+// Configuración del cierre (se lee al abrir el modal: puede haber cambiado).
+const { get: apiGet } = useApi();
+const closeSettings = ref<CashCloseSettings>({ NoteThreshold: 10, SupervisorThreshold: null, MaxAttempts: null, RequireDenominations: false });
+// Conteo del efectivo por billete y moneda, por valor. '' = sin completar.
+const showDenominations = ref(false);
+const denominationQty = ref<Record<number, number | ''>>({});
+const denominationTotal = computed(() =>
+  Math.round(BOB_DENOMINATIONS.reduce((t, v) => t + v * (Number(denominationQty.value[v]) || 0), 0) * 100) / 100);
+/** Mientras se cuenta por billetes, el efectivo declarado es su suma. */
+const countingByDenomination = computed(() =>
+  closeSettings.value.RequireDenominations || (showDenominations.value && denominationTotal.value > 0));
+const cashMethodId = computed(() => paymentMethods.value.find(m => m.AffectsCash)?.Id ?? '');
+const syncCashFromDenominations = () => {
+  if (cashMethodId.value) declaredCounts.value[cashMethodId.value] = denominationTotal.value;
+};
+
+watch(showCloseCashModal, async open => {
+  if (!open) return;
+  const { ok, Data } = await apiGet<ResponseObject<CashCloseSettings>>('Settings/cash-close');
+  if (ok && Data) closeSettings.value = Data;
+});
 const movementType = ref<'expense' | 'withdrawal' | 'income'>('expense');
 const movementAmount = ref<number>(0);
 const movementDescription = ref('');
@@ -1222,19 +1453,6 @@ const movementTypes = [
   { value: 'withdrawal' as const, label: 'Retiro',  icon: 'fal fa-arrow-circle-up',     activeClass: 'btn-warning' },
   { value: 'income' as const,     label: 'Ingreso', icon: 'fal fa-arrow-circle-down',   activeClass: 'btn-success' },
 ];
-
-const expectedCash = computed(() => {
-  if (!cashSession.value) return 0;
-  // TotalCashSales y no TotalSales: lo cobrado por QR o tarjeta no está en el cajón.
-  return +(
-    cashSession.value.OpeningAmount +
-    cashSession.value.TotalCashSales -
-    cashSession.value.TotalExpenses -
-    cashSession.value.TotalWithdrawals +
-    cashSession.value.TotalIncome -
-    cashSession.value.TotalReturns
-  ).toFixed(2);
-});
 
 // ── Estado ─────────────────────────────────────────────────
 const cart = ref<SaleDetail[]>([]);
@@ -1285,6 +1503,11 @@ type PendingDiscount = {
 };
 const pendingDiscount = ref<PendingDiscount | null>(null);
 const supervisorAuthToken = ref('');
+// El mismo modal autoriza un descuento o un cierre de caja. La autorización del
+// cierre vale para ese intento: no se reutiliza la de un descuento anterior.
+const supervisorPurpose = ref<'discount' | 'close'>('discount');
+const supervisorReason = ref('');
+const closeSupervisorToken = ref('');
 
 // ── Modal venta completada ─────────────────────────────────
 const showCompletedModal = ref(false);
@@ -1367,14 +1590,19 @@ const completedHeaderDiscountAmount = ref(0);
 const savingPayment = ref(false);
 const selectedMethodId = ref('');
 const selectedMethod = ref<PaymentMethod | null>(null);
-const currentAmount = ref<number>(0);
+// '' = vacío: el efectivo arranca así, para escribir lo que el cliente entregó.
+const currentAmount = ref<number | ''>('');
+const amountInputRef = ref<HTMLInputElement | null>(null);
 const paymentLines = ref<SalePayment[]>([]);
 
 const totalPaid = computed(() =>
   +paymentLines.value.reduce((s, l) => s + l.AmountGiven, 0).toFixed(2)
 );
+// El vuelto sale solo de los pagos que lo admiten (efectivo): antes se calculaba
+// como pagado − total, así que cobrar de más con tarjeta mostraba un vuelto que
+// nadie iba a entregar. El servidor lo vuelve a calcular igual al grabar.
 const totalChange = computed(() =>
-  +(Math.max(0, totalPaid.value - total.value)).toFixed(2)
+  +paymentLines.value.reduce((s, l) => s + (l.AmountReturned ?? 0), 0).toFixed(2)
 );
 
 // ── Computed ───────────────────────────────────────────────
@@ -1477,8 +1705,11 @@ onMounted(async () => {
   if (settingsResp.Data) {
     maxCashierDiscountPct.value    = settingsResp.Data.MaxCashierDiscountPct;
     maxCashierDiscountAmount.value = settingsResp.Data.MaxCashierDiscountAmount;
+    maxDiscountPct.value           = settingsResp.Data.MaxDiscountPct ?? null;
+    maxDiscountAmount.value        = settingsResp.Data.MaxDiscountAmount ?? null;
   }
   loadingProducts.value = false;
+  loadHeldSales();
   if (!cashSession.value) showOpenCashModal.value = true;
   productInputRef.value?.focus();
   loadDefaultCustomer();
@@ -1592,7 +1823,7 @@ const increaseQty = (i: number) => {
 const decreaseQty = (i: number) => {
   if (esLineaSerializada(cart.value[i])) { reabrirSelector(cart.value[i]); return; }
   if (cart.value[i].Quantity <= 1) {
-    cart.value.splice(i, 1);
+    removeWithUndo(i);
   } else {
     cart.value[i].Quantity--;
     recalcLine(i);
@@ -1605,32 +1836,138 @@ const decreaseQtyByProduct = (productId: string) => {
 };
 
 const removeFromCart = (i: number) => {
-  cart.value.splice(i, 1);
+  removeWithUndo(i);
 };
 
+// ── Deshacer el último producto quitado ────────────────────
+// En una tablet es fácil tocar la X en vez del %: quitar no pide confirmación
+// (frenaría cada venta), pero deja unos segundos para deshacerlo.
+const UNDO_MS = 6000;
+const lastRemoved = ref<{ line: SaleDetail; index: number } | null>(null);
+let undoTimer: ReturnType<typeof setTimeout> | undefined;
+
+const clearUndo = () => {
+  clearTimeout(undoTimer);
+  lastRemoved.value = null;
+};
+
+const removeWithUndo = (i: number) => {
+  const [line] = cart.value.splice(i, 1);
+  if (!line) return;
+  clearTimeout(undoTimer);
+  lastRemoved.value = { line, index: i };
+  undoTimer = setTimeout(clearUndo, UNDO_MS);
+};
+
+const undoRemove = () => {
+  const removed = lastRemoved.value;
+  clearUndo();
+  if (!removed) return;
+  // Si mientras tanto volvió a agregar el mismo producto, restaurar duplicaría
+  // la línea: se deja como está.
+  if (cart.value.some((l: SaleDetail) => l.ProductId === removed.line.ProductId)) return;
+  cart.value.splice(Math.min(removed.index, cart.value.length), 0, removed.line);
+};
+
+onUnmounted(clearUndo);
+
 // ── Modal de cobro ─────────────────────────────────────────
+const pendingAmount = computed(() => +(Math.max(0, total.value - totalPaid.value)).toFixed(2));
+const typedAmount = computed(() => Number(currentAmount.value) || 0);
+const methodGivesChange = computed(() => !!selectedMethod.value?.RequiresChanges);
+/** Vuelto de lo que se está escribiendo, antes de agregarlo. */
+const liveChange = computed(() =>
+  methodGivesChange.value ? +(Math.max(0, typedAmount.value - pendingAmount.value)).toFixed(2) : 0);
+const liveShortfall = computed(() => +(Math.max(0, pendingAmount.value - typedAmount.value)).toFixed(2));
+/** Tarjeta o QR no dan vuelto: no se puede cobrar de más con ellos. */
+const exceedsNoChange = computed(() =>
+  !!selectedMethod.value && !methodGivesChange.value && typedAmount.value > pendingAmount.value + 0.004);
+const canAddPayment = computed(() =>
+  !!selectedMethod.value && typedAmount.value > 0 && !exceedsNoChange.value);
+
+/** Billetes con los que suele pagarse este saldo: el siguiente múltiplo de 10, 50, 100 y 200. */
+const quickAmounts = computed(() => {
+  const p = pendingAmount.value;
+  if (p <= 0) return [];
+  const candidatos = [10, 50, 100, 200].map(b => Math.ceil(p / b) * b).filter(v => v > p);
+  return [...new Set(candidatos)].sort((a, b) => a - b).slice(0, 4);
+});
+
+const focusAmount = () => nextTick(() => amountInputRef.value?.focus());
+
+/**
+ * Qué muestra el panel de cobro. Siempre hay una cifra a la vista: lo que
+ * falta cobrar mientras no se cubre el total, y el vuelto cuando se cubre.
+ */
+const payPanel = computed<{ label: string; amount: number | null; note: string; cls: string }>(() => {
+  const neutro = 'bg-body-secondary';
+  const falta = 'bg-warning-subtle text-warning-emphasis';
+  const ok = 'bg-success-subtle text-success-emphasis';
+
+  if (exceedsNoChange.value)
+    return { label: `${selectedMethod.value?.Name} no da vuelto`, amount: null,
+      note: `No puede superar Bs. ${formatNum(pendingAmount.value)}`, cls: 'bg-danger-subtle text-danger-emphasis' };
+
+  // Los pagos ya agregados cubren el total.
+  if (pendingAmount.value <= 0)
+    return totalChange.value > 0
+      ? { label: 'Vuelto a entregar', amount: totalChange.value, note: '', cls: ok }
+      : { label: 'Cobro completo', amount: null, note: 'Sin vuelto', cls: ok };
+
+  if (typedAmount.value <= 0)
+    return { label: 'Por cobrar', amount: pendingAmount.value, note: '', cls: neutro };
+
+  if (liveShortfall.value > 0)
+    return { label: 'Faltan', amount: liveShortfall.value, note: '', cls: falta };
+
+  return liveChange.value > 0
+    ? { label: 'Vuelto', amount: liveChange.value, note: '', cls: ok }
+    : { label: 'Monto exacto', amount: null, note: 'Sin vuelto', cls: ok };
+});
+
+/** El efectivo es el cobro más común: se deja elegido para escribir directo. */
+const selectCashIfPending = () => {
+  const efectivo = paymentMethods.value.find(m => m.RequiresChanges);
+  if (efectivo && pendingAmount.value > 0) selectMethod(efectivo);
+};
+
 const selectMethod = (m: PaymentMethod) => {
   selectedMethodId.value = m.Id;
   selectedMethod.value = m;
-  currentAmount.value = +(Math.max(0, total.value - totalPaid.value)).toFixed(2);
+  // Efectivo: vacío, para escribir lo recibido y ver el vuelto. Tarjeta o QR:
+  // el saldo, porque se cobra exacto.
+  currentAmount.value = m.RequiresChanges ? '' : pendingAmount.value;
+  focusAmount();
+};
+
+const setAmount = (v: number) => {
+  currentAmount.value = v;
+  focusAmount();
 };
 
 const addPaymentLine = () => {
-  if (!selectedMethod.value || currentAmount.value <= 0) return;
+  if (!canAddPayment.value || !selectedMethod.value) return;
   const m = selectedMethod.value;
-  const returned = m.RequiresChanges
-    ? +(Math.max(0, totalPaid.value + currentAmount.value - total.value)).toFixed(2)
-    : 0;
   const line = new SalePayment();
   line.PaymentMethodId = m.Id;
   line.PaymentMethodName = m.Name;
   line.IconCss = m.IconCss;
-  line.AmountGiven = +currentAmount.value.toFixed(2);
-  line.AmountReturned = returned;
+  line.AmountGiven = +typedAmount.value.toFixed(2);
+  line.AmountReturned = liveChange.value;
   paymentLines.value.push(line);
   selectedMethodId.value = '';
   selectedMethod.value = null;
-  currentAmount.value = 0;
+  currentAmount.value = '';
+  // Pago mixto: si queda saldo (pagó una parte con tarjeta), el resto
+  // normalmente va en efectivo.
+  selectCashIfPending();
+};
+
+/** Enter: agrega el pago y, si con eso se cubre el total, confirma la venta. */
+const onAmountEnter = () => {
+  if (!canAddPayment.value) return;
+  addPaymentLine();
+  if (totalPaid.value >= total.value && !savingPayment.value) finalizeSale();
 };
 
 const removePaymentLine = (i: number) => {
@@ -1641,8 +1978,9 @@ const openPaymentModal = () => {
   paymentLines.value = [];
   selectedMethodId.value = '';
   selectedMethod.value = null;
-  currentAmount.value = 0;
+  currentAmount.value = '';
   showPaymentModal.value = true;
+  selectCashIfPending();
 };
 
 const closePaymentModal = () => {
@@ -1667,20 +2005,57 @@ const doOpenCash = async () => {
   }
 };
 
+/** Medios que se arquean al cierre: el efectivo siempre, los demás si se configuró. */
+const countedMethods = computed(() => paymentMethods.value.filter(m => m.AffectsCash || m.RequiresCount));
+
+/** De dónde sale lo que se declara en cada medio. */
+const countHint = (m: PaymentMethod) =>
+  m.AffectsCash ? 'lo contado en el cajón, con el fondo inicial'
+    : /tarjeta|pos|dat[aá]fono/i.test(m.Name) ? 'total del cierre de lote del datáfono'
+    : 'lo recibido en la cuenta';
+
 const doCloseCash = async () => {
   if (!cashSession.value) return;
+  const faltan = countedMethods.value.filter(m => declaredCounts.value[m.Id] === '' || declaredCounts.value[m.Id] === undefined);
+  if (faltan.length) {
+    utils.showMessageModal({ Description: `Declare ${faltan.map(m => m.Name).join(', ')} (0 si no hubo).`, MessageType: 'warning' });
+    return;
+  }
   savingCash.value = true;
   try {
-    const resp = await closeSession(cashSession.value.Id, { DeclaredAmount: declaredAmount.value, Notes: closeNotes.value });
+    const usaBilletes = countingByDenomination.value;
+    const resp = await closeSession(cashSession.value.Id, {
+      DeclaredAmount: 0,
+      Notes: closeNotes.value,
+      Counts: countedMethods.value.map(m => ({ PaymentMethodId: m.Id, Declared: Number(declaredCounts.value[m.Id]) })),
+      Denominations: usaBilletes
+        ? BOB_DENOMINATIONS.map(v => ({ Value: v, Quantity: Number(denominationQty.value[v]) || 0 })).filter(d => d.Quantity > 0)
+        : [],
+      SupervisorAuthToken: closeSupervisorToken.value || undefined,
+    });
+    // La autorización valió para este intento y nada más.
+    closeSupervisorToken.value = '';
     if (resp.ok) {
       cashSession.value = null;
       showCloseCashModal.value = false;
-      declaredAmount.value = 0;
+      declaredCounts.value = {};
+      denominationQty.value = {};
+      showDenominations.value = false;
       closeNotes.value = '';
-      utils.showMessageModal({ Description: 'Caja cerrada correctamente.', MessageType: 'info' });
-    } else {
-      utils.showMessageModal({ Description: resp.Message?.Description || 'No se pudo cerrar la caja.', MessageType: 'warning' });
+      // Recién ahora se ve el resultado: esperado, declarado y diferencia.
+      closeResult.value = resp.Data?.Counts ?? [];
+      showCloseResult.value = true;
+    } else if (resp.Data?.CloseRequires === 'supervisor' && closeNotes.value.trim()) {
+      // La observación ya está: falta la firma. useApi ya mostró el motivo.
+      supervisorPurpose.value = 'close';
+      supervisorReason.value = resp.Message?.Description ?? '';
+      supervisorEmail.value = '';
+      supervisorPassword.value = '';
+      supervisorError.value = '';
+      showSupervisorModal.value = true;
     }
+    // Cualquier otro rechazo (falta la observación, billetes que no suman) ya lo
+    // mostró useApi: el cajero corrige en el mismo modal y vuelve a intentar.
   } finally {
     savingCash.value = false;
   }
@@ -1802,12 +2177,29 @@ const requiresSupervisorAuth = (payload: PendingDiscount): boolean => {
   return false;
 };
 
+/** Mensaje si el descuento manual supera el tope máximo, que nadie puede autorizar. */
+const exceedsMaxDiscount = (payload: PendingDiscount): string => {
+  if (discountMode.value === 'catalog') return '';
+  if (payload.discountType === 'Percentage' && maxDiscountPct.value !== null && payload.discountValue > maxDiscountPct.value)
+    return `El descuento supera el tope máximo del ${maxDiscountPct.value}% de esta sucursal.`;
+  if (payload.discountType === 'FixedAmount' && maxDiscountAmount.value !== null && payload.discountValue > maxDiscountAmount.value)
+    return `El descuento supera el tope máximo de Bs. ${maxDiscountAmount.value} de esta sucursal.`;
+  return '';
+};
+
 const applyDiscount = () => {
   const payload = buildDiscountPayload();
   if (!payload) return;
 
+  const tope = exceedsMaxDiscount(payload);
+  if (tope) {
+    utils.showMessageModal({ Description: tope, MessageType: 'warning' });
+    return;
+  }
+
   if (requiresSupervisorAuth(payload)) {
     pendingDiscount.value = payload;
+    supervisorPurpose.value = 'discount';
     supervisorEmail.value = '';
     supervisorPassword.value = '';
     supervisorError.value = '';
@@ -1845,6 +2237,13 @@ const verifySupervisor = async () => {
     }
     if (data.Data.RolName === 'Cajero') {
       supervisorError.value = 'El usuario ingresado no tiene permisos de supervisor.';
+      return;
+    }
+    if (supervisorPurpose.value === 'close') {
+      // Se reintenta el cierre con la firma; si el servidor la rechaza, lo dice.
+      closeSupervisorToken.value = data.Data.Token;
+      showSupervisorModal.value = false;
+      await doCloseCash();
       return;
     }
     // Guardar token del supervisor para enviarlo al backend al grabar la venta
@@ -1967,7 +2366,153 @@ const finalizeSale = async () => {
   }
 };
 
+// ── Ventas en espera ───────────────────────────────────────
+// Se guardan en el servidor, por sucursal: cualquier caja las retoma. No
+// reservan stock ni precios: al retomar se actualizan precios y descuentos con
+// lo vigente, y al cobrar el servidor valida todo como en cualquier venta.
+const { getHeld, hold, take, discard } = useHeldSales();
+const heldSales = ref<HeldSale[]>([]);
+const showHoldModal = ref(false);
+const showHeldList = ref(false);
+const holdLabel = ref('');
+const holding = ref(false);
+
+/** Lo que se guarda de la venta en curso. `v` permite cambiar el formato sin romper las guardadas. */
+interface HeldPayload {
+  v: 1;
+  customer: Customer | null;
+  lines: SaleDetail[];
+  header: { id: string; label: string; type: string; value: number };
+}
+
+const loadHeldSales = async () => {
+  const { ok, Data } = await getHeld();
+  if (ok) heldSales.value = Data;
+};
+
+const openHoldModal = () => {
+  if (cart.value.length === 0) return;
+  holdLabel.value = '';
+  showHoldModal.value = true;
+};
+
+const holdCurrentSale = async () => {
+  const payload: HeldPayload = {
+    v: 1,
+    customer: selectedCustomer.value,
+    lines: cart.value,
+    header: {
+      id: headerDiscountId.value, label: headerDiscountLabel.value,
+      type: headerDiscountType.value, value: headerDiscountValue.value,
+    },
+  };
+  holding.value = true;
+  const { ok } = await hold(holdLabel.value, selectedCustomer.value?.Id ?? null, totalItems.value, total.value, payload);
+  holding.value = false;
+  if (!ok) return;
+
+  showHoldModal.value = false;
+  resetAll();
+  await loadHeldSales();
+};
+
+const openHeldList = async () => {
+  await loadHeldSales();
+  showHeldList.value = true;
+};
+
+/** Importe de un descuento sobre una base, igual que al aplicarlo. */
+const discountOn = (type: string, value: number, base: number) =>
+  type === 'Percentage' ? +(Math.min(base * value / 100, base)).toFixed(2)
+    : type === 'FixedAmount' ? +(Math.min(value, base)).toFixed(2) : 0;
+
+/**
+ * Motivo por el que un descuento guardado ya no se puede aplicar tal cual, o ''
+ * si sigue valiendo: un descuento del catálogo dado de baja, o uno manual que
+ * pide un supervisor (la autorización de entonces no viaja con la venta) o que
+ * supera el tope máximo de la sucursal.
+ */
+const invalidDiscount = (id: string, type: string, value: number): string => {
+  if (id) return discountCatalog.value.some(d => d.Id === id) ? '' : 'ya no está en el catálogo';
+  if (!type || value <= 0) return '';
+  const pct = type === 'Percentage';
+  const max = pct ? maxDiscountPct.value : maxDiscountAmount.value;
+  if (max !== null && value > max) return 'supera el tope máximo';
+  const cajero = pct ? maxCashierDiscountPct.value : maxCashierDiscountAmount.value;
+  if (isCashier.value && value > cajero) return 'requiere autorizar de nuevo';
+  return '';
+};
+
+const resumeHeldSale = async (h: HeldSale) => {
+  if (cart.value.length > 0) {
+    await utils.showMessageModal({
+      Description: 'Termine o ponga en espera la venta actual antes de retomar otra.',
+      MessageType: 'warning',
+    });
+    return;
+  }
+
+  const { ok, Data } = await take(h.Id);
+  await loadHeldSales();
+  if (!ok || !Data.Payload) return;
+
+  const saved = JSON.parse(Data.Payload) as HeldPayload;
+  const avisos: string[] = [];
+
+  // Precios del momento: si cambiaron mientras esperaba, se cobra el vigente.
+  const lines: SaleDetail[] = [];
+  for (const l of saved.lines ?? []) {
+    const prod = allProducts.value.find((p: Product) => p.Id === l.ProductId);
+    if (!prod) { avisos.push(`«${l.ProductName}» ya no está disponible y se quitó.`); continue; }
+    if (prod.SalePrice !== l.UnitPrice)
+      avisos.push(`«${l.ProductName}»: el precio cambió a Bs. ${formatNum(prod.SalePrice)}.`);
+    const motivo = invalidDiscount(l.DiscountId, l.DiscountType, l.DiscountValue);
+    if (motivo) {
+      avisos.push(`Se quitó el descuento de «${l.ProductName}»: ${motivo}.`);
+      Object.assign(l, { DiscountId: '', DiscountLabel: '', DiscountType: '', DiscountValue: 0 });
+    }
+    lines.push({ ...l, UnitPrice: prod.SalePrice });
+  }
+  cart.value = lines;
+  cart.value.forEach((_, i) => recalcLine(i));
+
+  selectedCustomer.value = saved.customer ?? null;
+  if (!selectedCustomer.value) loadDefaultCustomer();
+
+  removeHeaderDiscount();
+  const hd = saved.header;
+  if (hd?.type && hd.value > 0) {
+    const motivo = invalidDiscount(hd.id, hd.type, hd.value);
+    if (motivo) {
+      avisos.push(`Se quitó el descuento global: ${motivo}.`);
+    } else {
+      const base = cart.value.reduce((s: number, l: SaleDetail) => s + l.LineTotal, 0);
+      headerDiscountId.value = hd.id;
+      headerDiscountLabel.value = hd.label;
+      headerDiscountType.value = hd.type;
+      headerDiscountValue.value = hd.value;
+      headerDiscountAmount.value = discountOn(hd.type, hd.value, base);
+    }
+  }
+
+  showHeldList.value = false;
+  if (avisos.length)
+    await utils.showMessageModal({ Description: avisos.join(' '), MessageType: 'info' });
+};
+
+const discardHeldSale = async (h: HeldSale) => {
+  const confirmed = await utils.showMessageQuestion(
+    `¿Descartar la venta en espera${h.Label ? ` «${h.Label}»` : ''} por Bs. ${formatNum(h.Total)}? No se puede recuperar.`);
+  if (!confirmed) return;
+  await discard(h.Id);
+  await loadHeldSales();
+};
+
+const formatHeldTime = (value: string) =>
+  new Date(value).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+
 const resetCart = () => {
+  clearUndo();
   cart.value = [];
   activeTab.value = 'products';
   productInputRef.value?.focus();
@@ -1996,7 +2541,47 @@ const printReceipt = () => {
   window.print();
 };
 
-const goToReturn = () => {
+// ── Salir del punto de venta ───────────────────────────────
+// "Volver" y "Ver venta / Devolver" preguntan siempre. Cualquier otra salida
+// (menú lateral, atrás del navegador) pregunta solo si hay una venta armada,
+// que es lo único que se pierde. `leaveConfirmed` evita preguntar dos veces
+// cuando la salida ya se confirmó con uno de los botones.
+let leaveConfirmed = false;
+
+const cartLossWarning = () =>
+  `Hay una venta en curso con ${totalItems.value} producto(s) que se perderá. ` +
+  'Si la va a retomar, póngala en espera antes de salir. ¿Salir del punto de venta?';
+
+const leavePos = async () => {
+  const mensaje = cart.value.length > 0 ? cartLossWarning() : '¿Salir del punto de venta?';
+  if (!(await utils.showMessageQuestion(mensaje))) return;
+  leaveConfirmed = true;
+  router.back();
+};
+
+onBeforeRouteLeave(async (to) => {
+  if (leaveConfirmed || cart.value.length === 0) return true;
+  // Sesión vencida o cierre de sesión: el carrito ya no se puede cobrar, y
+  // frenar la salida dejaría al cajero en una pantalla sin sesión.
+  if (to.name === 'login') return true;
+  return await utils.showMessageQuestion(cartLossWarning());
+});
+
+// Cerrar la pestaña, recargar o cambiar de sucursal (recarga la página): el
+// navegador muestra su propio aviso; no permite un mensaje personalizado.
+const warnBeforeUnload = (e: BeforeUnloadEvent) => {
+  if (cart.value.length === 0) return;
+  e.preventDefault();
+  e.returnValue = '';
+};
+onMounted(() => window.addEventListener('beforeunload', warnBeforeUnload));
+onUnmounted(() => window.removeEventListener('beforeunload', warnBeforeUnload));
+
+const goToReturn = async () => {
+  const confirmed = await utils.showMessageQuestion(
+    '¿Registrar una devolución de esta venta? Se abrirá la ficha de la venta y saldrá del punto de venta.');
+  if (!confirmed) return;
+  leaveConfirmed = true;
   showCompletedModal.value = false;
   router.push({ name: 'sale-detail', params: { id: completedSaleId.value } });
 };
@@ -2006,6 +2591,46 @@ const formatNum2 = (val: number) =>
 </script>
 
 <style scoped>
+/* ── Botones de cada línea del carrito ──
+   Con mouse, 22 px: cómodos sin agrandar la fila. En pantallas táctiles
+   (pointer: coarse: tablets y celulares) crecen a 44 px, el mínimo recomendado
+   para un dedo. En los dos casos quitar el producto queda separado del
+   descuento, para que un clic desviado no borre la línea. */
+.pos-line-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+}
+.pos-line-icon { font-size: 0.75rem; }
+.pos-line-icon-xs { font-size: 0.7rem; }
+.pos-line-remove i { font-size: 1rem; }
+.pos-line-actions { gap: 0.5rem !important; }
+.pos-line-btn-sm {
+  min-width: 18px;
+  min-height: 18px;
+}
+
+.pos-pay-panel { min-height: 5.25rem; }
+.pos-pay-amount { font-size: 2rem; line-height: 1.2; }
+
+@media (pointer: coarse) {
+  .pos-line-btn {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 1.1rem;
+  }
+  .pos-line-btn-sm {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .pos-line-icon,
+  .pos-line-icon-xs { font-size: 1rem; }
+  .pos-line-remove i { font-size: 1.4rem; }
+  .pos-line-actions { gap: 1rem !important; }
+}
+
 /* ── Layout flex de altura fija solo en desktop ── */
 
 /* Siempre ocupa el ancho completo del contenedor padre .app-content (display:flex row) */

@@ -2,6 +2,16 @@ import type { SaleDetail } from "./saleDetail.model";
 import type { SalePayment } from "./paymentMethod.model";
 import type { SaleReturn } from "./saleReturn.model";
 
+/** Lo que entró por un medio de pago: cobrado (sin el vuelto) menos lo devuelto. */
+export interface PaymentMethodTotal {
+  PaymentMethodId: string | null;
+  Name: string;
+  IconCss: string;
+  Collected: number;
+  Refunded: number;
+  Net: number;
+}
+
 export interface SalesPagedResult {
   Items: Sale[];
   TotalCount: number;
@@ -12,12 +22,16 @@ export interface SalesPagedResult {
   PeriodReturned: number;
   /** PeriodTotal − PeriodReturned. */
   PeriodNet: number;
+  /** PeriodNet repartido por medio de pago (todo el período, no solo la página). */
+  PeriodByPaymentMethod?: PaymentMethodTotal[];
 }
 
 export class Sale {
   public Id: string = '';
   public CustomerId: string = '';
   public CustomerName: string = '';
+  /** Medios con que se pagó, por ejemplo "Efectivo + QR". Solo en listados. */
+  public PaymentMethodsLabel?: string;
   /** Sucursal de la venta (reportes consolidados). */
   public BranchName?: string;
   public SellerName: string = '';

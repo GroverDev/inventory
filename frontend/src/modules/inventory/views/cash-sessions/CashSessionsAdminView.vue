@@ -77,9 +77,7 @@
                     <td class="text-end small">Bs. {{ formatNum(s.OpeningAmount) }}</td>
                     <td class="text-end small text-success">
                       Bs. {{ formatNum(s.TotalSales) }}
-                      <small v-if="s.TotalCashSales !== s.TotalSales" class="text-muted d-block">
-                        efectivo Bs. {{ formatNum(s.TotalCashSales) }}
-                      </small>
+                      <PaymentBreakdown :items="s.ByPaymentMethod" variant="inline" />
                     </td>
                     <td class="text-end small text-danger">
                       Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}
@@ -139,9 +137,7 @@
                         <div class="col-4">
                           <div class="text-muted">Ventas</div>
                           <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
-                          <small v-if="s.TotalCashSales !== s.TotalSales" class="text-muted">
-                            efectivo Bs. {{ formatNum(s.TotalCashSales) }}
-                          </small>
+                          <PaymentBreakdown :items="s.ByPaymentMethod" variant="inline" />
                         </div>
                         <div class="col-4">
                           <div class="text-muted">Gastos</div>
@@ -231,6 +227,61 @@
                     + devoluciones Bs. {{ formatNum(selectedSession.TotalReturns) }}
                   </small>
                 </div>
+              </div>
+            </div>
+
+            <!-- Por medio de pago: el efectivo entra al esperado; QR y tarjeta no
+                 pasan por el cajón y se cuadran contra el banco o el datáfono. -->
+            <div v-if="selectedSession.ByPaymentMethod.length" class="mb-2">
+              <small class="text-muted fw-semibold d-block mb-1">
+                Cobrado por medio de pago
+                <span class="fw-normal">· QR y tarjeta se cuadran contra el banco o el datáfono</span>
+              </small>
+              <PaymentBreakdown :items="selectedSession.ByPaymentMethod" />
+            </div>
+
+            <!-- Arqueo del cierre por medio: lo declarado a ciegas contra lo esperado -->
+            <div v-if="selectedSession.Counts.length" class="mb-3">
+              <small class="text-muted fw-semibold d-block mb-1">
+                Arqueo del cierre
+                <span v-if="selectedSession.CloseAttempts > 0" class="badge bg-warning text-dark ms-1"
+                  title="Cierres rechazados por diferencia sin observación antes del definitivo">
+                  {{ selectedSession.CloseAttempts }} intento(s) rechazado(s)
+                </span>
+                <span v-if="selectedSession.CloseAuthorizedBy" class="badge bg-info-subtle text-info-emphasis ms-1"
+                  title="El cierre necesitó autorización por la diferencia o por los intentos">
+                  <i class="fal fa-shield-check me-1"></i>Autorizó {{ selectedSession.CloseAuthorizedByName || 'un supervisor' }}
+                </span>
+              </small>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Medio</th>
+                      <th class="text-end">Esperado</th>
+                      <th class="text-end">Declarado</th>
+                      <th class="text-end">Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="c in selectedSession.Counts" :key="c.PaymentMethodId">
+                      <td><i :class="c.IconCss" class="me-1 text-muted"></i>{{ c.Name }}</td>
+                      <td class="text-end">Bs. {{ formatNum(c.Expected) }}</td>
+                      <td class="text-end">Bs. {{ formatNum(c.Declared) }}</td>
+                      <td class="text-end fw-semibold"
+                        :class="c.Difference === 0 ? 'text-success' : c.Difference > 0 ? 'text-warning-emphasis' : 'text-danger'">
+                        {{ c.Difference > 0 ? '+' : '' }}Bs. {{ formatNum(c.Difference) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- Conteo del efectivo por billete y moneda -->
+              <div v-if="selectedSession.Denominations?.length" class="small mt-2">
+                <span class="text-muted me-1">Efectivo contado:</span>
+                <span v-for="d in selectedSession.Denominations" :key="d.Value" class="badge bg-body-secondary text-body me-1">
+                  {{ d.Quantity }} × {{ d.Value >= 1 ? d.Value : d.Value.toFixed(2) }}
+                </span>
               </div>
             </div>
 
@@ -448,6 +499,7 @@ import type { CashSession, SessionSale } from '@/modules/inventory/models/cashSe
 import { MovementTypeLabels } from '@/modules/inventory/models/cashMovement.model';
 import useCashSession from '@/modules/inventory/composables/useCashSession';
 import { exportToExcel } from '@/utils/excelHelper';
+import PaymentBreakdown from '@/modules/inventory/components/PaymentBreakdown.vue';
 import { todayIso, toIsoDate } from '@/utils/dateHelper';
 
 const { getSessions, getSessionById, getSessionSales } = useCashSession();

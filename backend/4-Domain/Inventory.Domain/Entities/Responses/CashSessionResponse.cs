@@ -22,6 +22,33 @@ public class CashSessionResponse
     /// venta por QR o tarjeta no deja plata en la caja.
     /// </summary>
     public decimal TotalCashSales { get; set; }
+
+    /// <summary>
+    /// Neto del turno por medio de pago. Las devoluciones que resta son las
+    /// registradas en este turno: un reintegro por QR o tarjeta no pasa por la
+    /// caja, así que no queda asociado a ningún turno.
+    /// </summary>
+    public List<PaymentMethodTotal> ByPaymentMethod { get; set; } = [];
+
+    /// <summary>Arqueo del cierre por medio: esperado, declarado y diferencia. Vacío si sigue abierta.</summary>
+    public List<CashCountResponse> Counts { get; set; } = [];
+
+    /// <summary>Cierres rechazados por diferencia sin observación antes del definitivo.</summary>
+    public int CloseAttempts { get; set; }
+
+    /// <summary>Supervisor que autorizó el cierre, si lo necesitó.</summary>
+    public int? CloseAuthorizedBy { get; set; }
+    public string CloseAuthorizedByName { get; set; } = "";
+
+    /// <summary>Conteo del efectivo por billete y moneda, si se declaró.</summary>
+    public List<DenominationCount> Denominations { get; set; } = [];
+
+    /// <summary>
+    /// Solo en un cierre rechazado: qué falta para cerrar, "note" (observación) o
+    /// "supervisor" (observación, si hay diferencia, y un supervisor). Así el
+    /// punto de venta sabe qué pedir.
+    /// </summary>
+    public string CloseRequires { get; set; } = "";
     public decimal TotalExpenses { get; set; }
     public decimal TotalWithdrawals { get; set; }
     public decimal TotalIncome { get; set; }

@@ -5,6 +5,9 @@ public class SaleProductResponse
     /// <summary>Sucursal donde se hizo la venta. Lo usan los reportes consolidados.</summary>
     public string BranchName { get; set; } = "";
 
+    /// <summary>Medios con que se pagó, por ejemplo "Efectivo + QR". Solo en listados.</summary>
+    public string PaymentMethodsLabel { get; set; } = "";
+
         public Guid Id { get; set; }
         public Guid CustomerId { get; set; }
         public string CustomerName { get; set; } = "";

@@ -38,6 +38,9 @@ public class AdminRepository(SeguridadDbContext _context) : IAdminRepository
     /// </remarks>
     private static readonly (string Schema, string Table)[] TenantDataTables =
     [
+        ("public", "held_sales"),
+        ("public", "cash_session_counts"),
+        ("public", "cash_session_denominations"),
         ("public", "cash_movements"),
         ("public", "sale_detail_discounts"),
         ("public", "sale_payments"),

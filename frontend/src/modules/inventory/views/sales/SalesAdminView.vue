@@ -97,6 +97,9 @@
               </div>
             </div>
 
+            <!-- Total cobrado por medio de pago (todo el período, calculado en el servidor) -->
+            <PaymentBreakdown :items="periodByMethod" class="mb-3" />
+
             <!-- Contador + paginación superior -->
             <div v-if="totalCount > 0" class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
               <small class="text-muted">
@@ -293,7 +296,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import useSales from '@/modules/inventory/composables/useSales';
-import type { Sale } from '@/modules/inventory/models/sale.model';
+import type { Sale, PaymentMethodTotal } from '@/modules/inventory/models/sale.model';
+import PaymentBreakdown from '@/modules/inventory/components/PaymentBreakdown.vue';
 import { exportToExcel } from '@/utils/excelHelper';
 import utils from '@/utils/msg';
 import usePermissions from '@/modules/common/composables/usePermissions';
@@ -304,6 +308,7 @@ const sales = ref<Sale[]>([]);
 const currentPage = ref(1);
 const totalCount = ref(0);
 const periodTotals = ref({ Subtotal: 0, Discounts: 0, Total: 0, Returned: 0, Net: 0 });
+const periodByMethod = ref<PaymentMethodTotal[]>([]);
 const allSellers = ref<string[]>([]);
 
 const { getSales, deleteSale } = useSales();
@@ -418,6 +423,7 @@ const getSalesData = async (page: number) => {
     Returned:  Data?.PeriodReturned  ?? 0,
     Net:       Data?.PeriodNet       ?? 0,
   };
+  periodByMethod.value = Data?.PeriodByPaymentMethod ?? [];
   // Actualiza vendedores disponibles solo cuando no hay filtro activo
   if (!filtro.value.seller) {
     allSellers.value = [...new Set(sales.value.map(s => s.SellerName).filter(Boolean))].sort();

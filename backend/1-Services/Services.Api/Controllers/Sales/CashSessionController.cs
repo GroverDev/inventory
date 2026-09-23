@@ -3,6 +3,8 @@ using Inventory.Application;
 using Inventory.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Services.Api.jwt;
 using Services.Api.Utils;
 
 namespace Services.Api.Controllers.Sales;
@@ -13,7 +15,8 @@ namespace Services.Api.Controllers.Sales;
 [ApiController]
 public class CashSessionController(
     ICashSessionApplication _cashSessionApplication,
-    ICashMovementApplication _cashMovementApplication) : ControllerBase
+    ICashMovementApplication _cashMovementApplication,
+    IOptions<JwtSettings> _jwtSettings) : ControllerBase
 {
     // GET api/CashSession/active  — sesión activa del usuario actual
     [HttpGet("active")]
@@ -59,7 +62,19 @@ public class CashSessionController(
         if (!Guid.TryParse(id, out _)) return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Id no válido" } });
         var datos = TokenData.GetData(HttpContext);
         if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
-        return await _cashSessionApplication.CloseSession(id, request, datos.UserId);
+
+        // Un token de supervisor que no valida no se ignora en silencio: quien lo
+        // mandó cree que el cierre está autorizado.
+        int? supervisorId = SupervisorToken.Validate(request.SupervisorAuthToken, _jwtSettings.Value.Secret, datos.TenantId);
+        if (!string.IsNullOrEmpty(request.SupervisorAuthToken) && supervisorId is null)
+            return new Response<CashSessionResponse>
+            {
+                Data = new CashSessionResponse { CloseRequires = "supervisor" },
+                Message = new Msg { MessageType = "warning", Description = "La autorización no es válida: venció, o quien la dio no es supervisor. Vuelva a pedirla." }
+            };
+
+        return await _cashSessionApplication.CloseSession(id, request, datos.UserId,
+            supervisorId, closerIsSupervisor: !Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(datos.Roles));
     }
 
     // GET api/CashSession/{id}/sales

@@ -5,6 +5,8 @@ export class PaymentMethod {
   public RequiresChanges: boolean = false;
   /** Si el cobro entra al cajón. Un reintegro por este medio mueve la caja. */
   public AffectsCash: boolean = false;
+  /** Se declara al cerrar la caja. El efectivo se arquea siempre. */
+  public RequiresCount: boolean = false;
 }
 
 export class SalePayment {

@@ -250,6 +250,13 @@ export default {
       },
     },
     {
+      path: 'discount-limits',
+      name: 'discount-limits',
+      component: () => import(/* webpackChunkName: "discount-limits" */ '@/modules/inventory/views/discounts/DiscountLimitsView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Límites de Descuento', titleForm: 'Límites de Descuento' },
+    },
+    {
       path: 'discounts-admin',
       name: 'discounts-admin',
       component: () => import(/* webpackChunkName: "discounts-admin" */ '@/modules/inventory/views/discounts/DiscountsAdminView.vue'),
@@ -259,6 +266,13 @@ export default {
         title: 'PV - Gestión de Descuentos',
         titleForm: 'Gestión de Descuentos',
       },
+    },
+    {
+      path: 'cash-close-settings',
+      name: 'cash-close-settings',
+      component: () => import(/* webpackChunkName: "cash-close-settings" */ '@/modules/inventory/views/cash-sessions/CashCloseSettingsView.vue'),
+      beforeEnter: [isAuthenticatedGuard],
+      meta: { requiresAuth: true, title: 'PV - Configuración de Cierre', titleForm: 'Configuración de Cierre' },
     },
     {
       path: 'cash-sessions',

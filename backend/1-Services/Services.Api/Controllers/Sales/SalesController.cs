@@ -41,7 +41,7 @@ public class SalesController(
                 return BadRequest(new Response<bool>() { Message = new Msg() { MessageType = "error", Description = "Product ID no valido" } });
         }
 
-        bool supervisorApproved = ValidateSupervisorToken(saleRequest.SupervisorAuthToken);
+        bool supervisorApproved = SupervisorToken.Validate(saleRequest.SupervisorAuthToken, _jwtSettings.Value.Secret, datos.TenantId) is not null;
 
         var respuesta = await _salesApplication.CreateSale(saleRequest, datos.UserId, datos.Roles, supervisorApproved);
         return respuesta;
@@ -105,28 +105,4 @@ public class SalesController(
         return respuesta;
     }
 
-    // Valida que el token pertenezca a un usuario con rol distinto a Cajero
-    private bool ValidateSupervisorToken(string token)
-    {
-        if (string.IsNullOrEmpty(token)) return false;
-        try
-        {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Value.Secret));
-            var handler = new JwtSecurityTokenHandler();
-            handler.ValidateToken(token, new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = key,
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero,
-            }, out _);
-
-            var jwt = handler.ReadJwtToken(token);
-            var role = jwt.Claims.FirstOrDefault(c => c.Type == "Rol")?.Value;
-            return !string.IsNullOrEmpty(role) && role != "Cajero";
-        }
-        catch { return false; }
-    }
 }

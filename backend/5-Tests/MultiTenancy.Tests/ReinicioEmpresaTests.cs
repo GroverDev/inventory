@@ -46,10 +46,13 @@ public class ReinicioEmpresaTests(TenantDatabaseFixture db)
     }
 
     [Fact]
-    public void Toda_tabla_de_la_empresa_que_referencia_productos_esta_en_la_lista()
+    public void Toda_tabla_que_referencia_a_una_que_se_borra_tambien_esta_en_la_lista()
     {
         // Complementa a la anterior: esa solo prueba las tablas que hoy tienen
-        // filas. Esta mira la estructura.
+        // filas. Esta mira la estructura: si una tabla apunta a otra que el
+        // reinicio borra, el DELETE de esa otra fallaría en cuanto haya filas.
+        // Así se detectaron cash_session_counts (apunta a cash_sessions) y
+        // held_sales (apunta a customers).
         var enLista = ListaDelReinicio().Select(t => t.Table).ToHashSet();
 
         using var cn = db.AbrirComoAdmin();
@@ -60,8 +63,8 @@ public class ReinicioEmpresaTests(TenantDatabaseFixture db)
               JOIN pg_class p      ON p.oid = k.confrelid
               JOIN pg_namespace n  ON n.oid = c.relnamespace
              WHERE k.contype = 'f' AND n.nspname = 'public'
-               AND p.relname IN ('products', 'sales', 'sales_detail', 'purchases', 'stock_items',
-                                 'cash_sessions', 'stock_transfers', 'stock_transfer_detail')")
+               AND p.relname = ANY(@borradas)",
+            new { borradas = enLista.ToArray() })
             .Where(t => !enLista.Contains(t))
             .ToList();
 

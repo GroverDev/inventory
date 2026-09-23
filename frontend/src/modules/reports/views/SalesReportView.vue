@@ -71,6 +71,9 @@
                 </div>
               </div>
             </div>
+
+            <!-- Total cobrado por medio de pago (calculado en el servidor) -->
+            <PaymentBreakdown :items="byMethod" class="mt-2" />
           </div>
 
           <!-- Tabla -->
@@ -88,6 +91,7 @@
                       <th>Fecha</th>
                       <th v-if="consolidated">Sucursal</th>
                       <th>Cliente</th>
+                      <th>Medio de pago</th>
                       <th class="text-end">Subtotal</th>
                       <th class="text-end">Descuentos</th>
                       <th class="text-end">Devuelto</th>
@@ -99,6 +103,7 @@
                       <td class="text-nowrap">{{ fmtDate(s.SaleDate) }}</td>
                       <td v-if="consolidated"><small>{{ s.BranchName }}</small></td>
                       <td>{{ s.CustomerName }}</td>
+                      <td><small>{{ s.PaymentMethodsLabel || '—' }}</small></td>
                       <td class="text-end">{{ fmt(s.Subtotal) }}</td>
                       <td class="text-end text-danger">{{ fmt(s.TotalDiscounts) }}</td>
                       <td class="text-end text-warning">
@@ -110,7 +115,7 @@
                   </tbody>
                   <tfoot class="fw-bold">
                     <tr>
-                      <td :colspan="consolidated ? 3 : 2">TOTALES</td>
+                      <td :colspan="consolidated ? 4 : 3">TOTALES</td>
                       <td class="text-end">{{ fmt(totalSubtotal) }}</td>
                       <td class="text-end text-danger">{{ fmt(totalDiscounts) }}</td>
                       <td class="text-end text-warning">
@@ -149,13 +154,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import useSales from '@/modules/inventory/composables/useSales';
+import PaymentBreakdown from '@/modules/inventory/components/PaymentBreakdown.vue';
 import BranchFilter from '@/modules/reports/components/BranchFilter.vue';
-import type { Sale } from '@/modules/inventory/models/sale.model';
+import type { Sale, PaymentMethodTotal } from '@/modules/inventory/models/sale.model';
 import { exportToExcel } from '@/utils/excelHelper';
 import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
 
 const { getSales } = useSales();
 const sales = ref<Sale[]>([]);
+const byMethod = ref<PaymentMethodTotal[]>([]);
 
 const today = todayIso();
 const firstOfMonth = firstOfMonthIso();
@@ -177,7 +184,10 @@ const fmtDate = (v: string | Date) => new Date(v).toLocaleDateString('es-BO', { 
 
 const load = async () => {
   const { ok, Data } = await getSales(filtro.value.dateInitial, filtro.value.dateEnd, 1, 10000, undefined, branch.value);
-  if (ok) sales.value = Data?.Items ?? [];
+  if (ok) {
+    sales.value = Data?.Items ?? [];
+    byMethod.value = Data?.PeriodByPaymentMethod ?? [];
+  }
 };
 
 const exportar = () => {
@@ -185,13 +195,20 @@ const exportar = () => {
     Fecha:       fmtDate(s.SaleDate),
     Sucursal:    s.BranchName ?? '',
     Cliente:     s.CustomerName,
+    MedioPago:   s.PaymentMethodsLabel ?? '',
     Subtotal:    s.Subtotal,
     Descuentos:  s.TotalDiscounts,
     Facturado:   s.Total,
     Devuelto:    s.TotalReturned,
     Total:       s.NetTotal,
   }));
-  rows.push({ Fecha: 'TOTALES', Sucursal: '', Cliente: '', Subtotal: totalSubtotal.value, Descuentos: totalDiscounts.value, Facturado: totalNet.value + totalReturned.value, Devuelto: totalReturned.value, Total: totalNet.value });
+  rows.push({ Fecha: 'TOTALES', Sucursal: '', Cliente: '', MedioPago: '', Subtotal: totalSubtotal.value, Descuentos: totalDiscounts.value, Facturado: totalNet.value + totalReturned.value, Devuelto: totalReturned.value, Total: totalNet.value });
+  // Al pie, el neto por medio de pago del período: Total por medio, y en
+  // Devuelto lo reintegrado con ese medio.
+  for (const m of byMethod.value) {
+    rows.push({ Fecha: '', Sucursal: '', Cliente: '', MedioPago: m.Name, Subtotal: 0, Descuentos: 0,
+      Facturado: m.Collected, Devuelto: m.Refunded, Total: m.Net });
+  }
   exportToExcel(rows, `reporte_ventas_${filtro.value.dateInitial}_${filtro.value.dateEnd}.xlsx`);
 };
 </script>

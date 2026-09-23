@@ -3,7 +3,6 @@ using Common.Utilities;
 using Common.Utilities.Exceptions;
 using Inventory.Domain;
 using Inventory.Infrastructure;
-using Microsoft.Extensions.Options;
 
 namespace Inventory.Application;
 
@@ -12,7 +11,8 @@ public class SalesApplication(
     IProductRepository _productRepository,
     ICustomersRepository _customersRepository,
     IDiscountRepository _discountRepository,
-    IOptions<PosSettings> _posSettings) : ISalesApplication
+    IDiscountLimitsApplication _discountLimits,
+    IPaymentMethodRepository _paymentMethodRepository) : ISalesApplication
 {
     public async Task<Response<string>> CreateSale(SaleRequest saleRequest, int createdBy, string userRole, bool supervisorApproved = false)
     {
@@ -21,11 +21,37 @@ public class SalesApplication(
         {
             if (saleRequest.Detail.Count > 0)
             {
-                // Recalculate line discounts from predefined discount catalog when DiscountId is provided
+                // Precios, descuentos y topes se calculan acá, no se toman del
+                // cliente. Antes el servidor validaba el porcentaje declarado de
+                // un descuento manual pero grababa el importe que mandaba el
+                // navegador, y aceptaba cualquier precio unitario: una petición
+                // armada a mano podía vender a cualquier precio.
+                var limites = await _discountLimits.GetEffective();
+                // `userRole` llega con todos los roles: quien además de Cajero tiene
+                // un rol administrativo no necesita autorización de supervisor.
+                bool cajeroSinAutorizacion =
+                    Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(userRole) && !supervisorApproved;
+
                 foreach (var line in saleRequest.Detail)
                 {
+                    if (line.Quantity <= 0)
+                        throw new CustomException("Las cantidades deben ser mayores a cero.");
+
+                    // El precio es el vigente en la sucursal (su excepción, o el
+                    // base). Si el punto de venta tiene uno viejo en memoria, se
+                    // avisa en vez de vender a un precio que ya no existe.
+                    var producto = await _productRepository.GetProduct(Guid.Parse(line.ProductId));
+                    if (Math.Abs(line.UnitPrice - producto.SalePrice) > 0.005m)
+                        throw new CustomException(
+                            $"El precio de «{producto.ProductName}» es Bs. {producto.SalePrice:0.00}, no Bs. {line.UnitPrice:0.00}. " +
+                            "Actualice el punto de venta e intente de nuevo.");
+
+                    line.UnitPrice = producto.SalePrice;
+                    line.LineSubtotal = Math.Round(line.Quantity * line.UnitPrice, 2);
+
                     if (!string.IsNullOrEmpty(line.DiscountId) && Guid.TryParse(line.DiscountId, out var discountGuid))
                     {
+                        // Del catálogo: ya aprobado por quien lo dio de alta.
                         var discount = await _discountRepository.GetDiscount(discountGuid)
                             ?? throw new CustomException($"El descuento indicado en el producto no existe o está inactivo.");
 
@@ -33,52 +59,31 @@ public class SalesApplication(
                             ? Math.Round(line.LineSubtotal * discount.Value / 100, 2)
                             : Math.Min(discount.Value, line.LineSubtotal);
                     }
+                    else
+                    {
+                        line.LineTotalDiscounts = SaleDiscountRules.ManualAmount(line.DiscountType, line.DiscountValue, line.LineSubtotal);
+                        SaleDiscountRules.CheckLimits(line.DiscountType, line.DiscountValue, limites, cajeroSinAutorizacion, "por línea");
+                    }
                     line.LineTotal = line.LineSubtotal - line.LineTotalDiscounts;
                 }
 
-                // Recalculate header discount
+                decimal subtotalAfterLineDiscounts = saleRequest.Detail.Sum(x => x.LineTotal);
+
                 if (!string.IsNullOrEmpty(saleRequest.HeaderDiscountId) && Guid.TryParse(saleRequest.HeaderDiscountId, out var headerDiscGuid))
                 {
                     var headerDiscount = await _discountRepository.GetDiscount(headerDiscGuid)
                         ?? throw new CustomException("El descuento de cabecera no existe o está inactivo.");
 
-                    decimal subtotalAfterLineDiscounts = saleRequest.Detail.Sum(x => x.LineTotal);
                     saleRequest.HeaderDiscountAmount = headerDiscount.Type == "Percentage"
                         ? Math.Round(subtotalAfterLineDiscounts * headerDiscount.Value / 100, 2)
                         : Math.Min(headerDiscount.Value, subtotalAfterLineDiscounts);
                 }
-
-                // Enforce manual discount limits for cashiers (omitir si un supervisor ya autorizó).
-                // `userRole` llega con todos los roles: quien además de Cajero tiene un
-                // rol administrativo no necesita autorización de supervisor.
-                if (Common.Utilities.Comun.Bases.RolePolicy.VeSoloLoPropio(userRole) && !supervisorApproved)
+                else
                 {
-                    var cfg = _posSettings.Value;
-                    foreach (var line in saleRequest.Detail)
-                    {
-                        // Solo descuentos manuales (sin DiscountId de catálogo)
-                        if (!string.IsNullOrEmpty(line.DiscountId) || line.LineTotalDiscounts == 0) continue;
-
-                        if (line.DiscountType == "Percentage" && line.DiscountValue > cfg.MaxCashierDiscountPct)
-                            throw new CustomException(
-                                $"Descuento manual por porcentaje supera el límite del {cfg.MaxCashierDiscountPct}% permitido para cajeros.");
-
-                        if (line.DiscountType == "FixedAmount" && line.DiscountValue > cfg.MaxCashierDiscountAmount)
-                            throw new CustomException(
-                                $"Descuento manual por monto supera el límite de Bs. {cfg.MaxCashierDiscountAmount} permitido para cajeros.");
-                    }
-
-                    // Descuento global manual
-                    if (string.IsNullOrEmpty(saleRequest.HeaderDiscountId) && saleRequest.HeaderDiscountAmount > 0)
-                    {
-                        if (saleRequest.HeaderDiscountType == "Percentage" && saleRequest.HeaderDiscountValue > cfg.MaxCashierDiscountPct)
-                            throw new CustomException(
-                                $"Descuento global por porcentaje supera el límite del {cfg.MaxCashierDiscountPct}% permitido para cajeros.");
-
-                        if (saleRequest.HeaderDiscountType == "FixedAmount" && saleRequest.HeaderDiscountValue > cfg.MaxCashierDiscountAmount)
-                            throw new CustomException(
-                                $"Descuento global por monto supera el límite de Bs. {cfg.MaxCashierDiscountAmount} permitido para cajeros.");
-                    }
+                    saleRequest.HeaderDiscountAmount = SaleDiscountRules.ManualAmount(
+                        saleRequest.HeaderDiscountType, saleRequest.HeaderDiscountValue, subtotalAfterLineDiscounts);
+                    SaleDiscountRules.CheckLimits(saleRequest.HeaderDiscountType, saleRequest.HeaderDiscountValue,
+                        limites, cajeroSinAutorizacion, "global");
                 }
 
                 // Recompute sale totals on the server — never trust client-side totals
@@ -90,12 +95,10 @@ public class SalesApplication(
                 if (saleRequest.Total <= 0)
                     throw new CustomException("El total de la venta no puede ser cero o negativo.");
 
-                if (saleRequest.Payments.Count == 0)
-                    throw new CustomException("Debe registrar al menos un método de pago.");
-
-                var totalPaid = saleRequest.Payments.Sum(p => p.AmountGiven);
-                if (totalPaid < saleRequest.Total)
-                    throw new CustomException("El monto total pagado no puede ser menor al total de la venta.");
+                // Valida los pagos y calcula el vuelto en el servidor (ver SalePaymentRules).
+                var metodos = await _paymentMethodRepository.GetPaymentMethods();
+                SalePaymentRules.Apply(saleRequest.Payments, saleRequest.Total,
+                    metodos.ToDictionary(m => m.Id, m => m.RequiresChanges));
 
                 var respCustomer = await _customersRepository.GetCustomer(Guid.Parse(saleRequest.CustomerId));
 

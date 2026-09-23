@@ -13,4 +13,7 @@ public class SalesPagedResponse
 
     /// <summary>PeriodTotal menos PeriodReturned: lo que quedó efectivamente cobrado.</summary>
     public decimal PeriodNet { get; set; }
+
+    /// <summary>Neto del período por medio de pago (todas las páginas, no solo la visible).</summary>
+    public List<PaymentMethodTotal> PeriodByPaymentMethod { get; set; } = [];
 }

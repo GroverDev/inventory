@@ -129,6 +129,10 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                        s.total_returned, s.net_total, s.sale_status,
                        COALESCE(u.full_name, '') AS SellerName,
                        b.name                    AS BranchName,
+                       (SELECT string_agg(DISTINCT pm.name, ' + ' ORDER BY pm.name)
+                          FROM sale_payments sp
+                          JOIN payment_methods pm ON pm.id = sp.payment_method_id
+                         WHERE sp.sale_id = s.id)  AS PaymentMethodsLabel,
                        COUNT(*)                OVER() AS TotalCount,
                        SUM(s.subtotal)         OVER() AS PeriodSubtotal,
                        SUM(s.total_discounts)  OVER() AS PeriodDiscounts,
@@ -173,6 +177,34 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 result.PeriodReturned  = rows[0].PeriodReturned;
                 result.PeriodNet       = rows[0].PeriodNet;
             }
+
+            // Por medio de pago, sobre el período completo con los mismos filtros
+            // del listado, no sobre la página visible.
+            string ventasDelPeriodo = $@"
+                SELECT s.id, 1 AS grupo
+                  FROM v_sales_net s
+                  LEFT JOIN sec.users u ON u.id = s.created_by
+                 WHERE s.state
+                   AND s.branch_id = ANY(COALESCE(@Branches::uuid[], ARRAY[public.current_branch()]))
+                   AND s.sale_date >= @SaleDateInitial
+                   AND s.sale_date <  @SaleDateEnd
+                   {userFilter}
+                   {sellerFilter}";
+            const string devoluciones = @"
+                SELECT v.grupo, sr.payment_method_id, 0::numeric, sum(sr.total_returned)
+                  FROM sale_returns sr
+                  JOIN ventas v ON v.id = sr.sale_id
+                 WHERE sr.state
+                 GROUP BY v.grupo, sr.payment_method_id";
+            result.PeriodByPaymentMethod = (await db.QueryAsync<PaymentMethodTotal>(
+                PaymentBreakdownSql.Build(ventasDelPeriodo, devoluciones), new
+                {
+                    SaleDateInitial = saleDateInitial,
+                    SaleDateEnd     = saleDateEnd,
+                    UserId          = userId,
+                    SellerName      = sellerName,
+                    Branches        = branches,
+                })).ToList();
 
             foreach (var row in rows)
             {
