@@ -147,11 +147,8 @@ declare global {
 }
 
 onMounted(async () => {
-  console.log('MENU');
-  console.log(authStore.getAccessMenu);
 
   accessMenu.value = authStore.getAccessMenu;
-  console.log(accessMenu.value);
 });
 
 const seleccionoOpcion = (opcion: AccessMenu) => {
