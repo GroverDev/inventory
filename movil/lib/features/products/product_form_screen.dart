@@ -65,10 +65,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _code = TextEditingController(text: p?.productCode ?? '');
     _description = TextEditingController(text: p?.description ?? '');
     _barCode = TextEditingController(text: p?.barCode ?? '');
-    _price = TextEditingController(text: p == null ? '' : p.salePrice.toString());
+    // La ficha edita el catálogo: el precio y el mínimo base, no los de la
+    // sucursal activa (esos se ajustan por sucursal desde la web).
+    _price = TextEditingController(text: p == null ? '' : p.baseSalePrice.toString());
     _stock = TextEditingController(text: p == null ? '0' : p.currentStock.toString());
     _minReorder =
-        TextEditingController(text: p == null ? '0' : p.minReorderQuantity.toString());
+        TextEditingController(text: p == null ? '0' : p.baseMinReorderQuantity.toString());
     _loadCatalogs();
   }
 
@@ -119,9 +121,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _model.productCode = _code.text.trim();
     _model.description = _description.text.trim();
     _model.barCode = _barCode.text.trim();
-    _model.salePrice = double.tryParse(_price.text.trim()) ?? 0;
+    _model.baseSalePrice = double.tryParse(_price.text.trim()) ?? 0;
     _model.currentStock = int.tryParse(_stock.text.trim()) ?? 0;
-    _model.minReorderQuantity = int.tryParse(_minReorder.text.trim()) ?? 0;
+    _model.baseMinReorderQuantity = int.tryParse(_minReorder.text.trim()) ?? 0;
 
     setState(() => _saving = true);
     try {
@@ -238,6 +240,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           enabled: !readOnly),
                       _field(_price, 'Precio de venta',
                           enabled: !readOnly,
+                          helper: _branchPriceNote(),
                           keyboardType:
                               const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
@@ -328,6 +331,15 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     );
   }
 
+  /// Aviso cuando la sucursal activa vende a otro precio que el catálogo: el
+  /// campo edita el del catálogo y no hay que confundirlos.
+  String? _branchPriceNote() {
+    final p = widget.product;
+    if (p == null || p.salePrice == p.baseSalePrice) return null;
+    return 'Precio de toda la empresa. En esta sucursal se vende a '
+        '${p.salePrice.toStringAsFixed(2)} (precio propio de la sucursal).';
+  }
+
   Widget _field(
     TextEditingController c,
     String label, {
@@ -336,6 +348,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    String? helper,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -346,7 +359,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
         validator: validator,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(labelText: label, helperText: helper, helperMaxLines: 2),
       ),
     );
   }

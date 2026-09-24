@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../models/catalog.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
 
@@ -16,6 +17,10 @@ class CartProvider extends ChangeNotifier {
   String _headerDiscountLabel = '';
   String _headerDiscountType = '';
   double _headerDiscountValue = 0;
+
+  /// Cliente elegido para esta venta. Viaja con el carrito para que una venta
+  /// retomada de la espera llegue al cobro con su cliente; null = el genérico.
+  Customer? customer;
 
   List<SaleLine> get lines => List.unmodifiable(_lines);
   bool get isEmpty => _lines.isEmpty;
@@ -136,8 +141,29 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reemplaza el carrito por uno retomado de la espera.
+  void restore({
+    required List<SaleLine> lines,
+    Customer? customer,
+    String headerId = '',
+    String headerLabel = '',
+    String headerType = '',
+    double headerValue = 0,
+  }) {
+    _lines
+      ..clear()
+      ..addAll(lines);
+    this.customer = customer;
+    _headerDiscountId = headerId;
+    _headerDiscountLabel = headerLabel;
+    _headerDiscountType = headerType;
+    _headerDiscountValue = headerValue;
+    notifyListeners();
+  }
+
   void clear() {
     _lines.clear();
+    customer = null;
     clearHeaderDiscount();
   }
 }

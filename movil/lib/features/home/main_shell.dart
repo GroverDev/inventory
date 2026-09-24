@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../providers/auth_provider.dart';
 
 import '../cash/cash_sessions_screen.dart';
 import '../orders/orders_screen.dart';
 import '../products/products_screen.dart';
 import '../sales/sales_screen.dart';
 import '../settings/settings_screen.dart';
+import 'branch_picker.dart';
 import 'home_screen.dart';
 
 /// Cáscara de la app: barra inferior fija + las pestañas raíz.
@@ -105,11 +109,25 @@ class _MoreTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return Scaffold(
       appBar: AppBar(title: const Text('Más')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          if (auth.branchName.isNotEmpty) ...[
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: Text(auth.branchName,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(auth.canSwitchBranch
+                  ? 'Sucursal activa · tocar para cambiar'
+                  : 'Sucursal activa'),
+              trailing: auth.canSwitchBranch ? const Icon(Icons.swap_horiz) : null,
+              onTap: auth.canSwitchBranch ? () => showBranchPicker(context) : null,
+            ),
+            const Divider(height: 24),
+          ],
           _tile(
             context,
             icon: Icons.account_balance_wallet_outlined,

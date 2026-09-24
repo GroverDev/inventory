@@ -8,6 +8,9 @@ import 'package:inventory_movil/core/theme/app_theme.dart';
 import 'package:inventory_movil/features/cash/cash_sessions_screen.dart';
 import 'package:inventory_movil/models/cash_session.dart';
 import 'package:inventory_movil/models/sale_history.dart';
+import 'package:inventory_movil/providers/auth_provider.dart';
+import 'package:inventory_movil/services/access_menu_service.dart';
+import 'package:inventory_movil/services/auth_service.dart';
 import 'package:inventory_movil/services/sale_service.dart';
 
 /// Las cuatro formas en que puede quedar un turno: en curso, cuadrado, con
@@ -125,11 +128,15 @@ class _FakeSaleService extends SaleService {
   }
 }
 
-Widget _app({double textScale = 1.0}) {
+Widget _app({double textScale = 1.0, String rol = 'Administrador'}) {
   final api = ApiClient(AuthStorage());
   return MultiProvider(
     providers: [
       Provider<SaleService>(create: (_) => _FakeSaleService(api)),
+      ChangeNotifierProvider(
+        create: (_) => AuthProvider(AuthService(api), AuthStorage(), api, AccessMenuService(api))
+          ..rolName = rol,
+      ),
     ],
     child: MaterialApp(
       theme: AppTheme.light(),
@@ -213,6 +220,18 @@ void main() {
     expect(find.text('Declarado'), findsNothing);
     expect(find.text('Diferencia'), findsNothing);
     expect(find.text('en curso'), findsOneWidget);
+  });
+
+  testWidgets('conteo a ciegas: un cajero no ve el esperado de su caja abierta',
+      (tester) async {
+    await tester.pumpWidget(_app(rol: 'Cajero'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Abierta'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Esperado en caja'), findsNothing);
+    expect(find.text('Fondo inicial'), findsOneWidget);
   });
 
   testWidgets('las tarjetas no desbordan con pantalla angosta y texto ampliado',

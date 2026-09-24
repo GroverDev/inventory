@@ -86,7 +86,7 @@
                       </small>
                     </td>
                     <td class="text-end small fw-semibold">
-                      Bs. {{ formatNum(expectedAmount(s)) }}
+                      {{ expectedLabel(s) }}
                     </td>
                     <td class="text-end small">{{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}</td>
                     <td class="text-end small fw-semibold"
@@ -147,7 +147,7 @@
                       <div class="row g-1 text-center small border-top pt-1">
                         <div class="col-4">
                           <div class="text-muted">Esperado</div>
-                          <div class="fw-semibold">Bs. {{ formatNum(expectedAmount(s)) }}</div>
+                          <div class="fw-semibold">{{ expectedLabel(s) }}</div>
                         </div>
                         <div class="col-4">
                           <div class="text-muted">Declarado</div>
@@ -289,7 +289,7 @@
               <div class="col-4">
                 <div class="border rounded p-2 text-center">
                   <small class="text-muted d-block">Esperado en caja</small>
-                  <strong>Bs. {{ formatNum(expectedAmount(selectedSession)) }}</strong>
+                  <strong>{{ expectedLabel(selectedSession) }}</strong>
                 </div>
               </div>
               <div class="col-4">
@@ -501,6 +501,7 @@ import useCashSession from '@/modules/inventory/composables/useCashSession';
 import { exportToExcel } from '@/utils/excelHelper';
 import PaymentBreakdown from '@/modules/inventory/components/PaymentBreakdown.vue';
 import { todayIso, toIsoDate } from '@/utils/dateHelper';
+import { useAuthStore } from '@/modules/auth/stores/auth.store';
 
 const { getSessions, getSessionById, getSessionSales } = useCashSession();
 
@@ -635,6 +636,13 @@ const STALE_OPEN_DAYS = 1;
 
 const daysOpen = (s: CashSession): number =>
   Math.floor((Date.now() - new Date(s.OpenedAt).getTime()) / 86_400_000);
+
+// Conteo a ciegas: mientras la caja está abierta, un cajero no ve el esperado
+// (lo vería antes de contar y podría acomodar la cifra al cerrar).
+const authStore = useAuthStore();
+const isCashier = computed(() => authStore.getUser?.RolName === 'Cajero');
+const expectedLabel = (s: CashSession) =>
+  s.IsOpen && isCashier.value ? '— (al cerrar)' : `Bs. ${formatNum(expectedAmount(s))}`;
 
 const isStaleOpen = (s: CashSession): boolean => s.IsOpen && daysOpen(s) >= STALE_OPEN_DAYS;
 

@@ -14,6 +14,8 @@ import '../../providers/cart_provider.dart';
 import '../../services/catalog_service.dart';
 import '../../services/discount_service.dart';
 import '../../services/sale_service.dart';
+import 'held_sales.dart';
+import 'payment_sheet.dart';
 import 'pos_dialogs.dart';
 import 'sale_completed_screen.dart';
 
@@ -82,7 +84,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         // quede bloqueado por falta de cliente. Si por algún motivo no llegó
         // (sin red, tenant sin sembrar), el picker queda en modo búsqueda,
         // como era antes de esto.
-        _customer ??= results[3] as Customer?;
+        // Una venta retomada de la espera trae su cliente en el carrito.
+        _customer ??= context.read<CartProvider>().customer ?? results[3] as Customer?;
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -116,6 +119,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _selectCustomer(Customer c) {
+    // En el carrito también: si la venta se pone en espera, viaja con ella.
+    context.read<CartProvider>().customer = c;
     setState(() {
       _customer = c;
       _customerResults = [];
@@ -207,149 +212,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     await _finalize(payments);
   }
 
-  Future<List<SalePayment>?> _paymentSheet(double total) {
-    final lines = <SalePayment>[];
-    PaymentMethod? method = _methods.isNotEmpty ? _methods.first : null;
-    final amountCtrl = TextEditingController();
-
-    return showModalBottomSheet<List<SalePayment>>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-        ),
-        child: StatefulBuilder(
-          builder: (context, setSheet) {
-            final paid = lines.fold<double>(0, (s, l) => s + l.amountGiven);
-            final pending = (total - paid).clamp(0, double.infinity).toDouble();
-            final change = (paid - total).clamp(0, double.infinity).toDouble();
-
-            void addLine() {
-              final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
-              if (method == null || amount <= 0) return;
-              final returned = method!.requiresChanges
-                  ? (paid + amount - total).clamp(0, double.infinity).toDouble()
-                  : 0.0;
-              setSheet(() {
-                lines.add(SalePayment(
-                  paymentMethodId: method!.id,
-                  paymentMethodName: method!.name,
-                  iconCss: method!.iconCss,
-                  amountGiven: amount,
-                  amountReturned: returned,
-                ));
-                amountCtrl.clear();
-              });
-            }
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Cobrar venta',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Total a cobrar'),
-                        Text(currency(total),
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: method?.id,
-                    isExpanded: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Método de pago'),
-                    items: _methods
-                        .map((m) =>
-                            DropdownMenuItem(value: m.id, child: Text(m.name)))
-                        .toList(),
-                    onChanged: (v) => setSheet(
-                        () => method = _methods.firstWhere((m) => m.id == v)),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: amountCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          decoration: InputDecoration(
-                            labelText: 'Monto (Bs.)',
-                            hintText: pending > 0
-                                ? 'Pendiente: ${currency(pending)}'
-                                : null,
-                          ),
-                          onSubmitted: (_) => addLine(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonal(
-                        onPressed: addLine,
-                        child: const Text('Agregar'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  for (var i = 0; i < lines.length; i++)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(lines[i].paymentMethodName),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(currency(lines[i].amountGiven)),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => setSheet(() => lines.removeAt(i)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const Divider(),
-                  _kv('Total pagado', currency(paid)),
-                  if (pending > 0)
-                    _kv('Pendiente', currency(pending), color: Colors.red),
-                  if (change > 0)
-                    _kv('Vuelto', currency(change), color: Colors.green),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: paid + 0.0001 < total
-                        ? null
-                        : () => Navigator.pop(sheetContext, lines),
-                    icon: const Icon(Icons.check),
-                    label: const Text('Confirmar venta'),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
+  Future<List<SalePayment>?> _paymentSheet(double total) =>
+      showPaymentSheet(context, total: total, methods: _methods);
 
   /// Descarta la venta y vuelve al POS: una pantalla de cobro sin carrito no
   /// tiene nada que hacer.
@@ -426,12 +290,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         actions: [
           // Es acá donde se suele decidir que la venta no va, así que el mismo
           // acceso que en el POS.
-          if (!cart.isEmpty)
+          if (!cart.isEmpty) ...[
+            // El cliente fue a buscar dinero: la venta espera con su cliente.
+            IconButton(
+              tooltip: 'Poner en espera',
+              icon: const Icon(Icons.pause_circle_outline),
+              onPressed: () async {
+                if (await holdCurrentSale(context) && context.mounted) Navigator.pop(context);
+              },
+            ),
             IconButton(
               tooltip: 'Descartar venta',
               icon: const Icon(Icons.remove_shopping_cart_outlined),
               onPressed: _discardSale,
             ),
+          ],
         ],
       ),
       // El carrito se muestra de inmediato; los catálogos (métodos de pago,

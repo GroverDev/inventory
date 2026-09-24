@@ -28,6 +28,13 @@ class AuthProvider extends ChangeNotifier {
   AuthProvider(this._authService, this._storage, this._api, this._menuService) {
     // Si el cliente HTTP detecta 401, cerramos sesión.
     _api.onUnauthorized = logout;
+    // Renovar la sesión trae la sucursal: si le quitaron la que tenía, el
+    // servidor ya lo pasó a otra y la app tiene que enterarse.
+    _api.onSessionRenewed = (data) => unawaited(_applyBranch(
+          data['BranchId']?.toString() ?? '',
+          data['BranchName'] ?? '',
+          BranchOption.listFrom(data['Branches']),
+        ));
   }
 
   final AuthService _authService;
@@ -38,6 +45,15 @@ class AuthProvider extends ChangeNotifier {
   AuthStatus status = AuthStatus.unknown;
   String userName = '';
   String rolName = '';
+
+  /// Sucursal activa: stock, precios, caja y ventas son los de ella.
+  String branchId = '';
+  String branchName = '';
+  List<BranchOption> branches = const [];
+
+  /// Puede cambiar de sucursal (está habilitado en más de una).
+  bool get canSwitchBranch => branches.length > 1;
+
   bool loading = false;
   String? error;
 
@@ -49,6 +65,10 @@ class AuthProvider extends ChangeNotifier {
   /// Lo cablea `main.dart`; acá no se conoce quién escucha.
   void Function()? onSessionEnd;
 
+  /// Se invoca al cambiar de sucursal: el carrito tiene precios y stock de la
+  /// anterior. Lo cablea `main.dart`.
+  void Function()? onBranchChanged;
+
   /// Token temporal del flujo 2FA (no es el JWT real).
   String _totpSessionToken = '';
 
@@ -58,9 +78,13 @@ class AuthProvider extends ChangeNotifier {
     if (token != null && token.isNotEmpty) {
       userName = await _storage.readUserName() ?? '';
       rolName = await _storage.readRolName() ?? '';
+      await _loadStoredBranch();
       status = AuthStatus.authenticated;
       notifyListeners();
       await _loadAccessMenu();
+      // Una sesión guardada por una versión anterior no tiene la sucursal:
+      // renovarla la trae (y avisa por onSessionRenewed).
+      if (branchId.isEmpty) unawaited(_api.renewSession());
       return;
     }
     status = AuthStatus.unauthenticated;
@@ -246,6 +270,55 @@ class AuthProvider extends ChangeNotifier {
     unawaited(_loadAccessMenu());
   }
 
+  // ---------------------------------------------------------------------
+  // Sucursal
+  // ---------------------------------------------------------------------
+
+  Future<void> _loadStoredBranch() async {
+    final json = await _storage.readBranch();
+    if (json == null || json.isEmpty) return;
+    try {
+      final j = jsonDecode(json) as Map<String, dynamic>;
+      branchId = (j['BranchId'] ?? '').toString();
+      branchName = j['BranchName'] ?? '';
+      branches = BranchOption.listFrom(j['Branches']);
+    } catch (_) {
+      // Guardado corrupto: se completa en la próxima renovación.
+    }
+  }
+
+  /// Fija la sucursal activa y la guarda. Una lista vacía conserva la que ya
+  /// había: no todas las respuestas la traen.
+  Future<void> _applyBranch(String id, String name, List<BranchOption> list) async {
+    if (id.isEmpty) return;
+    final changed = branchId.isNotEmpty && branchId != id;
+    branchId = id;
+    branchName = name;
+    if (list.isNotEmpty) branches = list;
+    await _storage.saveBranch(jsonEncode({
+      'BranchId': branchId,
+      'BranchName': branchName,
+      'Branches': branches.map((b) => b.toJson()).toList(),
+    }));
+    if (changed) onBranchChanged?.call();
+    notifyListeners();
+  }
+
+  /// Pasa la sesión a otra sucursal. Devuelve el error, o null si cambió.
+  Future<String?> switchBranch(String id) async {
+    if (id == branchId) return null;
+    try {
+      final res = await _authService.switchBranch(id);
+      await _storage.saveTokens(res.token, '');
+      await _applyBranch(res.branchId, res.branchName, res.branches);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'No se pudo cambiar de sucursal.';
+    }
+  }
+
   Future<void> _persist(LoginResponse res) async {
     final displayName = res.fullName.isNotEmpty ? res.fullName : res.userName;
     await _storage.save(
@@ -262,6 +335,10 @@ class AuthProvider extends ChangeNotifier {
     }
     userName = displayName;
     rolName = res.rolName;
+    // Un login nuevo no es un "cambio" de sucursal: se limpia antes para no
+    // disparar onBranchChanged con la del usuario anterior.
+    branchId = '';
+    await _applyBranch(res.branchId, res.branchName, res.branches);
   }
 
   Future<void> logout() async {
@@ -278,6 +355,9 @@ class AuthProvider extends ChangeNotifier {
     onSessionEnd?.call();
     userName = '';
     rolName = '';
+    branchId = '';
+    branchName = '';
+    branches = const [];
     error = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();

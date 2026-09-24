@@ -7,6 +7,22 @@ class AuthService {
   AuthService(this._api);
   final ApiClient _api;
 
+  /// POST api/Login/switch-branch — pasa la sesión a otra sucursal en la que
+  /// el usuario esté habilitado. Devuelve un token nuevo; el refresh token
+  /// sigue siendo el mismo (el servidor le cambia la sucursal).
+  Future<LoginResponse> switchBranch(String branchId) async {
+    final res = await _api.post<LoginResponse>(
+      'api/Login/switch-branch',
+      (data) => LoginResponse.fromJson(data as Map<String, dynamic>),
+      body: {'BranchId': branchId},
+    );
+    final data = res.data;
+    if (data == null || data.token.isEmpty) {
+      throw ApiException('No se pudo cambiar de sucursal.');
+    }
+    return data;
+  }
+
   /// POST api/Login/revoke — invalida el refresh token en el servidor para
   /// que cerrar sesión corte la sesión de verdad y no solo en el dispositivo.
   Future<void> revokeRefreshToken(String refreshToken) async {

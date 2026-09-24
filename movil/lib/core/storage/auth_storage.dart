@@ -12,6 +12,10 @@ class AuthStorage {
   static const _kUserId = 'auth_user_id';
   static const _kAccessMenu = 'auth_access_menu';
 
+  /// Sucursal activa y las habilitadas, en JSON (`BranchId`, `BranchName`,
+  /// `Branches`), tal como las devuelve el login.
+  static const _kBranch = 'auth_branch';
+
   /// Token de "dispositivo de confianza" (saltar el TOTP en el próximo
   /// login). Va atado al usuario que lo emitió, así que sobrevivir a
   /// [clear] es seguro: si otro usuario inicia sesión en el mismo
@@ -50,6 +54,9 @@ class AuthStorage {
       _storage.write(key: _kAccessMenu, value: json);
 
   Future<String?> readAccessMenu() => _storage.read(key: _kAccessMenu);
+
+  Future<void> saveBranch(String json) => _storage.write(key: _kBranch, value: json);
+  Future<String?> readBranch() => _storage.read(key: _kBranch);
 
   Future<String?> readToken() => _storage.read(key: _kToken);
   Future<String?> readRefreshToken() => _storage.read(key: _kRefreshToken);

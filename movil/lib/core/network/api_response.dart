@@ -65,7 +65,11 @@ class ApiException implements Exception {
   /// idempotente que ya se había aplicado) de una falla real.
   final String messageType;
 
-  ApiException(this.message, {this.messageType = 'error'});
+  /// El `Data` de la respuesta rechazada, si trajo. Algunos rechazos dicen ahí
+  /// qué falta para reintentar (el cierre de caja manda `CloseRequires`).
+  final dynamic data;
+
+  ApiException(this.message, {this.messageType = 'error', this.data});
 
   bool get isInfo => messageType.toLowerCase() == 'info';
 
@@ -118,5 +122,6 @@ ApiException? apiFailure(bool ok, ApiMessage message, dynamic rawBody) {
         ? message.description
         : extractApiError(rawBody),
     messageType: message.messageType,
+    data: rawBody is Map ? rawBody['Data'] : null,
   );
 }

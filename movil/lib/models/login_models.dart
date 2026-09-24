@@ -73,6 +73,13 @@ class LoginResponse {
   final String rolName;
   final bool changePassword;
 
+  /// Sucursal en la que quedó la sesión (la default del usuario al entrar).
+  final String branchId;
+  final String branchName;
+
+  /// Sucursales activas en las que el usuario está habilitado.
+  final List<BranchOption> branches;
+
   LoginResponse({
     required this.userId,
     required this.fullName,
@@ -87,6 +94,9 @@ class LoginResponse {
     required this.rolId,
     required this.rolName,
     required this.changePassword,
+    this.branchId = '',
+    this.branchName = '',
+    this.branches = const [],
   });
 
   factory LoginResponse.fromJson(Map<String, dynamic> j) => LoginResponse(
@@ -103,6 +113,9 @@ class LoginResponse {
         rolId: j['RolId'] ?? 0,
         rolName: j['RolName'] ?? '',
         changePassword: j['ChangePassword'] ?? false,
+        branchId: (j['BranchId'] ?? '').toString(),
+        branchName: j['BranchName'] ?? '',
+        branches: BranchOption.listFrom(j['Branches']),
       );
 }
 
@@ -131,4 +144,25 @@ class MfaEnableData {
                 .toList() ??
             const [],
       );
+}
+
+/// Sucursal en la que el usuario puede trabajar.
+class BranchOption {
+  final String branchId;
+  final String name;
+  final bool isDefault;
+
+  const BranchOption({required this.branchId, required this.name, this.isDefault = false});
+
+  factory BranchOption.fromJson(Map<String, dynamic> j) => BranchOption(
+        branchId: (j['BranchId'] ?? '').toString(),
+        name: j['Name'] ?? '',
+        isDefault: j['IsDefault'] ?? false,
+      );
+
+  Map<String, dynamic> toJson() => {'BranchId': branchId, 'Name': name, 'IsDefault': isDefault};
+
+  static List<BranchOption> listFrom(dynamic v) => v is List
+      ? v.whereType<Map<String, dynamic>>().map(BranchOption.fromJson).toList()
+      : const [];
 }

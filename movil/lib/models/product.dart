@@ -4,10 +4,21 @@ class Product {
   String productCode;
   String productName;
   String description;
+  /// Precio efectivo en la sucursal activa (el base o su excepción). Es el que
+  /// se cobra y el que muestran los listados.
   double salePrice;
+
+  /// Precio del catálogo, el mismo en toda la empresa. Es el único que edita la
+  /// ficha: guardar [salePrice] copiaría al catálogo la excepción de una
+  /// sucursal.
+  double baseSalePrice;
   String barCode;
   int currentStock;
   int minReorderQuantity;
+
+  /// Stock mínimo del catálogo; [minReorderQuantity] es el efectivo de la
+  /// sucursal. Misma regla que el precio.
+  int baseMinReorderQuantity;
   bool availableInPos;
   String uomId;
   String unitName;
@@ -23,9 +34,11 @@ class Product {
     this.productName = '',
     this.description = '',
     this.salePrice = 0,
+    this.baseSalePrice = 0,
     this.barCode = '',
     this.currentStock = 0,
     this.minReorderQuantity = 0,
+    this.baseMinReorderQuantity = 0,
     this.availableInPos = true,
     this.uomId = '',
     this.unitName = '',
@@ -42,9 +55,13 @@ class Product {
         productName: j['ProductName'] ?? '',
         description: j['Description'] ?? '',
         salePrice: (j['SalePrice'] ?? 0).toDouble(),
+        // Un backend anterior a los precios por sucursal no lo manda: ahí el
+        // precio de venta ya es el del catálogo.
+        baseSalePrice: (j['BaseSalePrice'] ?? j['SalePrice'] ?? 0).toDouble(),
         barCode: j['BarCode'] ?? '',
         currentStock: j['CurrentStock'] ?? 0,
         minReorderQuantity: j['MinReorderQuantity'] ?? 0,
+        baseMinReorderQuantity: j['BaseMinReorderQuantity'] ?? j['MinReorderQuantity'] ?? 0,
         availableInPos: j['AvailableInPos'] ?? false,
         uomId: (j['UomId'] ?? '').toString(),
         unitName: j['UnitName'] ?? '',
@@ -61,11 +78,11 @@ class Product {
         'ProductCode': productCode,
         'ProductName': productName,
         'Description': description,
-        'SalePrice': salePrice,
+        'SalePrice': baseSalePrice,
         'UomId': uomId,
         'CurrentStock': currentStock,
         'IsActive': isActive,
-        'MinReorderQuantity': minReorderQuantity,
+        'MinReorderQuantity': baseMinReorderQuantity,
         'AvailableInPos': availableInPos,
         'LaboratoryId': laboratoryId,
         'CategoryId': categoryId,

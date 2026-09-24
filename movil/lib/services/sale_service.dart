@@ -1,6 +1,7 @@
 import '../core/network/api_client.dart';
 import '../core/network/api_response.dart';
 import '../models/cash_session.dart';
+import '../models/held_sale.dart';
 import '../models/login_models.dart';
 import '../models/sale.dart';
 import '../models/sale_history.dart';
@@ -124,17 +125,44 @@ class SaleService {
     );
   }
 
-  /// PUT api/CashSession/{id}/close — arqueo de caja.
-  Future<void> closeSession(
-    String sessionId, {
-    required double declaredAmount,
-    String notes = '',
-  }) async {
-    await _api.put<String>(
-      'api/CashSession/$sessionId/close',
-      (data) => data?.toString() ?? '',
-      body: {'DeclaredAmount': declaredAmount, 'Notes': notes},
+  /// GET api/Settings/cash-close — qué medios se arquean y si el efectivo
+  /// se cuenta por billetes. Se lee al abrir el cierre: puede haber cambiado.
+  Future<CashCloseSettings> closeSettings() async {
+    final res = await _api.get<CashCloseSettings?>(
+      'api/Settings/cash-close',
+      (data) => data == null ? null : CashCloseSettings.fromJson(data as Map<String, dynamic>),
     );
+    return res.data ?? const CashCloseSettings();
+  }
+
+  /// PUT api/CashSession/{id}/close — cierre a ciegas: se declara cada medio
+  /// sin haber visto lo esperado. Devuelve el turno cerrado con el arqueo.
+  ///
+  /// Un rechazo lanza [ApiException] con `data['CloseRequires']`: 'note' si
+  /// falta la observación, 'supervisor' si además hace falta autorización.
+  Future<CashSession> closeSession(
+    String sessionId, {
+    required Map<String, double> counts,
+    List<DenominationCount> denominations = const [],
+    String notes = '',
+    String supervisorAuthToken = '',
+  }) async {
+    final res = await _api.put<CashSession?>(
+      'api/CashSession/$sessionId/close',
+      (data) => data == null ? null : CashSession.fromJson(data as Map<String, dynamic>),
+      body: {
+        'DeclaredAmount': 0,
+        'Notes': notes,
+        'Counts': [
+          for (final e in counts.entries) {'PaymentMethodId': e.key, 'Declared': e.value}
+        ],
+        'Denominations': [for (final d in denominations) d.toJson()],
+        if (supervisorAuthToken.isNotEmpty) 'SupervisorAuthToken': supervisorAuthToken,
+      },
+    );
+    final data = res.data;
+    if (data == null) throw ApiException('No se pudo cerrar la caja.');
+    return data;
   }
 
   /// POST api/CashSession/{id}/movements — gasto / retiro / ingreso.
@@ -185,5 +213,56 @@ class SaleService {
       );
     }
     return data;
+  }
+
+  // ── Ventas en espera (por sucursal, en el servidor) ────────
+
+  /// GET api/HeldSale — las ventas en espera de la sucursal activa.
+  Future<List<HeldSale>> heldSales() async {
+    final res = await _api.get<List<HeldSale>>(
+      'api/HeldSale',
+      (data) => [for (final e in (data as List? ?? const [])) HeldSale.fromJson(e as Map<String, dynamic>)],
+    );
+    return res.data ?? const [];
+  }
+
+  /// POST api/HeldSale — deja la venta en espera. [payload] es el JSON de
+  /// [HeldSalePayload.build].
+  Future<void> holdSale({
+    required String label,
+    String? customerId,
+    required int itemsCount,
+    required double total,
+    required String payload,
+  }) async {
+    await _api.post<String>(
+      'api/HeldSale',
+      (data) => data?.toString() ?? '',
+      body: {
+        'Label': label,
+        'CustomerId': customerId,
+        'ItemsCount': itemsCount,
+        'Total': total,
+        'Payload': payload,
+      },
+    );
+  }
+
+  /// POST api/HeldSale/{id}/take — la saca de la espera y devuelve su carrito.
+  /// Falla si otra caja la retomó antes.
+  Future<HeldSale> takeHeldSale(String id) async {
+    final res = await _api.post<HeldSale?>(
+      'api/HeldSale/$id/take',
+      (data) => data == null ? null : HeldSale.fromJson(data as Map<String, dynamic>),
+      body: const {},
+    );
+    final data = res.data;
+    if (data == null || data.payload.isEmpty) throw ApiException('La venta en espera no tiene contenido.');
+    return data;
+  }
+
+  /// DELETE api/HeldSale/{id} — la descarta sin cobrarla.
+  Future<void> discardHeldSale(String id) async {
+    await _api.delete<bool>('api/HeldSale/$id', (data) => data == true);
   }
 }

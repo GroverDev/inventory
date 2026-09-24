@@ -70,6 +70,8 @@ class InventoryApp extends StatelessWidget {
                 // El carrito pertenece al turno, no a la app: al cerrar sesión
                 // no puede quedar para el cajero siguiente.
                 ..onSessionEnd = cart.clear
+                // Ni de sucursal: sus precios y stock son de la anterior.
+                ..onBranchChanged = cart.clear
                 ..bootstrap(),
         ),
         ChangeNotifierProvider.value(value: cart),
@@ -103,7 +105,9 @@ class _Root extends StatelessWidget {
       case AuthStatus.unknown:
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       case AuthStatus.authenticated:
-        return const MainShell();
+        // Con la sucursal como clave, cambiarla reconstruye las pestañas: nada
+        // queda mostrando stock, ventas o caja de la anterior.
+        return MainShell(key: ValueKey(auth.branchId));
       case AuthStatus.totpRequired:
         return const TotpVerifyScreen();
       case AuthStatus.totpSetupRequired:

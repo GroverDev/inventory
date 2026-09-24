@@ -8,6 +8,7 @@ import '../../models/cash_session.dart';
 import '../../models/sale_history.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/sale_service.dart';
+import 'branch_picker.dart';
 import '../pos/pin_gate.dart';
 import '../pos/pos_screen.dart';
 
@@ -95,6 +96,31 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) _load();
   }
 
+  /// Saludo con la sucursal debajo. Si puede cambiarla, tocarlo abre el
+  /// selector: es donde se mira antes de vender.
+  Widget _title(AuthProvider auth, String saludo) {
+    if (auth.branchName.isEmpty) return Text(saludo);
+    final col = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(saludo),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.storefront_outlined, size: 14),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(auth.branchName,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal)),
+          ),
+          if (auth.canSwitchBranch) const Icon(Icons.arrow_drop_down, size: 18),
+        ]),
+      ],
+    );
+    if (!auth.canSwitchBranch) return col;
+    return InkWell(onTap: () => showBranchPicker(context), child: col);
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -108,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(nombre.isEmpty ? 'Inicio' : 'Hola, $nombre'),
+        title: _title(auth, nombre.isEmpty ? 'Inicio' : 'Hola, $nombre'),
       ),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -198,8 +224,12 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child:
-              Text('Caja abierta · ${currency(s.expectedCash)}', style: claro),
+          // Conteo a ciegas: el cajero no ve el esperado antes de cerrar.
+          child: Text(
+              context.read<AuthProvider>().rolName == 'Cajero'
+                  ? 'Caja abierta'
+                  : 'Caja abierta · ${currency(s.expectedCash)}',
+              style: claro),
         ),
         const SizedBox(width: 10),
         Text(_desde, style: tenue),

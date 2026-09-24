@@ -54,6 +54,14 @@ class ApiClient {
   /// Notificado cuando la sesión ya no puede recuperarse.
   void Function()? onUnauthorized;
 
+  /// Notificado con los datos de la sesión renovada. Trae la sucursal: si al
+  /// usuario le quitaron la que tenía, el servidor lo pasa a otra.
+  void Function(Map<String, dynamic> data)? onSessionRenewed;
+
+  /// Renueva la sesión ya, sin esperar a un 401. Sirve para completar datos
+  /// que una sesión guardada por una versión anterior de la app no tiene.
+  Future<bool> renewSession() => _tryRefresh();
+
   Future<ApiResponse<T>> get<T>(
     String path,
     T Function(dynamic data) parse, {
@@ -156,6 +164,7 @@ class ApiClient {
       if (token.isEmpty) return false;
 
       await _storage.saveTokens(token, (data['RefreshToken'] ?? '') as String);
+      onSessionRenewed?.call(data);
       return true;
     } catch (_) {
       return false;

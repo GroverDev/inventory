@@ -8,7 +8,9 @@ import '../../models/product.dart';
 import '../../providers/cart_provider.dart';
 import '../../services/product_service.dart';
 import '../../services/sale_service.dart';
+import '../cash/close_cash_screen.dart';
 import 'checkout_screen.dart';
+import 'held_sales.dart';
 import 'pos_dialogs.dart';
 
 class PosScreen extends StatefulWidget {
@@ -26,6 +28,9 @@ class _PosScreenState extends State<PosScreen> {
   String? _sessionError;
 
   List<Product> _allProducts = [];
+
+  /// Ventas en espera de la sucursal, para el contador del botón.
+  int _heldCount = 0;
   bool _loadingProducts = true;
   String _search = '';
   String _category = '';
@@ -35,6 +40,25 @@ class _PosScreenState extends State<PosScreen> {
     super.initState();
     _checkSession();
     _loadProducts();
+    _loadHeldCount();
+  }
+
+  Future<void> _loadHeldCount() async {
+    try {
+      final n = (await context.read<SaleService>().heldSales()).length;
+      if (mounted) setState(() => _heldCount = n);
+    } on ApiException {
+      // El contador es informativo: sin él, la lista igual se puede abrir.
+    }
+  }
+
+  Future<void> _openHeld() async {
+    await showHeldSalesSheet(context, products: _allProducts);
+    _loadHeldCount();
+  }
+
+  Future<void> _hold() async {
+    if (await holdCurrentSale(context)) _loadHeldCount();
   }
 
   @override
@@ -124,23 +148,17 @@ class _PosScreenState extends State<PosScreen> {
   Future<void> _closeSession() async {
     if (_session == null) return;
     final cart = context.read<CartProvider>();
-    final result = await closeCashDialog(context, _session!);
-    if (result == null) return;
-    try {
-      await context.read<SaleService>().closeSession(
-            _session!.id,
-            declaredAmount: result.declaredAmount,
-            notes: result.notes,
-          );
-      if (mounted) setState(() => _session = null);
-      // Sin caja abierta la venta no se puede cobrar: el carrito no sobrevive
-      // al turno.
-      cart.clear();
-      _snack('Caja cerrada correctamente.');
-    } on ApiException catch (e) {
-      _snack(e.message);
-    }
+    final cerrado = await Navigator.push<CashSession>(
+      context,
+      MaterialPageRoute(builder: (_) => CloseCashScreen(session: _session!)),
+    );
+    if (cerrado == null || !mounted) return;
+    setState(() => _session = null);
+    // Sin caja abierta la venta no se puede cobrar: el carrito no sobrevive
+    // al turno.
+    cart.clear();
   }
+
 
   Future<void> _addMovement() async {
     if (_session == null) return;
@@ -213,6 +231,15 @@ class _PosScreenState extends State<PosScreen> {
               icon: const Icon(Icons.remove_shopping_cart_outlined),
               onPressed: _discardSale,
             ),
+          IconButton(
+            tooltip: 'Ventas en espera',
+            onPressed: _openHeld,
+            icon: Badge(
+              isLabelVisible: _heldCount > 0,
+              label: Text('$_heldCount'),
+              child: const Icon(Icons.hourglass_empty),
+            ),
+          ),
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -225,11 +252,21 @@ class _PosScreenState extends State<PosScreen> {
           ),
           PopupMenuButton<String>(
             onSelected: (v) {
+              if (v == 'hold') _hold();
               if (v == 'movement') _addMovement();
               if (v == 'close') _closeSession();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              if (!cart.isEmpty)
+                const PopupMenuItem(
+                  value: 'hold',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.pause_circle_outline),
+                    title: Text('Poner en espera'),
+                  ),
+                ),
+              const PopupMenuItem(
                 value: 'movement',
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -237,7 +274,7 @@ class _PosScreenState extends State<PosScreen> {
                   title: Text('Registrar movimiento'),
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'close',
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -336,8 +373,12 @@ class _PosScreenState extends State<PosScreen> {
                             CheckoutScreen(cashSession: _session!),
                       ),
                     );
-                    // Al volver, refrescamos la caja (la venta cambió totales).
-                    if (mounted) _checkSession();
+                    // Al volver, refrescamos la caja (la venta cambió totales)
+                    // y el contador (la venta pudo quedar en espera desde ahí).
+                    if (mounted) {
+                      _checkSession();
+                      _loadHeldCount();
+                    }
                   },
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

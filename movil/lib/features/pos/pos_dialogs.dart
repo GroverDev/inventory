@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/ui/confirm_dialog.dart';
-import '../../models/cash_session.dart';
 import '../../models/catalog.dart';
 import '../../models/discount.dart';
 import '../../providers/cart_provider.dart';
@@ -72,95 +71,6 @@ Future<double?> openCashDialog(BuildContext context) {
           child: const Text('Abrir'),
         ),
       ],
-    ),
-  );
-}
-
-/// ── Cerrar caja (arqueo) ────────────────────────────────────
-Future<({double declaredAmount, String notes})?> closeCashDialog(
-    BuildContext context, CashSession session) {
-  final amountCtrl = TextEditingController();
-  final notesCtrl = TextEditingController();
-  return showDialog<({double declaredAmount, String notes})>(
-    context: context,
-    builder: (_) => StatefulBuilder(
-      builder: (context, setState) {
-        final declared = double.tryParse(amountCtrl.text.trim());
-        final diff = declared == null ? null : declared - session.expectedCash;
-        return AlertDialog(
-          title: const Text('Cerrar caja'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _kv('Fondo inicial', currency(session.openingAmount)),
-                _kv('Ventas', currency(session.totalSales)),
-                if (session.totalCashSales != session.totalSales)
-                  _kv('  en efectivo', currency(session.totalCashSales)),
-                if (session.totalExpenses > 0)
-                  _kv('Gastos', '− ${currency(session.totalExpenses)}'),
-                if (session.totalWithdrawals > 0)
-                  _kv('Retiros', '− ${currency(session.totalWithdrawals)}'),
-                if (session.totalIncome > 0)
-                  _kv('Ingresos', currency(session.totalIncome)),
-                if (session.totalReturns > 0)
-                  _kv('Devoluciones', '− ${currency(session.totalReturns)}'),
-                const Divider(),
-                _kv('Esperado en caja', currency(session.expectedCash),
-                    bold: true),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountCtrl,
-                  autofocus: true,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration:
-                      const InputDecoration(labelText: 'Monto físico contado (Bs.)'),
-                  onChanged: (_) => setState(() {}),
-                ),
-                if (diff != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Diferencia'),
-                      Text(
-                        currency(diff),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: diff >= 0 ? Colors.green : Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 8),
-                TextField(
-                  controller: notesCtrl,
-                  maxLines: 2,
-                  decoration:
-                      const InputDecoration(labelText: 'Observaciones (opcional)'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar')),
-            FilledButton(
-              onPressed: declared == null
-                  ? null
-                  : () => Navigator.pop(context, (
-                        declaredAmount: declared,
-                        notes: notesCtrl.text.trim(),
-                      )),
-              child: const Text('Cerrar y arquear'),
-            ),
-          ],
-        );
-      },
     ),
   );
 }
@@ -593,16 +503,3 @@ Future<Customer?> newCustomerDialog(
     ),
   );
 }
-
-Widget _kv(String label, String value, {bool bold = false}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(value,
-              style: TextStyle(
-                  fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-        ],
-      ),
-    );

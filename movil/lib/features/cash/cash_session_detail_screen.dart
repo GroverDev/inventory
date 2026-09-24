@@ -6,6 +6,7 @@ import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/cash_session.dart';
 import '../../models/sale_history.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/sale_service.dart';
 import '../sales/sale_detail_screen.dart';
 
@@ -40,6 +41,8 @@ class _CashSessionDetailScreenState extends State<CashSessionDetailScreen> {
   bool _changed = false;
 
   CashSession get _s => widget.session;
+
+  bool get _isCashier => context.read<AuthProvider>().rolName == 'Cajero';
 
   @override
   void initState() {
@@ -130,9 +133,12 @@ class _CashSessionDetailScreenState extends State<CashSessionDetailScreen> {
               _kv('Devoluciones', '− ${currency(_s.totalReturns)}',
                   color: Colors.orange),
             const Divider(height: 20),
-            _kv(_s.isOpen ? 'Esperado en caja' : 'Esperado',
-                currency(_s.expectedCash),
-                bold: true),
+            // Conteo a ciegas: con la caja abierta, el cajero no ve el
+            // esperado (lo vería antes de contar y podría acomodar la cifra).
+            if (!(_s.isOpen && _isCashier))
+              _kv(_s.isOpen ? 'Esperado en caja' : 'Esperado',
+                  currency(_s.expectedCash),
+                  bold: true),
             if (!_s.isOpen) ...[
               _kv('Declarado', currency(_s.declaredAmount ?? 0), bold: true),
               if (diff != null)
@@ -143,6 +149,30 @@ class _CashSessionDetailScreenState extends State<CashSessionDetailScreen> {
                         ? null
                         : (diff > 0 ? Colors.blue : Colors.red)),
             ],
+            // Arqueo por medio de pago: lo declarado a ciegas contra lo esperado.
+            // Con el efectivo solo, ya lo dicen Declarado y Diferencia.
+            if (_s.counts.length > 1) ...[
+              const Divider(height: 20),
+              for (final c in _s.counts)
+                _kv(
+                  '${c.name}: ${currency(c.declared)} de ${currency(c.expected)}',
+                  c.difference == 0
+                      ? 'cuadra'
+                      : '${c.difference > 0 ? '+ ' : '− '}${currency(c.difference.abs())}',
+                  color: c.difference == 0 ? null : (c.difference > 0 ? Colors.blue : Colors.red),
+                ),
+            ],
+            if (_s.denominations.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Efectivo contado: ${_s.denominations.map((d) => '${d.quantity} × ${DenominationCount.label(d.value)}').join('  ·  ')}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+            if (_s.closeAttempts > 0)
+              _kv('Intentos de cierre rechazados', '${_s.closeAttempts}', color: Colors.orange),
+            if (_s.closeAuthorizedByName.isNotEmpty)
+              _kv('Autorizó el cierre', _s.closeAuthorizedByName),
             if (_s.notes.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Text('Observaciones',
