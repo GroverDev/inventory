@@ -1,7 +1,7 @@
 /**
  * URL pública de una imagen de producto.
  *
- * La API devuelve solo la ruta relativa ("{tenant}/products/{id}/{guid}.webp");
+ * La API devuelve solo la ruta relativa ("{public_id}/products/{id}/{guid}.webp");
  * el dominio de medios lo pone cada cliente con `VITE_MEDIA_URL`. Así cambiar de
  * dominio, o pasar a un CDN, no toca los datos.
  *

@@ -12,6 +12,7 @@ namespace Inventory.Infrastructure;
 /// así que la API solo interviene al subir o borrar.
 /// </summary>
 /// <remarks>
+/// Las carpetas se nombran con el <c>public_id</c> del tenant.
 /// Configuración (sección <c>Media</c>): <c>RootPath</c> es el directorio raíz y
 /// debe ser el mismo que Nginx publica en <c>/media/</c>.
 /// </remarks>
@@ -28,11 +29,14 @@ public sealed class DiskImageStorage : IImageStorage
 
     private readonly string _root;
     private readonly ITenantContext _tenant;
+    private readonly ITenantFolderResolver _folders;
     private readonly ILogger<DiskImageStorage> _logger;
 
-    public DiskImageStorage(IConfiguration configuration, ITenantContext tenant, ILogger<DiskImageStorage> logger)
+    public DiskImageStorage(IConfiguration configuration, ITenantContext tenant,
+                            ITenantFolderResolver folders, ILogger<DiskImageStorage> logger)
     {
         _tenant = tenant;
+        _folders = folders;
         _logger = logger;
         _root = Path.GetFullPath(configuration["Media:RootPath"] is { Length: > 0 } p ? p : "media");
     }
@@ -79,13 +83,17 @@ public sealed class DiskImageStorage : IImageStorage
         {
             // Solo se borra dentro de la carpeta de productos del tenant: la ruta
             // viene de la base, pero un valor corrupto no debe poder apuntar afuera.
-            var prefix = $"{TenantSegment()}/products/";
-            if (!relativePath.StartsWith(prefix, StringComparison.Ordinal))
+            // Se compara la ruta YA resuelta: mirar solo el texto dejaba pasar
+            // "{tenant}/products/../../{otro}/...", que empieza bien y termina en la
+            // carpeta de otra empresa.
+            var permitido = Resolve($"{TenantSegment()}/products") + Path.DirectorySeparatorChar;
+            var completa = Resolve(relativePath);
+            if (!completa.StartsWith(permitido, StringComparison.Ordinal))
             {
                 _logger.LogWarning("Ruta de imagen fuera del tenant, no se borra: {Path}", relativePath);
                 return;
             }
-            TryDelete(Resolve(relativePath));
+            TryDelete(completa);
             TryDelete(Resolve(IImageStorage.ThumbPathOf(relativePath)));
         }
         catch (Exception ex) { _logger.LogWarning(ex, "No se pudo borrar la imagen {Path}", relativePath); }
@@ -191,9 +199,10 @@ public sealed class DiskImageStorage : IImageStorage
         return dst;
     }
 
+    /// <summary>Carpeta del tenant: su public_id, nunca el id numérico.</summary>
     private string TenantSegment() =>
-        _tenant.TenantId?.ToString()
-        ?? throw new InvalidOperationException("Las imágenes solo se manejan con un tenant resuelto.");
+        _folders.FolderOf(_tenant.TenantId
+            ?? throw new InvalidOperationException("Las imágenes solo se manejan con un tenant resuelto."));
 
     private string ProductDir(Guid productId) => $"{TenantSegment()}/products/{productId}";
 

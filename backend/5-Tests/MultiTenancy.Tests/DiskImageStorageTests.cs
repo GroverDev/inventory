@@ -20,6 +20,12 @@ public sealed class DiskImageStorageTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
+    /// <summary>Sin base: cada tenant tiene la carpeta "t{id}", como si fuera su public_id.</summary>
+    private sealed class CarpetaFalsa : ITenantFolderResolver
+    {
+        public string FolderOf(int tenantId) => $"t{tenantId}";
+    }
+
     private DiskImageStorage Storage(int tenantId = 7)
     {
         var tenant = new TenantContext();
@@ -27,7 +33,7 @@ public sealed class DiskImageStorageTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Media:RootPath"] = _root })
             .Build();
-        return new DiskImageStorage(config, tenant, NullLogger<DiskImageStorage>.Instance);
+        return new DiskImageStorage(config, tenant, new CarpetaFalsa(), NullLogger<DiskImageStorage>.Instance);
     }
 
     private static byte[] Encoded(int width, int height, SKEncodedImageFormat format)
@@ -74,7 +80,7 @@ public sealed class DiskImageStorageTests : IDisposable
 
         var path = await Storage().SaveProductImageAsync(productId, Png(1600, 1200));
 
-        Assert.StartsWith($"7/products/{productId}/", path);
+        Assert.StartsWith($"t7/products/{productId}/", path);
         Assert.EndsWith(".webp", path);
 
         // el lado mayor baja al tope conservando la proporción
@@ -114,7 +120,7 @@ public sealed class DiskImageStorageTests : IDisposable
         var productId = Guid.NewGuid();
         await Storage().SaveProductImageAsync(productId, Png(100, 100));
 
-        var files = Directory.GetFiles(Path.Combine(_root, "7", "products", productId.ToString()));
+        var files = Directory.GetFiles(Path.Combine(_root, "t7", "products", productId.ToString()));
         Assert.Equal(2, files.Length);
         Assert.DoesNotContain(files, f => f.EndsWith(".tmp"));
     }
@@ -155,7 +161,7 @@ public sealed class DiskImageStorageTests : IDisposable
             () => Storage().SaveProductImageAsync(productId, Png(8001, 10)));
 
         Assert.Contains("demasiado grande", ex.Message);
-        var dir = Path.Combine(_root, "7", "products", productId.ToString());
+        var dir = Path.Combine(_root, "t7", "products", productId.ToString());
         Assert.True(!Directory.Exists(dir) || Directory.GetFiles(dir).Length == 0);
     }
 
@@ -183,12 +189,22 @@ public sealed class DiskImageStorageTests : IDisposable
 
     [Theory]
     [InlineData("../../etc/passwd")]
-    [InlineData("7/products/../../8/products/x/y.webp")]
     [InlineData("/etc/passwd")]
     public void Una_ruta_maliciosa_no_borra_nada_ni_lanza(string ruta)
     {
         Directory.CreateDirectory(_root);
         Storage().DeleteQuietly(ruta);   // no debe lanzar
+    }
+
+    [Fact]
+    public async Task Una_ruta_con_el_prefijo_correcto_que_escapa_a_otro_tenant_no_borra_su_archivo()
+    {
+        var ajeno = await Storage(tenantId: 8).SaveProductImageAsync(Guid.NewGuid(), Png(100, 100));
+
+        // Empieza con "t7/products/" pero, ya normalizada, cae en la carpeta de t8.
+        Storage(tenantId: 7).DeleteQuietly($"t7/products/../../{ajeno}");
+
+        Assert.True(File.Exists(Path.Combine(_root, ajeno)));
     }
 
     [Fact]
@@ -200,6 +216,6 @@ public sealed class DiskImageStorageTests : IDisposable
 
         storage.DeleteProductFolderQuietly(productId);
 
-        Assert.False(Directory.Exists(Path.Combine(_root, "7", "products", productId.ToString())));
+        Assert.False(Directory.Exists(Path.Combine(_root, "t7", "products", productId.ToString())));
     }
 }

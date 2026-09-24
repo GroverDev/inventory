@@ -43,7 +43,7 @@ public class ProductResponse
     public string TrackingMode { get; set; } = "none";
 
     /// <summary>
-    /// Ruta relativa de la imagen ("{tenant}/products/{id}/{guid}.webp"), o null si
+    /// Ruta relativa de la imagen ("{public_id del tenant}/products/{id}/{guid}.webp"), o null si
     /// no tiene. Cada cliente la une a la URL base de medios; la miniatura es la
     /// misma ruta con "_thumb" antes de la extensión.
     /// </summary>
