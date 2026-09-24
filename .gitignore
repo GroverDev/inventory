@@ -8,3 +8,6 @@ futbol_backup.sql
 # Basura de Finder en macOS. Entraron al repositorio por un `git add` amplio
 # y ensucian cada diff sin aportar nada.
 .DS_Store
+
+# Imagenes de productos subidas en desarrollo (Media:RootPath relativo)
+backend/1-Services/Services.Api/media/

@@ -47,6 +47,10 @@ public static class ExceptionHandler
         // "El número de serie X ya está registrado". No hay nada que traducir.
         RaiseException => new CustomException(pg.MessageText, MessageTypes.Warning),
 
+        // Falta la firma de un supervisor para vender sin stock. Tipo propio para
+        // que la API lo distinga de un rechazo cualquiera.
+        StockSupervisorRequiredException.SqlState => new StockSupervisorRequiredException(pg.MessageText),
+
         // Violaciones de restricción: el usuario necesita saber qué hizo mal,
         // no el nombre del índice ni la tabla. El detalle técnico va al log.
         PostgresErrorCodes.UniqueViolation => Registrado(pg,

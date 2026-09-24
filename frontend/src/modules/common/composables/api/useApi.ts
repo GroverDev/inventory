@@ -14,6 +14,13 @@ class ApiConfig {
   showSuccessMessage?: boolean = false;
   customHeaders?: Record<string, string> = {};
   timeout?: number = 300000;
+  /**
+   * Ids de `Message` que quien llama maneja por su cuenta: la respuesta vuelve
+   * igual, pero sin el modal genérico de error. Es para las respuestas que no son
+   * un rechazo sino una pregunta (p. ej. "falta la firma de un supervisor"), donde
+   * mostrar el modal y además pedir la autorización sería duplicar el aviso.
+   */
+  silentMessageIds?: string[];
 }
 
 export const useApi = () => {
@@ -105,7 +112,7 @@ export const useApi = () => {
         });
       }
       response = apiResponse.data as T;
-      if (!response.ok) {
+      if (!response.ok && !finalConfig.silentMessageIds?.includes(response.Message?.Id ?? '')) {
         utils.showMessageModal(response.Message);
       }
 
@@ -136,6 +143,22 @@ export const useApi = () => {
     body: any,
     config?: ApiConfig
   ): Promise<T> => apiCall<T>(endpoint, 'POST', config, body);
+
+  /**
+   * POST multipart (subida de archivos). El 'Content-Type' JSON que se pone por
+   * defecto rompería la subida: al indicar multipart, axios lo quita y deja que
+   * el navegador ponga el suyo, con el boundary que necesita.
+   */
+  const postForm = <T extends ResponseBase>(
+    endpoint: string,
+    form: FormData,
+    config?: ApiConfig
+  ): Promise<T> => apiCall<T>(
+    endpoint,
+    'POST',
+    { ...config, customHeaders: { 'Content-Type': 'multipart/form-data', ...config?.customHeaders } },
+    form
+  );
 
   const put = <T extends ResponseBase>(
     endpoint: string,
@@ -170,6 +193,7 @@ export const useApi = () => {
 
     get,
     post,
+    postForm,
     put,
     del,
     patch,

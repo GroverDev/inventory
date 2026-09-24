@@ -45,7 +45,16 @@ public class SalesRepository(InventoryDbContext _DbContext, ISalesDetailReposito
                 await db.ExecuteAsync(sqlQuery, sale, transaction);
 
                 sale.Detail.ForEach(x => x.SaleId = sale.Id);
-                foreach (var detail in sale.Detail)
+
+                // Solo dura esta transacción (el `true` de set_config): una conexión
+                // reutilizada del pool no lo hereda. Lo lee fn_asignar_fefo.
+                if (sale.EnforceStock)
+                    await db.ExecuteAsync("SELECT set_config('app.exigir_stock', 'on', true)", transaction: transaction);
+
+                // Siempre en el mismo orden: fn_asignar_fefo toma un candado por
+                // producto, y dos ventas que piden los mismos productos en orden
+                // distinto se bloquearían mutuamente.
+                foreach (var detail in sale.Detail.OrderBy(d => d.ProductId))
                     await _salesDetailRepository.CreateSaleDetail(detail, db, transaction);
 
                 sale.Payments.ForEach(p => p.SaleId = sale.Id);

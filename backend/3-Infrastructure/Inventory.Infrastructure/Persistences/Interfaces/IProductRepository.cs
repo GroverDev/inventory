@@ -13,6 +13,7 @@ public interface IProductRepository
     public Task<(List<ProductResponse> Items, int TotalCount)> GetProductsStock(string productName, int page, int pageSize);
     public Task<ProductResponse> GetProduct(Guid Id);
     public Task<ProductStockPriceResponse> GetProductStockPrice(Guid Id);
+    public Task<(bool Found, string? PreviousPath)> SetImagePath(Guid id, string? path, int modifiedBy);
     public Task<int> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy);
     public Task ActivateTracking(Guid id, string modo);
 }

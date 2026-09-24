@@ -16,4 +16,6 @@ public interface IProductApplication
     public Task<Response<ProductStockPriceResponse>> GetProductStockPrice(string id);
     public Task<Response<int>> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy);
     public Task<Response<bool>> ActivateTracking(string id, string modo);
+    public Task<Response<string>> UploadImage(Guid id, Stream image, int modifiedBy, CancellationToken ct = default);
+    public Task<Response<bool>> DeleteImage(Guid id, int modifiedBy);
 }

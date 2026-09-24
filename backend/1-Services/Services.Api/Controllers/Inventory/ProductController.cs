@@ -145,6 +145,44 @@ public class ProductController(IProductApplication _productApplication, IRolesAp
         return await _branchSettingsApplication.SaveSettings(id, settings ?? [], datos.UserId);
     }
 
+    // Tope de la subida. Se aplica al request completo (multipart incluido), así
+    // que queda un poco por encima del archivo permitido.
+    private const long MaxImageBytes = 5 * 1024 * 1024;
+
+    // POST api/Product/guid/image  (multipart/form-data, campo "file")
+    // Devuelve la ruta relativa de la imagen; el cliente la une a la URL de medios.
+    [HttpPost("{id:guid}/image")]
+    [RequestSizeLimit(MaxImageBytes + 64 * 1024)]
+    public async Task<ActionResult<Response<string>>> UploadImage(Guid id, IFormFile? file, CancellationToken ct)
+    {
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<string>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
+
+        if (file is null || file.Length == 0)
+            return BadRequest(new Response<string>() { Message = new Msg() { MessageType = "error", Description = "Debe enviar una imagen." } });
+        if (file.Length > MaxImageBytes)
+            return new Response<string>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "La imagen no puede pesar más de 5 MB." } };
+
+        await using var stream = file.OpenReadStream();
+        return await _productApplication.UploadImage(id, stream, datos.UserId, ct);
+    }
+
+    // DELETE api/Product/guid/image
+    [HttpDelete("{id:guid}/image")]
+    public async Task<ActionResult<Response<bool>>> DeleteImage(Guid id)
+    {
+        var datos = TokenData.GetData(HttpContext);
+        if (!datos.ok) return Unauthorized("Acceso no Autorizado.");
+
+        if (!await _rolesApplication.HasFormPermission(datos.UserId, FormRoute, "update"))
+            return new Response<bool>() { ok = false, Message = new Msg() { MessageType = "warning", Description = "No tiene permiso para editar productos." } };
+
+        return await _productApplication.DeleteImage(id, datos.UserId);
+    }
+
     // DELETE api/Product/5
     [HttpDelete("{id}")]
     public async Task<ActionResult<Response<bool>>> Delete(string id)

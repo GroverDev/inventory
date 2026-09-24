@@ -2,7 +2,7 @@ import { useApi } from '@/modules/common/composables/api/useApi';
 import type { Product, ProductBulkUpdate } from '@/modules/inventory/models/product.model';
 import type { ResponseArray, ResponseObject, ResponsePaged } from '@/modules/common/models/response.model';
 
-const { get, put, post } = useApi();
+const { get, put, post, postForm, del } = useApi();
 
 const useProduct = () => {
   const createProduct = async (product: Product): Promise<ResponseObject<string>> => {
@@ -63,6 +63,17 @@ const useProduct = () => {
     return await post<ResponseObject<boolean>>(`Product/${productId}/tracking?modo=${modo}`, {});
   }
 
-  return { getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts, activateTracking }
+  /** Sube (o reemplaza) la imagen. Devuelve la ruta relativa que quedó guardada. */
+  const uploadImage = async (productId: string, file: Blob, fileName: string): Promise<ResponseObject<string>> => {
+    const form = new FormData();
+    form.append('file', file, fileName);
+    return await postForm<ResponseObject<string>>(`Product/${productId}/image`, form);
+  }
+
+  const deleteImage = async (productId: string): Promise<ResponseObject<boolean>> => {
+    return await del<ResponseObject<boolean>>(`Product/${productId}/image`);
+  }
+
+  return { uploadImage, deleteImage, getProductsByName, getProductById, updateProduct, createProduct, getProductsPos, validateProductSelection, getProductsStock, getAllProducts, bulkUpdateProducts, activateTracking }
 }
 export default useProduct;

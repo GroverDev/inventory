@@ -16,10 +16,55 @@
 
         <div class="modal-body">
 
+          <!--
+            Precio y stock de este momento: la grilla del POS los trae de cuando se
+            abrió la pantalla y pudieron cambiar (otra caja vendió, se corrigió el
+            precio). Arranca con los de la tarjeta y se reemplaza al llegar los
+            actuales.
+          -->
+          <div class="row g-2 mb-3">
+            <!-- Precio: recuadro neutro con el número en el color de la marca. -->
+            <div class="col-6">
+              <div class="border rounded-3 px-3 py-2 h-100">
+                <small class="text-muted d-block">Precio</small>
+                <span class="fw-bold fs-4 text-primary text-nowrap">Bs. {{ formatNum(precio) }}</span>
+              </div>
+            </div>
+            <!--
+              Stock: recuadro con fondo propio según la cantidad, y el número con
+              su unidad. Distinto en forma y color del precio para que no se lean
+              como un solo dato.
+            -->
+            <div class="col-6">
+              <div class="rounded-3 px-3 py-2 h-100" :class="stockClase">
+                <small class="d-block opacity-75">Stock disponible</small>
+                <span class="fw-bold fs-4 text-nowrap">{{ stock > 0 ? stock : 'Agotado' }}</span>
+                <small v-if="stock > 0 && producto?.UnitName" class="ms-1 opacity-75">{{ producto.UnitName }}</small>
+              </div>
+            </div>
+            <div v-if="actualizando" class="col-12">
+              <small class="text-muted">
+                <span class="spinner-border spinner-border-sm me-1"></span>Actualizando…
+              </small>
+            </div>
+          </div>
+
           <!-- Lo que cambia la venta va primero y no se puede pasar por alto. -->
           <div v-if="producto?.RequiresAuthorization" class="alert alert-warning py-2">
             <i class="fal fa-file-medical me-1"></i>
             <strong>Requiere respaldo para la venta</strong> — receta médica o autorización.
+          </div>
+
+          <!--
+            Foto entera del producto (800 px, sin recortar): confirmar el empaque
+            es para lo que se abre esta ficha. Flota a la derecha en pantallas
+            anchas para que el texto la rodee y no empuje la composición hacia
+            abajo; en móvil va arriba, centrada.
+          -->
+          <div v-if="imagenUrl && !imagenFallo" class="ficha-imagen text-center float-md-end ms-md-3 mb-3">
+            <img :src="imagenUrl" :alt="producto?.ProductName" class="rounded border" role="button"
+              title="Clic para ampliar" @click="ampliada = true" @error="imagenFallo = true" />
+            <small class="text-muted d-block"><i class="fal fa-search-plus me-1"></i>Clic para ampliar</small>
           </div>
 
           <div v-if="cargando" class="text-center py-4">
@@ -159,7 +204,7 @@
 
         <div class="modal-footer py-2">
           <button type="button" class="btn btn-sm btn-secondary" @click="cerrar">Cerrar</button>
-          <button v-if="producto && producto.CurrentStock > 0" type="button"
+          <button v-if="producto && stock > 0" type="button"
             class="btn btn-sm btn-primary" @click="$emit('agregar', producto.Id)">
             <i class="fal fa-plus me-1"></i>Agregar al carrito
           </button>
@@ -169,24 +214,57 @@
     </div>
   </div>
   <div v-if="visible" class="modal-backdrop fade show"></div>
+
+  <ImageLightbox
+    :open="ampliada"
+    :src="imagenUrl"
+    :placeholder="mediaUrl(producto?.ImagePath, true)"
+    :caption="producto?.ProductName"
+    @close="ampliada = false"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import usePharma from '@/modules/inventory/composables/usePharma';
+import useProduct from '@/modules/inventory/composables/useProduct';
 import { ProductPharma, type ProductEquivalent } from '@/modules/inventory/models/pharma.model';
 import type { Product } from '@/modules/inventory/models/product.model';
 import { renderMarkdown } from '@/utils/markdown';
+import { mediaUrl } from '@/utils/mediaUrl';
+import ImageLightbox from '@/modules/inventory/components/ImageLightbox.vue';
 
 const props = defineProps<{ visible: boolean; producto: Product | null }>();
-const emit = defineEmits<{ cerrar: []; agregar: [productId: string] }>();
+const emit = defineEmits<{
+  cerrar: [];
+  agregar: [productId: string];
+  /** Llegaron el precio y el stock actuales: quien tiene la lista puede ponerse al día. */
+  actualizado: [productId: string, datos: { SalePrice: number; CurrentStock: number }];
+}>();
 
 const { getByProduct, getLeaflet, getEquivalents } = usePharma();
+const { validateProductSelection } = useProduct();
 
 const ficha = ref(new ProductPharma());
 const equivalentes = ref<ProductEquivalent[]>([]);
 const prospecto = ref('');
 const cargando = ref(false);
+
+const actual = ref<{ SalePrice: number; CurrentStock: number } | null>(null);
+const actualizando = ref(false);
+const precio = computed(() => actual.value?.SalePrice ?? props.producto?.SalePrice ?? 0);
+const stock = computed(() => actual.value?.CurrentStock ?? props.producto?.CurrentStock ?? 0);
+const stockClase = computed(() =>
+  stock.value > 5 ? 'bg-success-subtle text-success-emphasis'
+  : stock.value > 0 ? 'bg-warning-subtle text-warning-emphasis'
+  : 'bg-danger-subtle text-danger-emphasis');
+
+// Si el archivo no está (404) se omite el bloque en vez de mostrar un ícono roto.
+const imagenFallo = ref(false);
+const ampliada = ref(false);
+const imagenUrl = computed(() => mediaUrl(props.producto?.ImagePath));
+watch(() => props.producto?.ImagePath, () => { imagenFallo.value = false; });
+watch(() => props.visible, (v) => { if (!v) ampliada.value = false; });
 
 const automaticas = computed(() => equivalentes.value.filter(e => !e.IsManual));
 const manuales = computed(() => equivalentes.value.filter(e => e.IsManual));
@@ -208,7 +286,7 @@ const etiquetaTipo = (t: string) =>
   t === 'generico' ? 'Genérico' : t === 'marca' ? 'Marca' : t === 'similar' ? 'Similar' : t;
 
 /** Negativo = la alternativa es más barata. */
-const diferencia = (e: ProductEquivalent) => e.SalePrice - (props.producto?.SalePrice ?? 0);
+const diferencia = (e: ProductEquivalent) => e.SalePrice - precio.value;
 
 /**
  * Todo se pide al abrir y no con la lista de productos: son tres consultas por
@@ -219,12 +297,23 @@ watch(() => [props.visible, props.producto?.Id], async ([visible]) => {
   if (!visible || !props.producto) return;
 
   cargando.value = true;
+  actual.value = null;
   ficha.value = new ProductPharma();
   equivalentes.value = [];
   prospecto.value = '';
 
   try {
     const id = props.producto.Id;
+    actualizando.value = true;
+    // Aparte de las otras: es lo que se ve primero y no debe esperar a la ficha.
+    validateProductSelection(id)
+      .then(r => { if (r.ok && r.Data && props.producto?.Id === id) {
+          actual.value = r.Data;
+          emit('actualizado', id, { SalePrice: r.Data.SalePrice, CurrentStock: r.Data.CurrentStock });
+        }
+      })
+      .finally(() => { actualizando.value = false; });
+
     const [f, e, p] = await Promise.all([getByProduct(id), getEquivalents(id), getLeaflet(id)]);
     if (f.ok && f.Data) ficha.value = Object.assign(new ProductPharma(), f.Data);
     if (e.ok) equivalentes.value = e.Data;
@@ -239,6 +328,9 @@ const cerrar = () => emit('cerrar');
 
 <style scoped>
 .modal { background: rgba(0, 0, 0, .5); }
+/* contain: se ve la foto entera, sin recortar los bordes del empaque. */
+.ficha-imagen img { max-width: 100%; max-height: 240px; object-fit: contain; background: var(--bs-body-bg); }
+@media (min-width: 768px) { .ficha-imagen { width: 220px; } }
 .prospecto :deep(h1),
 .prospecto :deep(h2),
 .prospecto :deep(h3) { font-size: .95rem; font-weight: 600; margin-top: .6rem; }

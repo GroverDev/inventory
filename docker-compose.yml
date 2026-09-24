@@ -71,6 +71,14 @@ services:
       # Límites de descuento para cajeros
       PosSettings__MaxCashierDiscountPct:    ${POS_MAX_CASHIER_DISCOUNT_PCT}
       PosSettings__MaxCashierDiscountAmount: ${POS_MAX_CASHIER_DISCOUNT_AMOUNT}
+      # Imágenes de productos. La API escribe en /app/media; Nginx (que corre en
+      # el host, no en un contenedor) las sirve desde MEDIA_DIR en el dominio de
+      # medios. Por eso es un bind mount y no un volumen con nombre.
+      Media__RootPath: /app/media
+    volumes:
+      # MEDIA_DIR debe ser escribible por el usuario del contenedor y legible por
+      # el de Nginx. Entra en el respaldo del servidor: NO va en el pg_dump.
+      - ${MEDIA_DIR:-/srv/punto_venta/media}:/app/media
     ports:
       - "127.0.0.1:6001:6001"   # Nginx en el VPS hace proxy desde api.ideanueva.com
     depends_on:

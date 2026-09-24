@@ -11,7 +11,8 @@ namespace Inventory.Application;
 public class ProductApplication(
     IProductRepository _productRepository,
     ILaboratoryRepository _laboratoryRepository,
-    IUnitsOfMeasurementRepository _unitsOfMeasurementRepository
+    IUnitsOfMeasurementRepository _unitsOfMeasurementRepository,
+    IImageStorage _imageStorage
     ) : IProductApplication
 {
     public async Task<Response<string>> CreateProduct(ProductRequest productRequest, int createdBy)
@@ -76,6 +77,11 @@ public class ProductApplication(
             if (rowsAffected <= 0)
                 throw new CustomException("No se pudo eliminar el producto");
             respuesta.Data = respuesta.ok = true;
+
+            // El producto ya salió de la base: sus archivos no le sirven a nadie.
+            // Va después del borrado y sin lanzar; si falla, el archivo queda
+            // huérfano pero el producto no revive por un problema de disco.
+            _imageStorage.DeleteProductFolderQuietly(productId);
         }
         catch (CustomException ex) { respuesta.SetMessage(MessageTypes.Warning, ex.Message); }
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
@@ -178,6 +184,58 @@ public class ProductApplication(
                     MessageTypes.Warning);
 
             await _productRepository.ActivateTracking(productId, modo);
+            respuesta.Data = respuesta.ok = true;
+        }
+        catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }
+        catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }
+        return respuesta;
+    }
+
+    /// <summary>
+    /// Reemplaza la imagen del producto. El orden importa: primero se guarda el
+    /// archivo nuevo, luego la base pasa a apuntarlo, y solo entonces se borra el
+    /// viejo. Si algo falla en el medio nunca queda un producto sin foto ni una
+    /// ruta que apunte a un archivo inexistente.
+    /// </summary>
+    public async Task<Response<string>> UploadImage(Guid id, Stream image, int modifiedBy, CancellationToken ct = default)
+    {
+        Response<string> respuesta = new() { Data = "" };
+        string? newPath = null;
+        try
+        {
+            newPath = await _imageStorage.SaveProductImageAsync(id, image, ct);
+
+            var (found, previous) = await _productRepository.SetImagePath(id, newPath, modifiedBy);
+            if (!found)
+                throw new CustomException("No existe el producto.", MessageTypes.Warning);
+
+            _imageStorage.DeleteQuietly(previous);
+            respuesta.Data = newPath;
+            respuesta.ok = true;
+        }
+        catch (CustomException ex)
+        {
+            _imageStorage.DeleteQuietly(newPath);
+            respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _imageStorage.DeleteQuietly(newPath);
+            respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex);
+        }
+        return respuesta;
+    }
+
+    public async Task<Response<bool>> DeleteImage(Guid id, int modifiedBy)
+    {
+        Response<bool> respuesta = new();
+        try
+        {
+            var (found, previous) = await _productRepository.SetImagePath(id, null, modifiedBy);
+            if (!found)
+                throw new CustomException("No existe el producto.", MessageTypes.Warning);
+
+            _imageStorage.DeleteQuietly(previous);
             respuesta.Data = respuesta.ok = true;
         }
         catch (CustomException ex) { respuesta.SetMessage(ex.messageType == MessageTypes.Nothing ? MessageTypes.Warning : ex.messageType, ex.Message); }
