@@ -25,10 +25,23 @@
         accept="image/jpeg,image/png,image/webp"
         @change="onFileChosen"
       />
+      <!-- Algunos celulares (Xiaomi/HyperOS) no ofrecen la cámara en el selector normal:
+           con `capture` se abre directo. En escritorio se ignora y abre el selector de archivos. -->
+      <input
+        ref="cameraInput"
+        type="file"
+        class="d-none"
+        accept="image/*"
+        capture="environment"
+        @change="onFileChosen"
+      />
 
       <div v-if="!readonly" class="d-flex flex-wrap gap-2 mb-2">
         <button type="button" class="btn btn-sm btn-outline-primary" :disabled="busy" @click="fileInput?.click()">
           <i class="fal fa-upload me-1"></i>{{ hasImage ? 'Cambiar imagen' : 'Subir imagen' }}
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary" :disabled="busy" @click="cameraInput?.click()">
+          <i class="fal fa-camera me-1"></i>Tomar foto
         </button>
         <button v-if="hasImage" type="button" class="btn btn-sm btn-outline-danger" :disabled="busy" @click="remove">
           <i class="fal fa-trash-alt me-1"></i>Quitar
@@ -74,6 +87,7 @@ const emit = defineEmits<{
 const { uploadImage, deleteImage } = useProduct();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const cameraInput = ref<HTMLInputElement | null>(null);
 const busy = ref(false);
 const error = ref('');
 const previewUrl = ref('');
