@@ -251,6 +251,21 @@ if (app.Environment.IsDevelopment())
     });
 }
 app.UseCors("MisCors");
+
+// Imágenes de productos, solo en desarrollo. En producción las sirve Nginx desde
+// el dominio de medios y la API no interviene: servirlas acá le quitaría a
+// Nginx la caché larga y pondría a .NET a leer archivos.
+if (app.Environment.IsDevelopment())
+{
+    var mediaRoot = Path.GetFullPath(builder.Configuration["Media:RootPath"] is { Length: > 0 } m ? m : "media");
+    Directory.CreateDirectory(mediaRoot);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(mediaRoot),
+        RequestPath = "/media"
+    });
+}
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 // Después de UseAuthentication (necesita los claims resueltos) y antes de

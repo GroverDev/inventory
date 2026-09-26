@@ -28,6 +28,11 @@ export class Product {
    * cambia con la acción de activar lotes.
    */
   public TrackingMode: TrackingMode = 'none';
+  /**
+   * Ruta relativa de la imagen, o null. La fija el servidor al subirla: no se
+   * envía en el guardado de la ficha. Para mostrarla, `mediaUrl()`.
+   */
+  public ImagePath: string | null = null;
 }
 
 /** Cómo identifica el sistema cada unidad del producto. */

@@ -12,6 +12,9 @@ public static class InjectionExtensionsInventoryInfraestructure
         // cambia en cada llamada. Como Singleton quedaría fijado al primer tenant
         // que entre y todos los demás leerían sus datos.
         services.AddScoped<InventoryDbContext>();
+        // Scoped por la misma razón: la carpeta de destino depende del tenant del request.
+        services.AddScoped<ITenantFolderResolver, TenantFolderResolver>();
+        services.AddScoped<IImageStorage, DiskImageStorage>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<ICustomersRepository, CustomersRepository>();
         services.AddScoped<ILaboratoryRepository, LaboratoryRepository>();

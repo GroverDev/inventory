@@ -77,6 +77,7 @@
                 <table class="table table-hover table-sm align-middle mb-0">
                   <thead class="">
                     <tr>
+                      <th class="product-thumb-col"></th>
                       <th>Código</th>
                       <th>Nombre del Producto</th>
                       <th class="d-none d-xl-table-cell">Laboratorio</th>
@@ -90,6 +91,7 @@
                   </thead>
                   <tbody>
                     <tr v-for="product in products" :key="product.Id">
+                      <td class="product-thumb-col"><ProductThumb :path="product.ImagePath" :size="36" :alt="product.ProductName" /></td>
                       <td><small class="text-muted">{{ product.ProductCode }}</small></td>
                       <td class="fw-semibold">
                         {{ product.ProductName }}
@@ -167,8 +169,9 @@
                           </span>
                         </div>
 
-                        <!-- Fila 2: nombre -->
-                        <div>
+                        <!-- Fila 2: imagen + nombre -->
+                        <div class="d-flex align-items-center gap-2">
+                          <ProductThumb :path="product.ImagePath" :size="48" :alt="product.ProductName" />
                           <p class="fw-semibold mb-0 lh-sm">
                             {{ product.ProductName }}
                             <span v-if="trackingLabel(product)" :class="trackingBadge(product)">
@@ -249,6 +252,7 @@ import utils from '@/utils/msg';
 import { exportToExcel, exportTemplateToExcel, readExcel } from '@/utils/excelHelper';
 import { useRouter } from "vue-router";
 import usePermissions from '@/modules/common/composables/usePermissions';
+import ProductThumb from '@/modules/inventory/components/ProductThumb.vue';
 
 const { getProductsByName, getAllProducts, bulkUpdateProducts } = useProduct();
 
@@ -389,4 +393,6 @@ const newProduct = () => {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.product-thumb-col { width: 52px; }
+</style>

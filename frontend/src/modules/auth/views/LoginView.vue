@@ -4,9 +4,9 @@
       <!-- Left Panel -->
       <div class="info-panel">
         <div class="info-content">
-          <h1 class="info-title">Ejecución de Manufactura<br>Simplificada</h1>
+          <h1 class="info-title">Tus ventas e inventario,<br>siempre bajo control</h1>
           <p class="info-text">
-            Inicia sesión para monitorear, administrar y optimizar tus operaciones.
+            Inicia sesión para vender, controlar tu stock y cuadrar tu caja en todas tus sucursales.
           </p>
         </div>
       </div>

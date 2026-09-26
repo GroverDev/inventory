@@ -804,7 +804,8 @@
       </div>
 
       <!-- ════ MODAL: Autorización Supervisor (Fase 3) ════ -->
-      <div v-if="showSupervisorModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.65)">
+      <!-- z-index por encima del modal de cobro, que aparece después en el DOM y lo taparía. -->
+      <div v-if="showSupervisorModal" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.65); z-index:1065">
         <div class="modal-dialog modal-dialog-centered modal-sm">
           <div class="modal-content">
 
@@ -819,6 +820,10 @@
               <p v-if="supervisorPurpose === 'close'" class="small text-muted mb-3">
                 {{ supervisorReason }}
                 Ingresa las credenciales de un supervisor para autorizar el cierre.
+              </p>
+              <p v-else-if="supervisorPurpose === 'stock'" class="small text-muted mb-3">
+                {{ supervisorReason }}
+                Ingresa las credenciales de un supervisor para vender de todos modos.
               </p>
               <p v-else class="small text-muted mb-3">
                 El descuento manual supera el límite permitido para cajeros
@@ -1209,6 +1214,15 @@
                   style="font-size:0.82rem; min-height:2.5em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical"
                 >{{ prod.ProductName }}</div>
 
+                <!--
+                  Miniatura debajo del nombre, centrada: primero se lee qué es y la
+                  foto lo confirma. Solo si la tiene; sin foto la tarjeta queda como
+                  siempre y no gasta espacio en un cuadro vacío.
+                -->
+                <div v-if="prod.ImagePath" class="text-center mb-2">
+                  <ProductThumb :path="prod.ImagePath" :size="75" :alt="prod.ProductName" />
+                </div>
+
                 <!-- Lab + acceso a la ficha -->
                 <div class="d-flex align-items-center justify-content-between mb-2">
                   <small class="text-muted text-truncate" style="font-size:0.72rem">
@@ -1219,9 +1233,10 @@
                     ("¿para qué sirve?", "¿hay algo más barato?") y no debería
                     obligar a salir del punto de venta.
                   -->
-                  <button type="button" class="btn btn-link p-0 text-muted"
-                    style="font-size:0.8rem; line-height:1"
+                  <button type="button" class="btn text-primary d-inline-flex align-items-center justify-content-center p-0"
+                    style="font-size:1.35rem; line-height:1; width:2rem; height:2rem"
                     title="Ver composición, prospecto y alternativas"
+                    aria-label="Ver información del producto"
                     @click.stop="abrirFicha(prod)">
                     <i class="fal fa-info-circle"></i>
                   </button>
@@ -1296,6 +1311,7 @@
     :producto="productoFicha"
     @cerrar="fichaVisible = false"
     @agregar="agregarDesdeFicha"
+    @actualizado="actualizarProducto"
   />
 
   <!-- ════ MODAL: Nuevo cliente ════ -->
@@ -1369,6 +1385,7 @@ import { SalePayment, type PaymentMethod } from '@/modules/inventory/models/paym
 import { Customer } from '@/modules/inventory/models/customer.model';
 import type { Product } from '@/modules/inventory/models/product.model';
 import ProductInfoModal from '@/modules/inventory/components/ProductInfoModal.vue';
+import ProductThumb from '@/modules/inventory/components/ProductThumb.vue';
 import { BOB_DENOMINATIONS, type CashSession, type CashCount, type CashCloseSettings } from '@/modules/inventory/models/cashSession.model';
 import { useApi } from '@/modules/common/composables/api/useApi';
 import type { ResponseObject } from '@/modules/common/models/response.model';
@@ -1399,7 +1416,7 @@ const maxCashierDiscountAmount = ref<number>(50);
 const maxDiscountPct           = ref<number | null>(null);
 const maxDiscountAmount        = ref<number | null>(null);
 
-const { saveSaleApi } = useSales();
+const { saveSaleApi, REQUIRES_SUPERVISOR_STOCK } = useSales();
 const { getCustomers, getDefaultCustomer, createCustomer } = useCustomer();
 const { getProductsByName } = useProduct();
 const { getPaymentMethods } = usePaymentMethod();
@@ -1505,7 +1522,7 @@ const pendingDiscount = ref<PendingDiscount | null>(null);
 const supervisorAuthToken = ref('');
 // El mismo modal autoriza un descuento o un cierre de caja. La autorización del
 // cierre vale para ese intento: no se reutiliza la de un descuento anterior.
-const supervisorPurpose = ref<'discount' | 'close'>('discount');
+const supervisorPurpose = ref<'discount' | 'close' | 'stock'>('discount');
 const supervisorReason = ref('');
 const closeSupervisorToken = ref('');
 
@@ -1768,6 +1785,19 @@ const saveNewCustomer = async () => {
 // ── Ficha del producto ─────────────────────────────────────
 const fichaVisible = ref(false);
 const productoFicha = ref<Product | null>(null);
+
+/**
+ * La ficha trae el precio y el stock de este momento. Si la tarjeta quedó con
+ * otros (cambió el precio, vendió otra caja), se corrige acá para que grilla y
+ * ficha no se contradigan. El carrito no se toca: al cobrar, el servidor
+ * revalida el precio vigente de cada línea.
+ */
+const actualizarProducto = (productId: string, datos: { SalePrice: number; CurrentStock: number }) => {
+  const prod = allProducts.value.find((p: Product) => p.Id === productId);
+  if (!prod) return;
+  prod.SalePrice = datos.SalePrice;
+  prod.CurrentStock = datos.CurrentStock;
+};
 
 const abrirFicha = (prod: Product) => {
   productoFicha.value = prod;
@@ -2246,6 +2276,13 @@ const verifySupervisor = async () => {
       await doCloseCash();
       return;
     }
+    if (supervisorPurpose.value === 'stock') {
+      // Con la firma se reintenta el cobro; el servidor la valida por su cuenta.
+      supervisorAuthToken.value = data.Data.Token;
+      showSupervisorModal.value = false;
+      await finalizeSale();
+      return;
+    }
     // Guardar token del supervisor para enviarlo al backend al grabar la venta
     supervisorAuthToken.value = data.Data.Token;
     // Autorizado — aplicar descuento pendiente
@@ -2355,6 +2392,15 @@ const finalizeSale = async () => {
       closePaymentModal();
       resetAll();
       showCompletedModal.value = true;
+    } else if (Message?.Id === REQUIRES_SUPERVISOR_STOCK) {
+      // Vender de más no es un error: falta la firma de un supervisor. La venta no
+      // se grabó, así que la pantalla queda como está y se reintenta con la firma.
+      supervisorPurpose.value = 'stock';
+      supervisorReason.value = Message.Description;
+      supervisorEmail.value = '';
+      supervisorPassword.value = '';
+      supervisorError.value = '';
+      showSupervisorModal.value = true;
     } else {
       utils.showMessageModal({
         Description: Message?.Description || 'No se pudo registrar la venta.',

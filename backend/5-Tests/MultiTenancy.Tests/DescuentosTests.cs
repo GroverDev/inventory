@@ -117,6 +117,16 @@ public class VentasConDescuentoTests(TenantDatabaseFixture db)
             RETURNING id", new { nombre, precio, t = Uno });
     }
 
+    /// <summary>
+    /// Existencia en una sucursal. Un cajero no vende sin stock sin la firma de un
+    /// supervisor, y acá lo que se prueba son los descuentos, no el stock.
+    /// </summary>
+    private void ConStock(Guid producto, Guid sucursal, int cantidad = 1000)
+    {
+        using var admin = db.AbrirComoAdmin();
+        admin.Execute("SELECT fn_mover_stock(@producto, @cantidad, 1, NULL, @sucursal)", new { producto, cantidad, sucursal });
+    }
+
     private SaleRequest Venta(Guid producto, decimal precio, int cantidad, string tipo = "", decimal valor = 0,
                               decimal importeQueMandaElCliente = 0)
     {
@@ -151,6 +161,7 @@ public class VentasConDescuentoTests(TenantDatabaseFixture db)
     public async Task El_importe_del_descuento_lo_calcula_el_servidor_no_el_cliente()
     {
         var producto = NuevoProducto("DS PRODUCTO IMPORTE", 100);
+        ConStock(producto, db.SucursalDe(Uno));
 
         // Declara 10 % (dentro del tope) pero pide descontar 90 de 100.
         var resp = await Ventas(db.SucursalDe(Uno)).CreateSale(
@@ -186,6 +197,8 @@ public class VentasConDescuentoTests(TenantDatabaseFixture db)
     {
         var sucursal = NuevaSucursal("DS Topes");
         var producto = NuevoProducto("DS PRODUCTO TOPES", 100);
+        ConStock(producto, sucursal);
+        ConStock(producto, db.SucursalDe(Uno));   // el último caso vende en la Principal
         await new DiscountLimitsRepository(db.ContextoApp(Uno, sucursal)).SaveLevels(
             [new DiscountLimitLevel { BranchId = sucursal, CashierMaxPct = 5, GeneralMaxPct = 20 }], 1);
 

@@ -8,6 +8,7 @@ import inventoryRouter from '@/modules/inventory/router/index';
 import userAccountRouter from '@/modules/user-account/router/index';
 import posRouter from '@/modules/inventory/router/pos_router';
 import reportsRouter from '@/modules/reports/router/index';
+import { useNavigationStore } from '@/stores/navigationStore';
 
 
 const router = createRouter({
@@ -49,5 +50,16 @@ const router = createRouter({
   ],
 })
 
+
+// Indicador de navegación: la carga perezosa de vistas puede tardar y sin esto el clic parece ignorado.
+router.beforeEach(() => {
+  useNavigationStore().start()
+})
+router.afterEach(() => {
+  useNavigationStore().done()
+})
+router.onError(() => {
+  useNavigationStore().done()
+})
 
 export default router

@@ -164,6 +164,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               c.category_name,
                               p.uom_id,
                               p.tracking_mode,
+                              p.image_path,
                               uom.unit_name
                          FROM products p
                               LEFT JOIN (
@@ -225,6 +226,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                        c.category_name,
                        p.uom_id,
                        p.tracking_mode,
+                       p.image_path,
                        uom.unit_name
                   FROM products p
                        LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
@@ -275,6 +277,7 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
                               c.category_name,
                               p.uom_id,
                               p.tracking_mode,
+                              p.image_path,
                               uom.unit_name
                          FROM products p
                               LEFT JOIN v_stock_actual sa ON sa.product_id = p.id
@@ -333,6 +336,35 @@ public class ProductRepository(InventoryDbContext _DbContext): IProductRepositor
         catch (Exception ex) { throw new Exception(ex.Message, ex); }
         finally { db.Close(); }
         return product;
+    }
+
+    /// <summary>
+    /// Fija (o limpia, con null) la ruta de la imagen y devuelve la anterior, para
+    /// que quien llama borre el archivo viejo solo después de que la base ya
+    /// apunta al nuevo. <c>Found</c> es false si el producto no existe o está dado de baja.
+    /// </summary>
+    public async Task<(bool Found, string? PreviousPath)> SetImagePath(Guid id, string? path, int modifiedBy)
+    {
+        using var db = _DbContext.CreateConnection;
+        try
+        {
+            db.Open();
+            // El SELECT interno lee el valor previo a este UPDATE, que es lo que
+            // se devuelve: RETURNING vería ya la fila nueva.
+            const string sql = @"
+                UPDATE products p
+                   SET image_path  = @Path,
+                       modified_by = @ModifiedBy,
+                       modified    = @Modified
+                  FROM (SELECT image_path FROM products WHERE id = @Id) o
+                 WHERE p.id = @Id
+                   AND p.state
+             RETURNING o.image_path;";
+            var rows = (await db.QueryAsync<string?>(sql, new { Id = id, Path = path, ModifiedBy = modifiedBy, Modified = DateTime.UtcNow })).ToList();
+            return rows.Count == 0 ? (false, null) : (true, rows[0]);
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<int>(ex); }
+        finally { db.Close(); }
     }
 
     public async Task<int> BulkUpdateProducts(List<ProductBulkUpdateRequest> items, int modifiedBy)

@@ -115,6 +115,12 @@ public class SalesApplication(
                 });
 
                 var sale = saleRequest.Adapt<Sale>();
+                // El mismo criterio de los descuentos: al cajero se le exige la
+                // autorización de un supervisor, y a quien tiene un rol
+                // administrativo no. Con la firma, el faltante se vende y el saldo
+                // queda negativo, como siempre. Lo aplica la base, dentro de la
+                // transacción de la venta (ver fn_asignar_fefo).
+                sale.EnforceStock = cajeroSinAutorizacion;
                 // SaleDate llega como texto y Mapster lo parsea a hora local del
                 // servidor. Npgsql después guarda los dígitos tal cual, así que sin
                 // normalizar la venta quedaría corrida tantas horas como el servidor
@@ -141,6 +147,14 @@ public class SalesApplication(
             {
                 throw new CustomException("El detalle de la venta no puede estar vacio.");
             }
+        }
+        catch (CustomException ex) when (StockSupervisorRequiredException.EnCadena(ex))
+        {
+            // Falta la firma de un supervisor. El Id le dice al punto de venta que
+            // no es un rechazo sino un pedido de autorización, para que la pida y
+            // reintente en vez de mostrar el error.
+            respuesta.SetMessage(MessageTypes.Warning, ex.Message);
+            respuesta.Message.Id = StockSupervisorRequiredException.MessageId;
         }
         catch (CustomException ex) { respuesta.SetMessage(MessageTypes.Warning, ex.Message); }
         catch (Exception ex) { respuesta.SetLogMessage(MessageTypes.Error, "Ocurrio un error, por favor comuniquese con Sistemas.", ex); }

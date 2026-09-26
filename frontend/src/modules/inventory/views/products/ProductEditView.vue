@@ -83,6 +83,22 @@
               <div class="panel-content pt-0">
                 <form novalidate>
 
+                  <!-- Imagen del producto -->
+                  <h6 class="text-muted border-bottom pb-2 mb-3">
+                    <i class="fal fa-image me-1"></i> Imagen
+                    <small class="fw-normal ms-1">(opcional)</small>
+                  </h6>
+                  <div class="mb-4">
+                    <ProductImageUploader
+                      :product-id="product.Id"
+                      :image-path="product.ImagePath"
+                      :readonly="!canSave || (isSaved && product.Id === '0')"
+                      @uploaded="path => product.ImagePath = path"
+                      @removed="product.ImagePath = null"
+                      @picked="onImagePicked"
+                    />
+                  </div>
+
                   <!-- Sección 1: Identificación -->
                   <h6 class="text-muted border-bottom pb-2 mb-3">
                     <i class="fal fa-id-badge me-1"></i> Identificación del Producto
@@ -786,6 +802,7 @@ import { UnitOfMeasurement } from '@/modules/inventory/models/unitOfMeasurement.
 import useProduct from '@/modules/inventory/composables/useProduct';
 import AlternativePickerModal from '@/modules/inventory/components/AlternativePickerModal.vue';
 import ProductBranchSettings from '@/modules/inventory/components/ProductBranchSettings.vue';
+import ProductImageUploader from '@/modules/inventory/components/ProductImageUploader.vue';
 import usePharma from '@/modules/inventory/composables/usePharma';
 import { todayIso } from '@/utils/dateHelper';
 import { renderMarkdown } from '@/utils/markdown';
@@ -801,7 +818,7 @@ import usePermissions from '@/modules/common/composables/usePermissions';
 const router = useRouter();
 
 // La búsqueda de alternativas se mudó al selector, que la resuelve por su cuenta.
-const { getProductById, updateProduct, createProduct, activateTracking } = useProduct();
+const { getProductById, updateProduct, createProduct, activateTracking, uploadImage } = useProduct();
 const { getLaboratories: fetchLaboratories } = useLaboratory();
 const { getCategories: fetchCategories } = useCategory();
 const { getUnitsOfMeasurement: fetchUnitsOfMeasurement } = useUnitOfMeasurement();
@@ -843,6 +860,12 @@ try {
 }
 
 const isSaved = ref(false);
+
+// Imagen elegida antes de que el producto exista: se sube justo después de crearlo.
+const pendingImage = ref<{ file: Blob; name: string } | null>(null);
+const onImagePicked = (file: Blob | null, name: string) => {
+  pendingImage.value = file ? { file, name } : null;
+};
 
 const { can } = usePermissions();
 // Permiso efectivo para grabar: crear si es nuevo, actualizar si es edición.
@@ -1140,6 +1163,15 @@ const saveProduct = async () => {
         if (ok) {
           isSaved.value = ok;
           product.value.Id = idProduct;
+
+          // El producto ya quedó creado: si la imagen falla, el error se ve pero
+          // no se pierde nada; se puede subir después desde la edición.
+          if (pendingImage.value) {
+            const img = await uploadImage(idProduct, pendingImage.value.file, pendingImage.value.name);
+            if (img.ok) product.value.ImagePath = img.Data;
+            pendingImage.value = null;
+          }
+
           await utils.showMessageModal({ Description: 'El producto se creó correctamente.', MessageType: 'success' });
         }
       } else {

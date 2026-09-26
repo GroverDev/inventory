@@ -1,11 +1,13 @@
 <template>
   <FullScreenLoaderComponent v-if="loadingStore.isLoading"></FullScreenLoaderComponent>
+  <NavigationProgress />
   <BaseDialog />
   <div v-if="layoutStore.mobileMenuOpen" class="mobile-backdrop" @click="layoutStore.closeMobileMenu()"></div>
   <RouterView />
 </template>
 <script setup lang="ts">
 import FullScreenLoaderComponent from '@/modules/common/components/FullScreenLoaderComponent.vue';
+import NavigationProgress from '@/modules/common/components/NavigationProgress.vue';
 import BaseDialog from '@/modules/common/components/BaseDialog.vue';
 import { useDialogStore } from '@/stores/dialogStore';
 import { useLoadingStore } from '@/modules/common/store/loadingStore';

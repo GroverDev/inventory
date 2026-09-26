@@ -6,8 +6,12 @@ const { get, post, del } = useApi();
 
 const useSales = () => {
 
+  /** Id con el que el servidor pide la firma de un supervisor por falta de stock. */
+  const REQUIRES_SUPERVISOR_STOCK = 'requires-supervisor-stock';
+
   const saveSaleApi = async (sale: Sale) => {
-    return await post<ResponseObject<string>>('Sales', sale);
+    // Ese aviso lo maneja el punto de venta pidiendo el supervisor, no un modal de error.
+    return await post<ResponseObject<string>>('Sales', sale, { silentMessageIds: [REQUIRES_SUPERVISOR_STOCK] });
   }
 
   /** branch: '' = sucursal activa, un id, o 'all' para el consolidado. */
@@ -31,6 +35,6 @@ const useSales = () => {
     return await del<ResponseObject<boolean>>(`Sales/${id}`);
   }
 
-  return { saveSaleApi, getSales, getSaleById, deleteSale }
+  return { REQUIRES_SUPERVISOR_STOCK, saveSaleApi, getSales, getSaleById, deleteSale }
 }
 export default useSales;
