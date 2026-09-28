@@ -225,7 +225,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (mounted) Navigator.pop(context);
   }
 
-  Future<void> _finalize(List<SalePayment> payments) async {
+  /// `Message.Id` con el que la API pide la firma de un supervisor por vender más
+  /// de lo que hay (ver `StockSupervisorRequiredException`). No es un error: la
+  /// venta no se grabó y se reintenta con la firma.
+  static const _requiresSupervisorStock = 'requires-supervisor-stock';
+
+  /// [supervisorAsked] evita el bucle: si con la firma el servidor la vuelve a
+  /// pedir, se muestra el mensaje en vez de preguntar otra vez.
+  Future<void> _finalize(List<SalePayment> payments, {bool supervisorAsked = false}) async {
     final cart = context.read<CartProvider>();
     setState(() => _saving = true);
     try {
@@ -268,6 +275,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       );
     } on ApiException catch (e) {
+      if (e.messageId == _requiresSupervisorStock && !supervisorAsked && mounted) {
+        final token = await supervisorAuthDialog(
+          context,
+          context.read<SaleService>(),
+          reason: '${e.message} Ingresa las credenciales de un supervisor para vender de todos modos.',
+        );
+        if (token == null || !mounted) return;
+        _supervisorToken = token;
+        // El `finally` de abajo apaga el aviso de "guardando" y este reintento lo
+        // vuelve a encender.
+        await _finalize(payments, supervisorAsked: true);
+        return;
+      }
       _snack(e.message);
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../core/network/api_client.dart';
 import '../core/network/api_response.dart';
 import '../models/product.dart';
@@ -45,14 +47,33 @@ class ProductService {
     return res.data!;
   }
 
-  /// POST api/Product
+  /// POST api/Product — devuelve el id del producto creado.
   Future<String> create(Product p) async {
     final res = await _api.post<String>(
       'api/Product',
       (data) => data?.toString() ?? '',
       body: p.toRequest(),
     );
-    return res.message.description;
+    return res.data ?? '';
+  }
+
+  /// POST api/Product/{id}/image — sube (o reemplaza) la imagen. Devuelve la
+  /// ruta relativa que quedó guardada. El servidor la reduce y valida formato
+  /// y tamaño (5 MB); un rechazo llega como [ApiException].
+  Future<String> uploadImage(String productId, String filePath, String fileName) async {
+    final res = await _api.postForm<String>(
+      'api/Product/$productId/image',
+      (data) => data?.toString() ?? '',
+      buildForm: () => FormData.fromMap({
+        'file': MultipartFile.fromFileSync(filePath, filename: fileName),
+      }),
+    );
+    return res.data ?? '';
+  }
+
+  /// DELETE api/Product/{id}/image
+  Future<void> deleteImage(String productId) async {
+    await _api.delete<bool>('api/Product/$productId/image', (data) => data == true);
   }
 
   /// PUT api/Product/{id}

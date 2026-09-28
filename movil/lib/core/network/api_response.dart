@@ -65,11 +65,16 @@ class ApiException implements Exception {
   /// idempotente que ya se había aplicado) de una falla real.
   final String messageType;
 
+  /// `Message.Id` de la respuesta. Algunos rechazos no son un error sino una
+  /// pregunta ("falta la firma de un supervisor") y el cliente los reconoce por
+  /// este id en vez de por el texto.
+  final String messageId;
+
   /// El `Data` de la respuesta rechazada, si trajo. Algunos rechazos dicen ahí
   /// qué falta para reintentar (el cierre de caja manda `CloseRequires`).
   final dynamic data;
 
-  ApiException(this.message, {this.messageType = 'error', this.data});
+  ApiException(this.message, {this.messageType = 'error', this.messageId = '0', this.data});
 
   bool get isInfo => messageType.toLowerCase() == 'info';
 
@@ -122,6 +127,7 @@ ApiException? apiFailure(bool ok, ApiMessage message, dynamic rawBody) {
         ? message.description
         : extractApiError(rawBody),
     messageType: message.messageType,
+    messageId: message.id,
     data: rawBody is Map ? rawBody['Data'] : null,
   );
 }

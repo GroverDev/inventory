@@ -9,6 +9,7 @@ import '../../providers/cart_provider.dart';
 import '../../services/product_service.dart';
 import '../../services/sale_service.dart';
 import '../cash/close_cash_screen.dart';
+import '../products/product_image.dart';
 import 'checkout_screen.dart';
 import 'held_sales.dart';
 import 'pos_dialogs.dart';
@@ -434,9 +435,19 @@ class _ProductTile extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(Icons.medication_outlined,
-                          size: 40,
-                          color: Theme.of(context).colorScheme.primary),
+                      // Con foto, la miniatura; sin ella, el ícono de siempre
+                      // (ProductThumb ya cae al marcador).
+                      if (product.imagePath?.isNotEmpty ?? false)
+                        LayoutBuilder(
+                          builder: (_, box) => ProductThumb(
+                            path: product.imagePath,
+                            size: box.maxHeight.clamp(40, 90).toDouble(),
+                          ),
+                        )
+                      else
+                        Icon(Icons.medication_outlined,
+                            size: 40,
+                            color: Theme.of(context).colorScheme.primary),
                       if (qty > 0)
                         Positioned(
                           right: 0,

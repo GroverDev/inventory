@@ -28,6 +28,10 @@ class Product {
   String categoryName;
   bool isActive;
 
+  /// Ruta relativa de la imagen, o null. La fija el servidor al subirla y no
+  /// viaja en el guardado de la ficha; para mostrarla, `mediaUrl()`.
+  String? imagePath;
+
   Product({
     this.id = '',
     this.productCode = '',
@@ -47,6 +51,7 @@ class Product {
     this.categoryId = '',
     this.categoryName = '',
     this.isActive = true,
+    this.imagePath,
   });
 
   factory Product.fromJson(Map<String, dynamic> j) => Product(
@@ -70,6 +75,7 @@ class Product {
         categoryId: (j['CategoryId'] ?? '').toString(),
         categoryName: j['CategoryName'] ?? '',
         isActive: j['IsActive'] ?? false,
+        imagePath: j['ImagePath'] as String?,
       );
 
   /// Payload para POST/PUT api/Product (espejo de ProductRequest).

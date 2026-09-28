@@ -12,6 +12,15 @@ class AppConfig {
     defaultValue: 'https://api.ideanueva.com/',
   );
 
+  /// Dominio público de las imágenes de producto. La API devuelve solo la ruta
+  /// relativa y cada cliente la une a esta base (en la web es `VITE_MEDIA_URL`),
+  /// así que cambiar de dominio o pasar a un CDN no toca los datos.
+  ///   flutter run --dart-define=MEDIA_URL=http://10.0.2.2:6001/media/
+  static const String mediaBaseUrl = String.fromEnvironment(
+    'MEDIA_URL',
+    defaultValue: 'https://media.ideanueva.com/',
+  );
+
   static const String appName = 'Vendi2 PdV';
 
   /// Origen que se envía al backend (campo Device / LoginFrom).

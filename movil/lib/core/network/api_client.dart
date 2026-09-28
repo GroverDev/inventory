@@ -76,6 +76,26 @@ class ApiClient {
   }) =>
       _send<T>(() => _dio.post(path, data: body), parse);
 
+  /// POST multipart (subida de archivos). El `Content-Type` JSON de las
+  /// opciones base rompería la subida: se pide multipart y Dio le agrega el
+  /// boundary.
+  ///
+  /// [buildForm] se llama en cada intento: un `FormData` solo se puede enviar
+  /// una vez, y si el token vence se reintenta la llamada entera.
+  Future<ApiResponse<T>> postForm<T>(
+    String path,
+    T Function(dynamic data) parse, {
+    required FormData Function() buildForm,
+  }) =>
+      _send<T>(
+        () => _dio.post(
+          path,
+          data: buildForm(),
+          options: Options(contentType: Headers.multipartFormDataContentType),
+        ),
+        parse,
+      );
+
   Future<ApiResponse<T>> put<T>(
     String path,
     T Function(dynamic data) parse, {

@@ -10,6 +10,7 @@ import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/product_service.dart';
 import 'product_form_screen.dart';
+import 'product_image.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -178,6 +179,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           return Card(
             child: ListTile(
               onTap: () => _openForm(p),
+              leading: ProductThumb(path: p.imagePath, size: 44),
               title: Text(p.productName,
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text(

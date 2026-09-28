@@ -36,6 +36,22 @@ void main() {
       expect(falla!.isInfo, isTrue);
     });
 
+    test('conserva el Id del mensaje: así se reconoce "falta la firma de un supervisor"', () {
+      // No es un error sino una pregunta: el cobro pide las credenciales de un
+      // supervisor y reintenta, en vez de mostrar un rechazo.
+      final falla = apiFailure(
+        false,
+        ApiMessage(
+          description: 'No hay stock suficiente.',
+          messageType: 'warning',
+          id: 'requires-supervisor-stock',
+        ),
+        null,
+      );
+
+      expect(falla!.messageId, 'requires-supervisor-stock');
+    });
+
     test('sin descripción se recurre al cuerpo crudo', () {
       // Es el caso de un 400 que no viene envuelto en Response<T>.
       final falla = apiFailure(false, ApiMessage(), {

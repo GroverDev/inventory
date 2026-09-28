@@ -10,6 +10,7 @@ import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/catalog_service.dart';
 import '../../services/product_service.dart';
+import 'product_image.dart';
 
 /// Crear, editar o consultar un producto. Si [product] es null, es alta.
 ///
@@ -49,6 +50,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   bool _saving = false;
   String? _catalogError;
 
+  /// Imagen elegida en un alta: se sube justo después de crear el producto.
+  ({String path, String name})? _pendingImage;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +64,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       categoryId: p?.categoryId ?? '',
       isActive: p?.isActive ?? true,
       availableInPos: p?.availableInPos ?? true,
+      imagePath: p?.imagePath,
     );
     _name = TextEditingController(text: p?.productName ?? '');
     _code = TextEditingController(text: p?.productCode ?? '');
@@ -128,13 +133,28 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     setState(() => _saving = true);
     try {
       final svc = context.read<ProductService>();
+      String? imageError;
       if (_isNew) {
-        await svc.create(_model);
+        final id = await svc.create(_model);
+        final img = _pendingImage;
+        if (img != null && id.isNotEmpty) {
+          // El producto ya quedó creado: si la imagen falla se avisa, pero no se
+          // pierde nada; se puede subir después desde la edición.
+          try {
+            await svc.uploadImage(id, img.path, img.name);
+          } on ApiException catch (e) {
+            imageError = e.message;
+          }
+        }
       } else {
         await svc.update(_model);
       }
       if (!mounted) return;
-      _snack(_isNew ? 'Producto creado.' : 'Producto actualizado.');
+      _snack(imageError != null
+          ? 'Producto creado, pero la imagen no se subió: $imageError'
+          : _isNew
+              ? 'Producto creado.'
+              : 'Producto actualizado.');
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       _snack(e.message);
@@ -224,6 +244,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       if (readOnly) const _ReadOnlyBanner(),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: ProductImageField(
+                          productId: _model.id,
+                          imagePath: _model.imagePath,
+                          readOnly: readOnly,
+                          onUploaded: (path) => setState(() => _model.imagePath = path),
+                          onRemoved: () => setState(() => _model.imagePath = null),
+                          onPicked: (path, name) =>
+                              _pendingImage = path == null ? null : (path: path, name: name),
+                        ),
+                      ),
                       _field(_name, 'Nombre del producto',
                           enabled: !readOnly,
                           validator: (v) => (v == null || v.trim().length < 5)
