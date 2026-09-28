@@ -17,6 +17,15 @@ class Product {
   String categoryName;
   bool isActive;
 
+  /// Ruta relativa de la imagen (la resuelve `mediaUrl()`), o null si no
+  /// tiene.
+  String? imagePath;
+
+  /// 'none' | 'lot' | 'serial'. Con 'serial' cada unidad se vende con su
+  /// número de serie: no se agrega tocando la tarjeta, hay que elegir cuál
+  /// sale (ver `serial_picker_sheet.dart`).
+  String trackingMode;
+
   Product({
     this.id = '',
     this.productCode = '',
@@ -34,6 +43,8 @@ class Product {
     this.categoryId = '',
     this.categoryName = '',
     this.isActive = true,
+    this.imagePath,
+    this.trackingMode = 'none',
   });
 
   factory Product.fromJson(Map<String, dynamic> j) => Product(
@@ -53,6 +64,8 @@ class Product {
         categoryId: (j['CategoryId'] ?? '').toString(),
         categoryName: j['CategoryName'] ?? '',
         isActive: j['IsActive'] ?? false,
+        imagePath: j['ImagePath']?.toString(),
+        trackingMode: j['TrackingMode'] ?? 'none',
       );
 
   /// Payload para POST/PUT api/Product (espejo de ProductRequest).
@@ -73,4 +86,8 @@ class Product {
       };
 
   bool get lowStock => currentStock <= minReorderQuantity;
+
+  /// Un producto serializado no se agrega tocando la tarjeta: hay que decir
+  /// qué unidad sale, porque la garantía queda atada a ese número.
+  bool get usesSerial => trackingMode == 'serial';
 }

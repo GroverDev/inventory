@@ -1,9 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Necesario para consumir la API. No se declara CAMERA: la app todavía no
-         lee códigos de barras, y un permiso sin uso hay que justificarlo ante
-         Play y asusta al usuario al instalar. Agregarlo recién cuando exista la
-         funcionalidad. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Para "Tomar foto" al cargar la imagen de un producto. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <!-- El tráfico en claro (HTTP) solo se habilita en la variante de debug,
          para poder apuntar al backend local desde el emulador. En producción la
          API es HTTPS y permitirlo sería una degradación de seguridad. -->

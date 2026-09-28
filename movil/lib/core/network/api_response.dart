@@ -65,7 +65,23 @@ class ApiException implements Exception {
   /// idempotente que ya se había aplicado) de una falla real.
   final String messageType;
 
-  ApiException(this.message, {this.messageType = 'error'});
+  /// Id corto que identifica el motivo del rechazo cuando no es un error
+  /// genérico — p.ej. `requires-supervisor-stock` en una venta con stock
+  /// insuficiente. `'0'` cuando el backend no mandó uno específico.
+  final String id;
+
+  /// El nodo `Data` crudo de la respuesta, cuando el rechazo trae
+  /// información propia además del mensaje (p.ej. `CloseRequires` en un
+  /// cierre de caja rechazado). Sin parsear: quien lo necesita sabe qué forma
+  /// esperar y lo lee directo del `Map`.
+  final dynamic data;
+
+  ApiException(
+    this.message, {
+    this.messageType = 'error',
+    this.id = '0',
+    this.data,
+  });
 
   bool get isInfo => messageType.toLowerCase() == 'info';
 
@@ -118,5 +134,7 @@ ApiException? apiFailure(bool ok, ApiMessage message, dynamic rawBody) {
         ? message.description
         : extractApiError(rawBody),
     messageType: message.messageType,
+    id: message.id,
+    data: rawBody is Map ? rawBody['Data'] : null,
   );
 }

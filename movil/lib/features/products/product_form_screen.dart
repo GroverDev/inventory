@@ -10,6 +10,7 @@ import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/catalog_service.dart';
 import '../../services/product_service.dart';
+import 'product_image_field.dart';
 
 /// Crear, editar o consultar un producto. Si [product] es null, es alta.
 ///
@@ -49,6 +50,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   bool _saving = false;
   String? _catalogError;
 
+  // ── Imagen ───────────────────────────────────────────────
+  String? _imagePath;
+  Uint8List? _pendingImageBytes;
+  String _pendingImageName = '';
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +67,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       isActive: p?.isActive ?? true,
       availableInPos: p?.availableInPos ?? true,
     );
+    _imagePath = p?.imagePath;
     _name = TextEditingController(text: p?.productName ?? '');
     _code = TextEditingController(text: p?.productCode ?? '');
     _description = TextEditingController(text: p?.description ?? '');
@@ -127,7 +134,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     try {
       final svc = context.read<ProductService>();
       if (_isNew) {
-        await svc.create(_model);
+        final newId = await svc.create(_model);
+        // La foto elegida antes de crear el producto recién ahora tiene a
+        // dónde subirse. El producto ya quedó creado; si la imagen falla, se
+        // avisa aparte pero no se deshace el alta.
+        if (_pendingImageBytes != null && newId.isNotEmpty) {
+          try {
+            await svc.uploadImage(newId, _pendingImageBytes!, _pendingImageName);
+          } on ApiException catch (e) {
+            if (!mounted) return;
+            _snack('Producto creado, pero la imagen no se pudo subir: ${e.message}');
+            Navigator.pop(context, true);
+            return;
+          }
+        }
       } else {
         await svc.update(_model);
       }
@@ -222,6 +242,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       if (readOnly) const _ReadOnlyBanner(),
+                      ProductImageField(
+                        productId: _model.id,
+                        imagePath: _imagePath,
+                        readOnly: readOnly,
+                        onUploaded: (path) => setState(() => _imagePath = path),
+                        onRemoved: () => setState(() => _imagePath = null),
+                        onPicked: (bytes, name) => setState(() {
+                          _pendingImageBytes = bytes;
+                          _pendingImageName = name;
+                        }),
+                      ),
                       _field(_name, 'Nombre del producto',
                           enabled: !readOnly,
                           validator: (v) => (v == null || v.trim().length < 5)

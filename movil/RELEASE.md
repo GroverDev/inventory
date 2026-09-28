@@ -147,9 +147,16 @@ Lo que hay que tener preparado para una publicación pública:
 
 ## Permisos declarados
 
-La app pide **solo `INTERNET`**. No declara `CAMERA`: se sacó porque todavía no
-hay lectura de códigos de barras y un permiso sin uso hay que justificarlo ante
-Play. Cuando se agregue el escáner, hay que volver a declararlo.
+`INTERNET` y, desde la versión con carga de fotos de producto (2026-09),
+`CAMERA` — para el botón "Tomar foto" al editar un producto (`ProductImageField`,
+`android/app/src/main/AndroidManifest.xml`). Es un permiso sensible: **la
+próxima subida en Play Console probablemente pida (re)completar el formulario
+de seguridad de los datos y declarar el uso de la cámara** en la ficha de la
+app — revisarlo antes de publicar, Play puede mostrar un aviso o pedir
+justificación la primera vez que ve el permiso nuevo.
+
+Si se agrega lectura de códigos de barras más adelante, ya no hace falta
+declarar nada nuevo por ese lado: el permiso de cámara ya está.
 
 El tráfico HTTP en claro (`usesCleartextTraffic`) quedó **solo en la variante de
 debug**, para poder apuntar al backend local desde el emulador. La build de

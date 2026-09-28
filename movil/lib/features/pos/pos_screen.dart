@@ -1,15 +1,32 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/network/api_response.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/ui/confirm_dialog.dart';
+import '../../core/utils/media_url.dart';
 import '../../models/cash_session.dart';
+import '../../models/catalog.dart';
+import '../../models/discount.dart';
+import '../../models/held_sale.dart';
 import '../../models/product.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
+import '../../services/catalog_service.dart';
+import '../../services/discount_service.dart';
+import '../../services/held_sale_service.dart';
 import '../../services/product_service.dart';
 import '../../services/sale_service.dart';
+import 'cart_undo.dart';
+import 'cash_close_screen.dart';
 import 'checkout_screen.dart';
+import 'held_sale_resume.dart';
+import 'held_sales_screen.dart';
 import 'pos_dialogs.dart';
+import 'product_info_sheet.dart';
+import 'serial_picker_sheet.dart';
 
 class PosScreen extends StatefulWidget {
   const PosScreen({super.key});
@@ -26,15 +43,24 @@ class _PosScreenState extends State<PosScreen> {
   String? _sessionError;
 
   List<Product> _allProducts = [];
-  bool _loadingProducts = true;
+  List<Discount> _discounts = [];
+  List<PaymentMethod> _paymentMethods = [];
+  PosSettings _settings =
+      PosSettings(maxCashierDiscountPct: 15, maxCashierDiscountAmount: 50);
+  Customer? _defaultCustomer;
+  bool _loadingCatalogs = true;
   String _search = '';
   String _category = '';
+
+  /// Cuántas ventas hay en espera en esta sucursal, para el badge y para
+  /// avisar antes de cerrar caja. Se recarga tras cada acción que las toque.
+  int _heldCount = 0;
 
   @override
   void initState() {
     super.initState();
     _checkSession();
-    _loadProducts();
+    _loadCatalogs();
   }
 
   @override
@@ -57,18 +83,48 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  Future<void> _loadProducts() async {
-    setState(() => _loadingProducts = true);
+  /// Todo lo que el POS necesita para operar, en un solo viaje — igual que la
+  /// web en `PointOfSaleView.vue` (`onMounted`). Cada pieza se resuelve por su
+  /// cuenta: si una falla (sin red, por ejemplo) las demás igual quedan
+  /// disponibles, en vez de dejar toda la pantalla sin catálogos por un solo
+  /// endpoint caído.
+  Future<void> _loadCatalogs() async {
+    setState(() => _loadingCatalogs = true);
+    final productService = context.read<ProductService>();
+    final discountService = context.read<DiscountService>();
+    final catalogService = context.read<CatalogService>();
+    final saleService = context.read<SaleService>();
+    final heldSaleService = context.read<HeldSaleService>();
+
+    final results = await Future.wait<Object?>([
+      productService.getAll().catchError((_) => <Product>[]),
+      discountService.active().catchError((_) => <Discount>[]),
+      catalogService.paymentMethods().catchError((_) => <PaymentMethod>[]),
+      saleService.posSettings().catchError((_) =>
+          PosSettings(maxCashierDiscountPct: 15, maxCashierDiscountAmount: 50)),
+      catalogService.getDefaultCustomer().catchError((_) => null),
+      heldSaleService.getHeld().catchError((_) => <HeldSale>[]),
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _allProducts =
+          (results[0] as List<Product>).where((p) => p.isActive).toList();
+      _discounts = results[1] as List<Discount>;
+      _paymentMethods = results[2] as List<PaymentMethod>;
+      _settings = results[3] as PosSettings;
+      _defaultCustomer = results[4] as Customer?;
+      _heldCount = (results[5] as List<HeldSale>).length;
+      _loadingCatalogs = false;
+    });
+  }
+
+  Future<void> _refreshHeldCount() async {
     try {
-      // Igual que la web: cargamos TODO el catálogo de una vez (GET api/Product)
-      // y filtramos en memoria. Solo productos activos; los sin stock se
-      // muestran pero no se pueden agregar.
-      final all = await context.read<ProductService>().getAll();
-      _allProducts = all.where((p) => p.isActive).toList();
-    } on ApiException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _loadingProducts = false);
+      final items = await context.read<HeldSaleService>().getHeld();
+      if (mounted) setState(() => _heldCount = items.length);
+    } on ApiException {
+      // Silencioso: el badge es informativo, no crítico para vender.
     }
   }
 
@@ -121,25 +177,112 @@ class _PosScreenState extends State<PosScreen> {
     _snack('Venta descartada.');
   }
 
-  Future<void> _closeSession() async {
-    if (_session == null) return;
+  /// Deja la venta en curso guardada en el servidor para retomarla después
+  /// (`api/HeldSale`), y limpia el carrito para atender a otro cliente.
+  Future<void> _holdCurrentSale() async {
     final cart = context.read<CartProvider>();
-    final result = await closeCashDialog(context, _session!);
-    if (result == null) return;
+    if (cart.isEmpty) return;
+    final note = await holdSaleDialog(context);
+    if (note == null) return;
     try {
-      await context.read<SaleService>().closeSession(
-            _session!.id,
-            declaredAmount: result.declaredAmount,
-            notes: result.notes,
+      final payload = buildHeldPayload(cart);
+      await context.read<HeldSaleService>().hold(
+            payload,
+            label: note,
+            customerId: cart.customer?.id,
+            itemsCount: cart.itemCount,
+            total: cart.total,
           );
-      if (mounted) setState(() => _session = null);
-      // Sin caja abierta la venta no se puede cobrar: el carrito no sobrevive
-      // al turno.
       cart.clear();
-      _snack('Caja cerrada correctamente.');
+      _snack('Venta puesta en espera.');
+      _refreshHeldCount();
     } on ApiException catch (e) {
       _snack(e.message);
     }
+  }
+
+  Future<void> _openHeldList() async {
+    final taken = await Navigator.push<HeldSale>(
+      context,
+      MaterialPageRoute(builder: (_) => const HeldSalesScreen()),
+    );
+    _refreshHeldCount();
+    if (taken != null && taken.payload != null) _resumeHeldSale(taken);
+  }
+
+  /// Resuelve el payload guardado contra el catálogo, precios y descuentos
+  /// vigentes, y lo vuelca en el carrito. Ver `held_sale_resume.dart`.
+  void _resumeHeldSale(HeldSale h) {
+    final cart = context.read<CartProvider>();
+    final isCashier = context.read<AuthProvider>().rolName == 'Cajero';
+    try {
+      final payload =
+          HeldPayload.fromJson(jsonDecode(h.payload!) as Map<String, dynamic>);
+      final resumed = resolveHeldSale(
+        payload,
+        catalog: _allProducts,
+        discounts: _discounts,
+        settings: _settings,
+        isCashier: isCashier,
+      );
+      applyResumedSale(cart, resumed);
+      if (resumed.warnings.isNotEmpty && mounted) {
+        showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Venta retomada'),
+            content: Text(resumed.warnings.join('\n\n')),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Entendido')),
+            ],
+          ),
+        );
+      }
+    } catch (_) {
+      _snack('No se pudo leer la venta en espera.');
+    }
+  }
+
+  Future<void> _closeSession() async {
+    if (_session == null) return;
+    final cart = context.read<CartProvider>();
+
+    // Una venta en espera no es un faltante: no se cobró. Pero conviene
+    // resolverla antes de cerrar para que no quede olvidada — igual que en
+    // la web (alerta en el modal de cerrar caja).
+    if (_heldCount > 0) {
+      final continuar = await confirm(
+        context,
+        title: 'Ventas en espera',
+        message: 'Hay $_heldCount venta(s) en espera en esta sucursal. '
+            'No son un faltante — no se cobraron — pero conviene resolverlas '
+            'antes de cerrar.',
+        confirmLabel: 'Cerrar de todas formas',
+        cancelLabel: 'Revisarlas',
+      );
+      if (!continuar) {
+        await _openHeldList();
+        return;
+      }
+    }
+
+    final closed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CashCloseScreen(
+          session: _session!,
+          paymentMethods: _paymentMethods,
+        ),
+      ),
+    );
+    if (closed != true) return;
+    if (mounted) setState(() => _session = null);
+    // Sin caja abierta la venta no se puede cobrar: el carrito no sobrevive
+    // al turno.
+    cart.clear();
+    _snack('Caja cerrada correctamente.');
   }
 
   Future<void> _addMovement() async {
@@ -205,14 +348,29 @@ class _PosScreenState extends State<PosScreen> {
       appBar: AppBar(
         title: const Text('Punto de venta'),
         actions: [
-          // Solo existe cuando hay algo que descartar: un botón permanentemente
-          // deshabilitado enseña a ignorar esa zona de la barra.
+          // Solo existen cuando hay algo que hacer con la venta en curso: un
+          // botón permanentemente deshabilitado enseña a ignorar esa zona.
+          if (!cart.isEmpty)
+            IconButton(
+              tooltip: 'Poner en espera',
+              icon: const Icon(Icons.pause_circle_outlined),
+              onPressed: _holdCurrentSale,
+            ),
           if (!cart.isEmpty)
             IconButton(
               tooltip: 'Descartar venta',
               icon: const Icon(Icons.remove_shopping_cart_outlined),
               onPressed: _discardSale,
             ),
+          IconButton(
+            tooltip: 'Ventas en espera',
+            icon: Badge(
+              label: Text('$_heldCount'),
+              isLabelVisible: _heldCount > 0,
+              child: const Icon(Icons.hourglass_top_outlined),
+            ),
+            onPressed: _openHeldList,
+          ),
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -271,7 +429,7 @@ class _PosScreenState extends State<PosScreen> {
           ),
         ),
       ),
-      body: _loadingProducts
+      body: _loadingCatalogs
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
@@ -316,8 +474,10 @@ class _PosScreenState extends State<PosScreen> {
                             mainAxisSpacing: 10,
                           ),
                           itemCount: _filtered.length,
-                          itemBuilder: (context, i) =>
-                              _ProductTile(product: _filtered[i]),
+                          itemBuilder: (context, i) => _ProductTile(
+                            product: _filtered[i],
+                            catalog: _allProducts,
+                          ),
                         ),
                 ),
               ],
@@ -332,12 +492,21 @@ class _PosScreenState extends State<PosScreen> {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            CheckoutScreen(cashSession: _session!),
+                        builder: (_) => CheckoutScreen(
+                          cashSession: _session!,
+                          paymentMethods: _paymentMethods,
+                          discounts: _discounts,
+                          settings: _settings,
+                          defaultCustomer: _defaultCustomer,
+                        ),
                       ),
                     );
-                    // Al volver, refrescamos la caja (la venta cambió totales).
-                    if (mounted) _checkSession();
+                    // Al volver, refrescamos la caja (la venta cambió totales)
+                    // y el conteo de ventas en espera (pudo poner una).
+                    if (mounted) {
+                      _checkSession();
+                      _refreshHeldCount();
+                    }
                   },
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -363,16 +532,42 @@ class _PosScreenState extends State<PosScreen> {
 }
 
 class _ProductTile extends StatelessWidget {
-  const _ProductTile({required this.product});
+  const _ProductTile({required this.product, required this.catalog});
   final Product product;
+
+  /// Catálogo completo ya cargado del POS: la ficha lo usa para resolver una
+  /// alternativa a un [Product] completo sin otro viaje al servidor.
+  final List<Product> catalog;
+
+  /// Agregar un producto pasa por acá siempre: uno serializado abre el
+  /// selector de series en vez de sumar de una (mismo criterio que
+  /// `addToCart` en `PointOfSaleView.vue`).
+  void _addToCart(BuildContext context, CartProvider cart) {
+    if (product.usesSerial) {
+      showSerialPicker(context, product);
+    } else {
+      cart.add(product);
+    }
+  }
+
+  void _decrement(BuildContext context, CartProvider cart) {
+    if (product.usesSerial) {
+      showSerialPicker(context, product);
+      return;
+    }
+    final wasLast = cart.quantityOf(product.id) <= 1;
+    cart.decrementByProduct(product.id);
+    if (wasLast) showUndoSnack(context, cart);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final qty = cart.quantityOf(product.id);
     final outOfStock = product.currentStock <= 0;
+    final hasImage = mediaUrl(product.imagePath, thumb: true).isNotEmpty;
     return InkWell(
-      onTap: outOfStock ? null : () => cart.add(product),
+      onTap: outOfStock ? null : () => _addToCart(context, cart),
       borderRadius: BorderRadius.circular(12),
       child: Card(
         margin: EdgeInsets.zero,
@@ -389,28 +584,59 @@ class _ProductTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Center(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(Icons.medication_outlined,
-                          size: 40,
-                          color: Theme.of(context).colorScheme.primary),
-                      if (qty > 0)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: CircleAvatar(
-                            radius: 11,
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            child: Text('$qty',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 11)),
-                          ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Center(
+                      child: hasImage
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                mediaUrl(product.imagePath, thumb: true),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                errorBuilder: (_, __, ___) => Icon(
+                                    Icons.medication_outlined,
+                                    size: 40,
+                                    color: Theme.of(context).colorScheme.primary),
+                              ),
+                            )
+                          : Icon(Icons.medication_outlined,
+                              size: 40, color: Theme.of(context).colorScheme.primary),
+                    ),
+                    if (qty > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: CircleAvatar(
+                          radius: 11,
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          child: Text('$qty',
+                              style: const TextStyle(color: Colors.white, fontSize: 11)),
                         ),
-                    ],
-                  ),
+                      ),
+                    // La ficha se abre desde acá: es la pregunta del mostrador
+                    // ("¿para qué sirve?", "¿hay algo más barato?") y no
+                    // debería obligar a salir del punto de venta.
+                    Positioned(
+                      left: -4,
+                      top: -4,
+                      child: IconButton(
+                        tooltip: 'Ver composición, prospecto y alternativas',
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(Icons.info_outline,
+                            size: 18, color: Theme.of(context).colorScheme.primary),
+                        onPressed: () => showProductInfoSheet(
+                          context,
+                          product: product,
+                          catalog: catalog,
+                          onAdd: (p) => p.usesSerial
+                              ? showSerialPicker(context, p)
+                              : cart.add(p),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Text(product.productName,
@@ -436,7 +662,7 @@ class _ProductTile extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
-                    onPressed: outOfStock ? null : () => cart.add(product),
+                    onPressed: outOfStock ? null : () => _addToCart(context, cart),
                     style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.zero,
                         visualDensity: VisualDensity.compact),
@@ -451,14 +677,14 @@ class _ProductTile extends StatelessWidget {
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.remove_circle_outline),
-                      onPressed: () => cart.decrementByProduct(product.id),
+                      onPressed: () => _decrement(context, cart),
                     ),
                     Text('$qty',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.add_circle_outline),
-                      onPressed: () => cart.add(product),
+                      onPressed: () => _addToCart(context, cart),
                     ),
                   ],
                 ),

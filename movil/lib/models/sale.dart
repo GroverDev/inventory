@@ -17,6 +17,12 @@ class SaleLine {
   String discountType;
   double discountValue;
 
+  /// Números de serie elegidos en el mostrador, para un producto
+  /// serializado. Vacío en cualquier otro producto. Cuando no está vacío, la
+  /// cantidad la determina su longitud: no hay +/- suelto sobre esta línea,
+  /// hay que reabrir el selector (ver `serial_picker_sheet.dart`).
+  List<String> serialNumbers;
+
   SaleLine({
     required this.product,
     this.quantity = 1,
@@ -24,6 +30,7 @@ class SaleLine {
     this.discountLabel = '',
     this.discountType = '',
     this.discountValue = 0,
+    this.serialNumbers = const [],
   });
 
   double get unitPrice => product.salePrice;
@@ -62,6 +69,7 @@ class SaleLine {
         'DiscountId': discountId,
         'DiscountType': discountType,
         'DiscountValue': discountValue,
+        'SerialNumbers': serialNumbers,
       };
 }
 

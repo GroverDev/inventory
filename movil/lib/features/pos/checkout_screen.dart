@@ -12,45 +12,63 @@ import '../../models/sale.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../services/catalog_service.dart';
-import '../../services/discount_service.dart';
+import '../../services/held_sale_service.dart';
 import '../../services/sale_service.dart';
+import 'cart_undo.dart';
+import 'held_sale_resume.dart';
+import 'payment_calc.dart';
 import 'pos_dialogs.dart';
 import 'sale_completed_screen.dart';
+import 'serial_picker_sheet.dart';
 
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key, required this.cashSession});
+  const CheckoutScreen({
+    super.key,
+    required this.cashSession,
+    required this.paymentMethods,
+    required this.discounts,
+    required this.settings,
+    this.defaultCustomer,
+  });
+
   final CashSession cashSession;
+
+  // Catálogos que el POS ya cargó al entrar (una sola vez para toda la
+  // sesión de venta, igual que `onMounted` en `PointOfSaleView.vue`): acá no
+  // se vuelven a pedir.
+  final List<PaymentMethod> paymentMethods;
+  final List<Discount> discounts;
+  final PosSettings settings;
+  final Customer? defaultCustomer;
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  List<PaymentMethod> _methods = [];
-  List<Discount> _discounts = [];
-  PosSettings _settings =
-      PosSettings(maxCashierDiscountPct: 15, maxCashierDiscountAmount: 50);
-
   // Cliente
   final _customerCtrl = TextEditingController();
   Timer? _customerDebounce;
   List<Customer> _customerResults = [];
-  Customer? _customer;
   bool _searchingCustomer = false;
 
   // Autorización de supervisor (descuentos sobre el límite)
   String _supervisorToken = '';
 
-  bool _loading = true;
   bool _saving = false;
-  String? _error;
 
   bool get _isCashier => context.read<AuthProvider>().rolName == 'Cajero';
 
   @override
   void initState() {
     super.initState();
-    _loadCatalogs();
+    // Precarga el cliente genérico del tenant para que cobrar nunca quede
+    // bloqueado por falta de cliente. Si ya había uno elegido (se viene de
+    // retomar una venta en espera, por ejemplo), no se pisa.
+    final cart = context.read<CartProvider>();
+    if (cart.customer == null && widget.defaultCustomer != null) {
+      cart.setCustomer(widget.defaultCustomer);
+    }
   }
 
   @override
@@ -58,37 +76,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _customerDebounce?.cancel();
     _customerCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadCatalogs() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final catalog = context.read<CatalogService>();
-      final sale = context.read<SaleService>();
-      final results = await Future.wait([
-        catalog.paymentMethods(),
-        context.read<DiscountService>().active(),
-        sale.posSettings(),
-        catalog.getDefaultCustomer(),
-      ]);
-      setState(() {
-        _methods = results[0] as List<PaymentMethod>;
-        _discounts = results[1] as List<Discount>;
-        _settings = results[2] as PosSettings;
-        // Precarga el cliente genérico del tenant para que cobrar nunca
-        // quede bloqueado por falta de cliente. Si por algún motivo no llegó
-        // (sin red, tenant sin sembrar), el picker queda en modo búsqueda,
-        // como era antes de esto.
-        _customer ??= results[3] as Customer?;
-      });
-    } on ApiException catch (e) {
-      setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   // ── Cliente ────────────────────────────────────────────────
@@ -116,11 +103,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _selectCustomer(Customer c) {
-    setState(() {
-      _customer = c;
-      _customerResults = [];
-      _customerCtrl.clear();
-    });
+    context.read<CartProvider>().setCustomer(c);
+    setState(() => _customerResults = []);
+    _customerCtrl.clear();
     FocusScope.of(context).unfocus();
   }
 
@@ -138,12 +123,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!_isCashier) return false;
     if (r.id.isNotEmpty) return false; // catálogo no requiere autorización
     if (r.type == 'Percentage') {
-      return r.value > _settings.maxCashierDiscountPct;
+      return r.value > widget.settings.maxCashierDiscountPct;
     }
     if (r.type == 'FixedAmount') {
-      return r.value > _settings.maxCashierDiscountAmount;
+      return r.value > widget.settings.maxCashierDiscountAmount;
     }
     return false;
+  }
+
+  /// Motivo por el que un descuento manual no se puede aplicar aunque lo
+  /// autorice un supervisor: supera el tope máximo de la sucursal. '' si no
+  /// aplica (los del catálogo no tienen tope aparte). Espejo de
+  /// `exceedsMaxDiscount` en `PointOfSaleView.vue`.
+  String _exceedsMaxDiscount(DiscountResult r) {
+    if (r.id.isNotEmpty) return '';
+    final maxPct = widget.settings.maxDiscountPct;
+    final maxAmt = widget.settings.maxDiscountAmount;
+    if (r.type == 'Percentage' && maxPct != null && r.value > maxPct) {
+      return 'El descuento supera el tope máximo del ${maxPct.toStringAsFixed(0)}% de esta sucursal.';
+    }
+    if (r.type == 'FixedAmount' && maxAmt != null && r.value > maxAmt) {
+      return 'El descuento supera el tope máximo de ${currency(maxAmt)} de esta sucursal.';
+    }
+    return '';
   }
 
   /// Pide autorización si corresponde. Devuelve true si se puede aplicar.
@@ -153,7 +155,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       context,
       context.read<SaleService>(),
       reason:
-          'El descuento manual supera el límite para cajeros (${_settings.maxCashierDiscountPct.toStringAsFixed(0)}% o ${currency(_settings.maxCashierDiscountAmount)}). Autoriza con un supervisor.',
+          'El descuento manual supera el límite para cajeros (${widget.settings.maxCashierDiscountPct.toStringAsFixed(0)}% o ${currency(widget.settings.maxCashierDiscountAmount)}). Autoriza con un supervisor.',
     );
     if (token == null) return false;
     _supervisorToken = token;
@@ -165,10 +167,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final result = await pickDiscount(
       context,
       baseAmount: line.lineSubtotal,
-      catalog: _discounts,
+      catalog: widget.discounts,
       title: 'Descuento por línea',
     );
     if (result == null) return;
+    final tope = _exceedsMaxDiscount(result);
+    if (tope.isNotEmpty) {
+      _snack(tope);
+      return;
+    }
     if (!await _authorizeIfNeeded(result)) return;
     cart.setLineDiscount(line,
         type: result.type,
@@ -182,10 +189,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final result = await pickDiscount(
       context,
       baseAmount: cart.headerBase,
-      catalog: _discounts,
+      catalog: widget.discounts,
       title: 'Descuento global',
     );
     if (result == null) return;
+    final tope = _exceedsMaxDiscount(result);
+    if (tope.isNotEmpty) {
+      _snack(tope);
+      return;
+    }
     if (!await _authorizeIfNeeded(result)) return;
     cart.setHeaderDiscount(
         type: result.type,
@@ -198,7 +210,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _charge() async {
     final cart = context.read<CartProvider>();
     if (cart.isEmpty) return;
-    if (_customer == null) {
+    if (cart.customer == null) {
       _snack('Selecciona un cliente antes de cobrar.');
       return;
     }
@@ -207,10 +219,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     await _finalize(payments);
   }
 
+  /// El medio de pago que da vuelto (el efectivo). Es el que se preselecciona
+  /// al abrir el cobro y tras cada pago mientras falte saldo: en un pago
+  /// mixto, lo típico es que el resto se cierre en efectivo.
+  PaymentMethod? _cashMethod() {
+    for (final m in widget.paymentMethods) {
+      if (m.requiresChanges) return m;
+    }
+    return null;
+  }
+
+  String _fmt(double v) => v.toStringAsFixed(2);
+
   Future<List<SalePayment>?> _paymentSheet(double total) {
     final lines = <SalePayment>[];
-    PaymentMethod? method = _methods.isNotEmpty ? _methods.first : null;
     final amountCtrl = TextEditingController();
+    // El efectivo es el cobro más común: se deja elegido para escribir
+    // directo, igual que `selectCashIfPending` en la web.
+    PaymentMethod? method =
+        _cashMethod() ?? (widget.paymentMethods.isNotEmpty ? widget.paymentMethods.first : null);
 
     return showModalBottomSheet<List<SalePayment>>(
       context: context,
@@ -223,26 +250,62 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: StatefulBuilder(
           builder: (context, setSheet) {
             final paid = lines.fold<double>(0, (s, l) => s + l.amountGiven);
-            final pending = (total - paid).clamp(0, double.infinity).toDouble();
-            final change = (paid - total).clamp(0, double.infinity).toDouble();
+            final totalChangeSoFar =
+                lines.fold<double>(0, (s, l) => s + l.amountReturned);
+            final pending = pendingAmount(total: total, paid: paid);
+            final typedAmount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+            final givesChange = method?.requiresChanges ?? false;
+            final calc = PaymentCalc(
+                pending: pending, typedAmount: typedAmount, givesChange: givesChange);
+            final exceedsNoChange = method != null && calc.exceedsNoChange;
+            final canAdd = method != null && calc.canAdd;
 
-            void addLine() {
-              final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
-              if (method == null || amount <= 0) return;
-              final returned = method!.requiresChanges
-                  ? (paid + amount - total).clamp(0, double.infinity).toDouble()
-                  : 0.0;
+            void selectMethod(PaymentMethod m) {
               setSheet(() {
-                lines.add(SalePayment(
-                  paymentMethodId: method!.id,
-                  paymentMethodName: method!.name,
-                  iconCss: method!.iconCss,
-                  amountGiven: amount,
-                  amountReturned: returned,
-                ));
-                amountCtrl.clear();
+                method = m;
+                // Efectivo: vacío, para escribir lo recibido y ver el vuelto.
+                // Tarjeta o QR: el saldo, porque se cobra exacto.
+                amountCtrl.text = m.requiresChanges ? '' : _fmt(pending);
               });
             }
+
+            void setAmount(double v) => setSheet(() => amountCtrl.text = _fmt(v));
+
+            void addLine() {
+              if (!canAdd) return;
+              final m = method!;
+              setSheet(() {
+                lines.add(SalePayment(
+                  paymentMethodId: m.id,
+                  paymentMethodName: m.name,
+                  iconCss: m.iconCss,
+                  amountGiven: typedAmount,
+                  amountReturned: calc.liveChange,
+                ));
+                amountCtrl.clear();
+                // Pago mixto: si queda saldo (pagó una parte con tarjeta), el
+                // resto normalmente va en efectivo.
+                final newPaid = lines.fold<double>(0, (s, l) => s + l.amountGiven);
+                final newPending = pendingAmount(total: total, paid: newPaid);
+                final cash = _cashMethod();
+                if (cash != null && newPending > 0) {
+                  method = cash;
+                } else {
+                  method = null;
+                }
+              });
+            }
+
+            final quicks = givesChange ? quickAmounts(pending) : const <double>[];
+            final panel = payPanel(
+              exceedsNoChange: exceedsNoChange,
+              pending: pending,
+              typedAmount: typedAmount,
+              liveShortfall: calc.liveShortfall,
+              liveChange: calc.liveChange,
+              totalChangeSoFar: totalChangeSoFar,
+              methodName: method?.name ?? '',
+            );
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -274,68 +337,118 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: method?.id,
-                    isExpanded: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Método de pago'),
-                    items: _methods
-                        .map((m) =>
-                            DropdownMenuItem(value: m.id, child: Text(m.name)))
-                        .toList(),
-                    onChanged: (v) => setSheet(
-                        () => method = _methods.firstWhere((m) => m.id == v)),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+                  const Text('Método de pago',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: amountCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          decoration: InputDecoration(
-                            labelText: 'Monto (Bs.)',
-                            hintText: pending > 0
-                                ? 'Pendiente: ${currency(pending)}'
-                                : null,
-                          ),
-                          onSubmitted: (_) => addLine(),
+                      for (final m in widget.paymentMethods)
+                        ChoiceChip(
+                          label: Text(m.name),
+                          selected: method?.id == m.id,
+                          onSelected: (_) => selectMethod(m),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonal(
-                        onPressed: addLine,
-                        child: const Text('Agregar'),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  for (var i = 0; i < lines.length; i++)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(lines[i].paymentMethodName),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(currency(lines[i].amountGiven)),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => setSheet(() => lines.removeAt(i)),
-                          ),
-                        ],
+                  if (method != null) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountCtrl,
+                      autofocus: true,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setSheet(() {}),
+                      onSubmitted: (_) {
+                        addLine();
+                        final newPaid =
+                            lines.fold<double>(0, (s, l) => s + l.amountGiven);
+                        if (newPaid + 0.0001 >= total) {
+                          Navigator.pop(sheetContext, lines);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: givesChange ? 'Efectivo recibido' : 'Monto a cobrar',
+                        hintText: givesChange ? 'Monto recibido' : 'Monto',
+                        errorText: exceedsNoChange
+                            ? 'No puede superar ${currency(pending)}'
+                            : null,
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.add_circle),
+                          onPressed: canAdd ? addLine : null,
+                        ),
                       ),
                     ),
-                  const Divider(),
-                  _kv('Total pagado', currency(paid)),
-                  if (pending > 0)
-                    _kv('Pendiente', currency(pending), color: Colors.red),
-                  if (change > 0)
-                    _kv('Vuelto', currency(change), color: Colors.green),
+                    if (givesChange) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton(
+                              onPressed: () => setAmount(pending),
+                              child: const Text('Exacto')),
+                          for (final v in quicks)
+                            OutlinedButton(
+                                onPressed: () => setAmount(v),
+                                child: Text(currency(v))),
+                        ],
+                      ),
+                    ],
+                  ],
                   const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: (panel.color ?? Theme.of(context).colorScheme.outline)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(panel.label,
+                            style: TextStyle(fontSize: 12, color: panel.color)),
+                        if (panel.amount != null)
+                          Text(currency(panel.amount!),
+                              style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: panel.color))
+                        else
+                          Text(panel.note,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w600, color: panel.color)),
+                      ],
+                    ),
+                  ),
+                  if (lines.isNotEmpty) ...[
+                    const Text('Pagos registrados',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    for (var i = 0; i < lines.length; i++)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(lines[i].paymentMethodName),
+                        subtitle: lines[i].amountReturned > 0
+                            ? Text('Vuelto ${currency(lines[i].amountReturned)}')
+                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(currency(lines[i].amountGiven)),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () => setSheet(() => lines.removeAt(i)),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 8),
                   FilledButton.icon(
-                    onPressed: paid + 0.0001 < total
+                    onPressed: pending > 0.0001
                         ? null
                         : () => Navigator.pop(sheetContext, lines),
                     icon: const Icon(Icons.check),
@@ -361,12 +474,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (mounted) Navigator.pop(context);
   }
 
+  /// Deja la venta en espera y vuelve al POS.
+  Future<void> _holdSale() async {
+    final cart = context.read<CartProvider>();
+    if (cart.isEmpty) return;
+    final note = await holdSaleDialog(context);
+    if (note == null) return;
+    try {
+      final payload = buildHeldPayload(cart);
+      await context.read<HeldSaleService>().hold(
+            payload,
+            label: note,
+            customerId: cart.customer?.id,
+            itemsCount: cart.itemCount,
+            total: cart.total,
+          );
+      cart.clear();
+      if (mounted) Navigator.pop(context);
+    } on ApiException catch (e) {
+      _snack(e.message);
+    }
+  }
+
   Future<void> _finalize(List<SalePayment> payments) async {
     final cart = context.read<CartProvider>();
     setState(() => _saving = true);
     try {
       final req = SaleRequest(
-        customerId: _customer!.id,
+        customerId: cart.customer!.id,
         cashSessionId: widget.cashSession.id,
         detail: cart.lines.toList(),
         payments: payments,
@@ -377,14 +512,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         supervisorAuthToken: _supervisorToken,
       );
 
-      // Capturar datos para el recibo antes de limpiar.
+      // Capturar datos para el recibo antes de limpiar. El vuelto sale solo
+      // de los pagos que lo admiten (efectivo): sumar todo lo pagado menos el
+      // total mostraría vuelto aunque se hubiera cobrado de más con tarjeta,
+      // que no se devuelve.
       final total = cart.total;
-      final paid = payments.fold<double>(0, (s, p) => s + p.amountGiven);
-      final change = (paid - total).clamp(0, double.infinity).toDouble();
+      final change = payments.fold<double>(0, (s, p) => s + p.amountReturned);
       final detail = cart.lines.toList();
       final lineDiscounts = cart.totalLineDiscounts;
       final headerDiscount = cart.headerDiscountAmount;
-      final customerName = _customer!.fullName;
+      final customerName = cart.customer!.fullName;
 
       await context.read<SaleService>().create(req);
       if (!mounted) return;
@@ -404,7 +541,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       );
     } on ApiException catch (e) {
-      _snack(e.message);
+      // Vender de más no es un error: falta la firma de un supervisor. La
+      // venta no se grabó, así que se reintenta con el mismo carrito y los
+      // mismos pagos en cuanto se obtiene el token.
+      if (e.id == kRequiresSupervisorStock) {
+        final token = await supervisorAuthDialog(
+          context,
+          context.read<SaleService>(),
+          reason: e.message,
+        );
+        if (token != null) {
+          _supervisorToken = token;
+          if (mounted) await _finalize(payments);
+          return;
+        }
+      } else {
+        _snack(e.message);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -424,6 +577,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       appBar: AppBar(
         title: const Text('Cobrar'),
         actions: [
+          if (!cart.isEmpty)
+            IconButton(
+              tooltip: 'Poner en espera',
+              icon: const Icon(Icons.pause_circle_outlined),
+              onPressed: _holdSale,
+            ),
           // Es acá donde se suele decidir que la venta no va, así que el mismo
           // acceso que en el POS.
           if (!cart.isEmpty)
@@ -434,26 +593,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
         ],
       ),
-      // El carrito se muestra de inmediato; los catálogos (métodos de pago,
-      // descuentos, settings) cargan en segundo plano sin bloquear la pantalla.
       body: Column(
         children: [
-          if (_error != null)
-            Material(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: ListTile(
-                dense: true,
-                leading: const Icon(Icons.warning_amber, color: Colors.red),
-                title: Text(_error!),
-                trailing: TextButton(
-                    onPressed: _loadCatalogs, child: const Text('Reintentar')),
-              ),
-            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(bottom: 16),
               children: [
-                _customerSection(),
+                _customerSection(cart),
                 const Divider(height: 1),
                 ...cart.lines.map(_lineTile),
                 if (cart.lines.isNotEmpty) ...[
@@ -470,23 +616,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   // ── Secciones UI ───────────────────────────────────────────
-  Widget _customerSection() {
+  Widget _customerSection(CartProvider cart) {
+    final customer = cart.customer;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_customer != null)
+          if (customer != null)
             Card(
               child: ListTile(
                 leading: const Icon(Icons.person),
-                title: Text(_customer!.fullName),
-                subtitle: _customer!.documentNumber.isEmpty
+                title: Text(customer.fullName),
+                subtitle: customer.documentNumber.isEmpty
                     ? null
-                    : Text(_customer!.documentNumber),
+                    : Text(customer.documentNumber),
                 trailing: IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => setState(() => _customer = null),
+                  onPressed: () => cart.setCustomer(null),
                 ),
               ),
             )
@@ -530,6 +677,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  /// Una línea serializada no se ajusta con +/-: hay que decir qué unidad
+  /// entra o sale, así que reabre el selector en vez de sumar o restar.
+  /// Espejo de `esLineaSerializada`/`reabrirSelector` en
+  /// `PointOfSaleView.vue`.
+  void _adjustLineQty(SaleLine line, {required bool increase}) {
+    final cart = context.read<CartProvider>();
+    if (line.serialNumbers.isNotEmpty) {
+      showSerialPicker(context, line.product);
+      return;
+    }
+    if (increase) {
+      cart.increment(line);
+      return;
+    }
+    final wasLast = line.quantity <= 1;
+    cart.decrement(line);
+    if (wasLast) showUndoSnack(context, cart);
+  }
+
   Widget _lineTile(SaleLine line) {
     final cart = context.read<CartProvider>();
     return Dismissible(
@@ -541,7 +707,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => cart.remove(line),
+      onDismissed: (_) {
+        cart.remove(line);
+        showUndoSnack(context, cart);
+      },
       child: ListTile(
         title: Text(line.product.productName,
             maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -584,14 +753,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.remove_circle_outline),
-              onPressed: () => cart.decrement(line),
+              onPressed: () => _adjustLineQty(line, increase: false),
             ),
             Text('${line.quantity}',
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.add_circle_outline),
-              onPressed: () => cart.increment(line),
+              onPressed: () => _adjustLineQty(line, increase: true),
             ),
             SizedBox(
               width: 70,
@@ -664,18 +833,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: (_saving || _loading || cart.isEmpty) ? null : _charge,
-              icon: (_saving || _loading)
+              onPressed: (_saving || cart.isEmpty) ? null : _charge,
+              icon: _saving
                   ? const SizedBox(
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.point_of_sale),
-              label: Text(_loading
-                  ? 'Cargando opciones…'
-                  : _customer == null
-                      ? 'Selecciona un cliente'
-                      : 'Cobrar ${currency(cart.total)}'),
+              label: Text(cart.customer == null
+                  ? 'Selecciona un cliente'
+                  : 'Cobrar ${currency(cart.total)}'),
             ),
           ],
         ),

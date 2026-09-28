@@ -39,13 +39,24 @@ class PaymentMethod {
   /// exige tener una sesion de caja abierta.
   final bool affectsCash;
 
+  /// Si se arquea al cerrar caja aunque no entre al cajón (p.ej. tarjeta,
+  /// contra el cierre de lote del datáfono). El efectivo se arquea siempre
+  /// por `affectsCash`; este es el resto de los medios que la empresa
+  /// decidió contar también.
+  final bool requiresCount;
+
   PaymentMethod({
     required this.id,
     required this.name,
     this.iconCss = '',
     this.requiresChanges = false,
     this.affectsCash = false,
+    this.requiresCount = false,
   });
+
+  /// Si este medio entra al arqueo del cierre de caja: el efectivo siempre,
+  /// los demás solo si se configuró.
+  bool get isCounted => affectsCash || requiresCount;
 
   factory PaymentMethod.fromJson(Map<String, dynamic> j) => PaymentMethod(
         id: (j['Id'] ?? '').toString(),
@@ -53,6 +64,7 @@ class PaymentMethod {
         iconCss: j['IconCss'] ?? '',
         requiresChanges: j['RequiresChanges'] ?? false,
         affectsCash: j['AffectsCash'] ?? false,
+        requiresCount: j['RequiresCount'] ?? false,
       );
 }
 

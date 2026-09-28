@@ -5,6 +5,12 @@ import '../models/login_models.dart';
 import '../models/sale.dart';
 import '../models/sale_history.dart';
 
+/// Id con el que el servidor pide la firma de un supervisor por falta de
+/// stock, en vez de rechazar la venta (espejo de
+/// `StockSupervisorRequiredException.MessageId` en el backend y de
+/// `REQUIRES_SUPERVISOR_STOCK` en `useSales.ts`).
+const String kRequiresSupervisorStock = 'requires-supervisor-stock';
+
 class SaleService {
   SaleService(this._api);
   final ApiClient _api;
@@ -124,17 +130,52 @@ class SaleService {
     );
   }
 
-  /// PUT api/CashSession/{id}/close — arqueo de caja.
-  Future<void> closeSession(
+  /// PUT api/CashSession/{id}/close — arqueo de caja, medio por medio y a
+  /// ciegas (se declara sin ver lo esperado; el servidor compara y devuelve
+  /// la diferencia). [counts] va por id de método de pago.
+  ///
+  /// Lanza [ApiException] si el cierre se rechaza; su `data` trae el
+  /// `CloseRequires` ('note' | 'supervisor') cuando el rechazo es uno de esos
+  /// dos casos previstos, no un error real (ver `CashSessionApplication.Rechazo`).
+  Future<CashSession> closeSession(
     String sessionId, {
-    required double declaredAmount,
+    required Map<String, double> counts,
+    List<DenominationCount> denominations = const [],
     String notes = '',
+    String? supervisorAuthToken,
   }) async {
-    await _api.put<String>(
+    final res = await _api.put<CashSession?>(
       'api/CashSession/$sessionId/close',
-      (data) => data?.toString() ?? '',
-      body: {'DeclaredAmount': declaredAmount, 'Notes': notes},
+      (data) =>
+          data == null ? null : CashSession.fromJson(data as Map<String, dynamic>),
+      body: {
+        // Solo lo usan clientes anteriores al arqueo por medio; con Counts
+        // presente el servidor lo ignora.
+        'DeclaredAmount': 0,
+        'Notes': notes,
+        'Counts': counts.entries
+            .map((e) => {'PaymentMethodId': e.key, 'Declared': e.value})
+            .toList(),
+        'Denominations': denominations.map((d) => d.toJson()).toList(),
+        if (supervisorAuthToken != null && supervisorAuthToken.isNotEmpty)
+          'SupervisorAuthToken': supervisorAuthToken,
+      },
     );
+    if (res.data == null) throw ApiException('No se pudo cerrar la caja.');
+    return res.data!;
+  }
+
+  /// GET api/Settings/cash-close — configuración vigente del cierre (puede
+  /// haber cambiado desde la última vez: se pide cada vez que se abre la
+  /// pantalla de cierre, igual que la web).
+  Future<CashCloseSettings> closeSettings() async {
+    final res = await _api.get<CashCloseSettings?>(
+      'api/Settings/cash-close',
+      (data) => data == null
+          ? null
+          : CashCloseSettings.fromJson(data as Map<String, dynamic>),
+    );
+    return res.data ?? const CashCloseSettings();
   }
 
   /// POST api/CashSession/{id}/movements — gasto / retiro / ingreso.

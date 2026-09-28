@@ -19,9 +19,12 @@ import 'services/access_menu_service.dart';
 import 'services/auth_service.dart';
 import 'services/catalog_service.dart';
 import 'services/discount_service.dart';
+import 'services/held_sale_service.dart';
+import 'services/pharma_service.dart';
 import 'services/product_service.dart';
 import 'services/purchase_service.dart';
 import 'services/sale_service.dart';
+import 'services/stock_movement_service.dart';
 
 void main() {
   // Poppins viaja dentro del `.aab` (carpeta `google_fonts/`, declarada como
@@ -64,6 +67,9 @@ class InventoryApp extends StatelessWidget {
         Provider(create: (_) => SaleService(api)),
         Provider(create: (_) => DiscountService(api)),
         Provider(create: (_) => PurchaseService(api)),
+        Provider(create: (_) => HeldSaleService(api)),
+        Provider(create: (_) => PharmaService(api)),
+        Provider(create: (_) => StockMovementService(api)),
         ChangeNotifierProvider(
           create: (_) =>
               AuthProvider(AuthService(api), storage, api, AccessMenuService(api))
