@@ -4,7 +4,8 @@
     <!-- For now, assuming external input sets layoutStore.filterText -->
     
     <div class="app-logo flex-shrink-0">
-         <img src="/assets/img/logo.png" alt="logo">
+         <img src="/assets/img/logo.png" alt="logo" role="button" tabindex="0" title="Ir al inicio"
+           style="cursor: pointer;" @click="irAlInicio" @keyup.enter="irAlInicio">
 
       <!-- Logo Backdrop Animation-x -->
       <div class="logo-backdrop">
@@ -164,6 +165,16 @@ const seleccionoOpcion = (opcion: AccessMenu) => {
     router.push({ name: routeString });
   }
 
+}
+
+/**
+ * El logo hace de "volver al inicio": es la única forma de llegar de nuevo al
+ * dashboard una vez que se navegó a otro lado, porque esa vista no está
+ * registrada como ítem de menú (nunca se sembró un formulario para ella).
+ */
+const irAlInicio = () => {
+  layoutStore.closeMobileMenu();
+  router.push({ name: 'inventory-dashboard' });
 }
 </script>
 
