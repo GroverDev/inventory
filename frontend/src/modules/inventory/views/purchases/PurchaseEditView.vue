@@ -89,7 +89,7 @@
                   </button>
                 </div>
                 <!-- Dropdown resultados proveedor -->
-                <div v-if="providerResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:350px">
+                <div v-if="providerResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:min(350px, 100%)">
                   <button
                     v-for="p in providerResults" :key="p.Id"
                     type="button"
@@ -120,7 +120,7 @@
             <div class="row align-items-end g-2 mb-2">
               <div class="col-12 col-md-4">
                 <label class="form-label">Producto</label>
-                <div class="input-group input-group-sm">
+                <div class="input-group input-group-sm touch-lg-group">
                   <input
                     v-if="!newLine.ProductId"
                     type="text"
@@ -145,7 +145,7 @@
                   </button>
                 </div>
                 <!-- Dropdown resultados producto -->
-                <div v-if="productResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:350px">
+                <div v-if="productResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:min(350px, 100%)">
                   <button
                     v-for="prod in productResults" :key="prod.Id"
                     type="button"
@@ -156,20 +156,21 @@
                   </button>
                 </div>
               </div>
-              <div class="col-4 col-md-2">
+              <!-- En móvil: Cantidad y Precio lado a lado, Subtotal y Agregar a ancho completo -->
+              <div class="col-6 col-md-2">
                 <label class="form-label">Cantidad</label>
-                <input type="number" class="form-control form-control-sm text-end" min="1" v-model.number="newLine.OrderedQuantity" />
+                <input type="number" inputmode="numeric" class="form-control form-control-sm text-end touch-lg" min="1" v-model.number="newLine.OrderedQuantity" />
               </div>
-              <div class="col-4 col-md-2">
+              <div class="col-6 col-md-2">
                 <label class="form-label">Precio Unit.</label>
-                <input type="number" class="form-control form-control-sm text-end" min="0" step="0.01" v-model.number="newLine.OrderUnitPrice" />
-              </div>
-              <div class="col-4 col-md-2">
-                <label class="form-label">Subtotal</label>
-                <input type="number" class="form-control form-control-sm text-end" readonly :value="lineSubtotal" />
+                <input type="number" inputmode="decimal" class="form-control form-control-sm text-end touch-lg" min="0" step="0.01" v-model.number="newLine.OrderUnitPrice" />
               </div>
               <div class="col-12 col-md-2">
-                <button type="button" class="btn btn-success btn-sm w-100" @click="addLine" :disabled="!newLine.ProductId">
+                <label class="form-label">Subtotal</label>
+                <input type="number" class="form-control form-control-sm text-end touch-lg" readonly :value="lineSubtotal" />
+              </div>
+              <div class="col-12 col-md-2">
+                <button type="button" class="btn btn-success btn-sm w-100 touch-lg" @click="addLine" :disabled="!newLine.ProductId">
                   <span class="fal fa-plus me-1"></span>Agregar
                 </button>
               </div>
@@ -187,6 +188,8 @@
             </div>
 
             <template v-else>
+              <!-- table-responsive: con nombres largos la tabla desbordaba la página en móvil -->
+              <div class="table-responsive">
               <table class="table table-sm align-middle mb-0">
                 <thead class="">
                   <tr>
@@ -218,6 +221,7 @@
                   </tr>
                 </tfoot>
               </table>
+              </div>
             </template>
           </div>
 
@@ -375,4 +379,14 @@ const savePurchase = async () => {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Campos más altos en móvil: los "-sm" son difíciles de tocar con el dedo. */
+@media (max-width: 767.98px) {
+  .touch-lg,
+  .touch-lg-group :deep(.form-control),
+  .touch-lg-group :deep(.btn) {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+}
+</style>

@@ -97,7 +97,8 @@
             <h6 class="text-muted border-bottom pb-2 mb-3">
               <i class="fal fa-boxes me-1"></i> Cantidades a Recibir
             </h6>
-            <div class="table-responsive">
+            <!-- Escritorio: tabla. En móvil (<md) se usan las tarjetas de abajo. -->
+            <div class="table-responsive d-none d-md-block">
               <table class="table table-sm align-middle">
                 <thead>
                   <tr>
@@ -260,6 +261,138 @@
                   </tr>
                 </tfoot>
               </table>
+            </div>
+
+            <!--
+              Móvil: una tarjeta por producto. Comparte datos, validaciones y
+              errores por fila con la tabla de escritorio (mismo delivery.Detail);
+              solo cambia la presentación, porque siete columnas no caben en un
+              teléfono y obligaban a deslizar de lado para ver precio y subtotal.
+            -->
+            <div class="d-md-none">
+              <div
+                v-for="(line, i) in delivery.Detail"
+                :key="'m-' + line.ProductId"
+                class="card mb-2 receive-card"
+                :class="{ 'opacity-50': line.PendingQuantity === 0 }"
+              >
+                <div class="card-body p-3">
+                  <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                    <div class="fw-semibold lh-sm">{{ line.ProductName }}</div>
+                    <span v-if="usesLot(line)" class="badge bg-info-subtle text-info-emphasis border border-info-subtle flex-shrink-0">
+                      <i class="fal fa-layer-group me-1"></i>Lote
+                    </span>
+                    <span v-else-if="usesSerial(line)" class="badge bg-info-subtle text-info-emphasis border border-info-subtle flex-shrink-0">
+                      <i class="fal fa-barcode me-1"></i>Series
+                    </span>
+                  </div>
+
+                  <div class="d-flex justify-content-between align-items-center small text-muted mb-3">
+                    <span>Ordenado: <strong class="text-body">{{ line.OrderedQuantity }}</strong></span>
+                    <span>Recibido: <strong class="text-body">{{ line.ReceivedQuantity }}</strong></span>
+                    <span :class="line.PendingQuantity > 0 ? 'badge bg-warning text-dark' : 'badge bg-success'">
+                      Pendiente: {{ line.PendingQuantity }}
+                    </span>
+                  </div>
+
+                  <div class="row g-2">
+                    <div class="col-6">
+                      <label class="form-label small text-muted mb-1">A recibir</label>
+                      <input
+                        type="number"
+                        inputmode="numeric"
+                        class="form-control text-center"
+                        :class="{ 'is-invalid': lineErrors[i] }"
+                        min="0"
+                        :max="line.PendingQuantity"
+                        v-model.number="line.DeliveryQuantity"
+                        :disabled="isSaved || line.PendingQuantity === 0"
+                        @input="clampLine(i)"
+                      />
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label small text-muted mb-1">Precio unit.</label>
+                      <input
+                        type="number"
+                        inputmode="decimal"
+                        class="form-control text-end"
+                        min="0"
+                        step="0.01"
+                        v-model.number="line.UnitPrice"
+                        :disabled="isSaved || line.PendingQuantity === 0"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-between align-items-center mt-2">
+                    <span class="small text-muted">Subtotal</span>
+                    <strong>{{ formatCurrency(line.DeliveryQuantity * line.UnitPrice) }}</strong>
+                  </div>
+
+                  <!-- Series: una por unidad, mismo criterio que en escritorio -->
+                  <div v-if="usesSerial(line) && line.PendingQuantity > 0" class="mt-3 pt-3 border-top">
+                    <label class="form-label small text-muted mb-1">
+                      Números de serie <span class="text-danger">*</span>
+                      <span :class="serialCountClass(line)">
+                        {{ serialCount(line) }} de {{ line.DeliveryQuantity }}
+                      </span>
+                    </label>
+                    <textarea
+                      class="form-control font-monospace"
+                      :class="{ 'is-invalid': serialErrors[i] }"
+                      rows="4"
+                      placeholder="Uno por línea, o léalos con el lector"
+                      :value="line.SerialNumbers.join('\n')"
+                      :disabled="isSaved"
+                      @input="onSerialsInput(line, i, $event)"
+                    ></textarea>
+                    <small class="text-muted d-block mt-1">
+                      Un número por unidad. Si la cantidad cambia, la lista tiene que acompañarla.
+                    </small>
+                    <label class="form-label small text-muted mb-1 mt-2">Vencimiento</label>
+                    <input type="date" class="form-control" v-model="line.ExpiryDate" :disabled="isSaved" />
+                    <small v-if="isExpired(line)" class="text-danger">
+                      <i class="fal fa-exclamation-triangle me-1"></i>Ya vencido
+                    </small>
+                  </div>
+
+                  <!-- Lote: mismo criterio que en escritorio -->
+                  <div v-if="usesLot(line) && line.PendingQuantity > 0" class="mt-3 pt-3 border-top">
+                    <label class="form-label small text-muted mb-1">
+                      Lote recibido <span class="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      :class="{ 'is-invalid': lotErrors[i] }"
+                      maxlength="50"
+                      placeholder="Código impreso en la caja"
+                      v-model.trim="line.LotCode"
+                      :disabled="isSaved"
+                      @input="lotErrors[i] = false"
+                    />
+                    <label class="form-label small text-muted mb-1 mt-2">Vencimiento</label>
+                    <input type="date" class="form-control" v-model="line.ExpiryDate" :disabled="isSaved" />
+                    <small v-if="isExpired(line)" class="text-danger">
+                      <i class="fal fa-exclamation-triangle me-1"></i>Ya vencido
+                    </small>
+                    <small class="text-muted d-block mt-1">
+                      Un lote por recepción. Si llegaron varios, registre este y repita la recepción con el saldo.
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Barra fija: total y confirmar siempre a la vista -->
+              <div class="receive-bar d-flex justify-content-between align-items-center gap-3">
+                <div>
+                  <small class="text-muted d-block">Total de esta recepción</small>
+                  <strong>{{ formatCurrency(deliveryTotal) }}</strong>
+                </div>
+                <button type="button" class="btn btn-success" :disabled="isSaved || !canSubmit" @click="saveReceive">
+                  <span class="fal fa-box-check me-1"></span>Confirmar
+                </button>
+              </div>
             </div>
           </div>
 
@@ -548,4 +681,16 @@ const closeWithShortage = async () => {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Barra fija del móvil: el total y "Confirmar" no obligan a recorrer la lista. */
+.receive-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: 0.5rem -1rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+</style>

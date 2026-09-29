@@ -8,8 +8,23 @@
       </button>
       <h6 class="mb-0 fw-semibold">Punto de Venta</h6>
       <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+        <!-- Verificando: aún no se sabe si hay caja abierta -->
+        <template v-if="cashChecking">
+          <span class="badge bg-secondary-subtle text-secondary border small d-inline-flex align-items-center gap-1">
+            <span class="spinner-border spinner-border-sm"></span>Verificando caja...
+          </span>
+        </template>
+        <!-- No se pudo consultar: no se afirma que esté cerrada -->
+        <template v-else-if="cashError">
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle small">
+            <i class="fal fa-exclamation-triangle me-1"></i>No se pudo verificar la caja
+          </span>
+          <button class="btn btn-sm btn-outline-secondary" @click="checkCash">
+            <i class="fal fa-sync me-1"></i>Reintentar
+          </button>
+        </template>
         <!-- Caja abierta -->
-        <template v-if="cashSession">
+        <template v-else-if="cashSession">
           <span class="badge bg-success-subtle text-success border border-success-subtle small d-none d-md-inline-flex align-items-center gap-1">
             <i class="fal fa-cash-register"></i>
             Caja: Bs. {{ formatNum(cashSession.OpeningAmount) }}
@@ -173,8 +188,25 @@
       </div>
     </div>
 
+    <!-- ══ VERIFICANDO: todavía no se sabe si hay caja abierta ══ -->
+    <div v-if="cashChecking" class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+      <span class="spinner-border text-primary mb-3"></span>
+      <h5 class="fw-semibold mb-1">Verificando caja...</h5>
+      <p class="text-muted mb-0">Comprobando si tienes una caja abierta.</p>
+    </div>
+
+    <!-- ══ ERROR: no se pudo consultar la caja ══ -->
+    <div v-else-if="cashError" class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+      <i class="fal fa-wifi-slash fa-4x text-muted mb-3"></i>
+      <h5 class="fw-semibold mb-1">No se pudo verificar la caja</h5>
+      <p class="text-muted mb-3">Revisa tu conexión e inténtalo de nuevo antes de abrir una caja.</p>
+      <button class="btn btn-primary px-4" @click="checkCash">
+        <i class="fal fa-sync me-2"></i>Reintentar
+      </button>
+    </div>
+
     <!-- ══ BLOQUEO: sin caja abierta ══ -->
-    <div v-if="!cashSession" class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+    <div v-else-if="!cashSession" class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
       <i class="fal fa-cash-register fa-4x text-muted mb-3"></i>
       <h5 class="fw-semibold mb-1">Caja cerrada</h5>
       <p class="text-muted mb-3">Debes abrir la caja antes de realizar ventas.</p>
@@ -1427,6 +1459,10 @@ const { getPosSettings } = usePosSettings();
 
 // ── Estado: caja ───────────────────────────────────────────
 const cashSession = ref<CashSession | null>(null);
+// null = "sin caja" solo vale una vez terminada la consulta: mientras tanto la
+// pantalla muestra "Verificando caja..." en vez de "Abrir caja".
+const cashChecking = ref(true);
+const cashError = ref(false);
 const showOpenCashModal = ref(false);
 const showCloseCashModal = ref(false);
 const showMovementModal = ref(false);
@@ -1706,18 +1742,37 @@ const recalcLine = (i: number) => {
 };
 
 // ── Carga inicial ──────────────────────────────────────────
+// Consulta la caja abierta. Si la consulta falla NO se da por cerrada: se marca
+// el error y se ofrece reintentar, para que un fallo de red no lleve a abrir
+// una segunda caja. Solo se ofrece abrir caja cuando el servidor confirma que
+// no hay ninguna.
+const checkCash = async () => {
+  cashChecking.value = true;
+  cashError.value = false;
+  const resp = await getActiveSession();
+  if (resp.ok) {
+    cashSession.value = resp.Data ?? null;
+  } else {
+    cashSession.value = null;
+    cashError.value = true;
+  }
+  cashChecking.value = false;
+  if (!cashSession.value && !cashError.value) showOpenCashModal.value = true;
+};
+
 onMounted(async () => {
   loadingProducts.value = true;
-  const [{ Data: products }, { Data: methods }, sessionResp, discountsResp, settingsResp] = await Promise.all([
+  // La caja va aparte y sin esperar al catálogo: es rápida y decide qué se
+  // muestra, mientras que los productos pueden tardar.
+  checkCash();
+  const [{ Data: products }, { Data: methods }, discountsResp, settingsResp] = await Promise.all([
     getProductsByName(''),
     getPaymentMethods(),
-    getActiveSession(),
     getDiscounts(),
     getPosSettings(),
   ]);
   allProducts.value = (products ?? []).filter((p: Product) => p.IsActive && p.CurrentStock >= 0);
   paymentMethods.value = methods ?? [];
-  cashSession.value = sessionResp.Data ?? null;
   discountCatalog.value = (discountsResp.Data ?? []).filter((d: Discount) => d.IsActive);
   if (settingsResp.Data) {
     maxCashierDiscountPct.value    = settingsResp.Data.MaxCashierDiscountPct;
@@ -1727,7 +1782,6 @@ onMounted(async () => {
   }
   loadingProducts.value = false;
   loadHeldSales();
-  if (!cashSession.value) showOpenCashModal.value = true;
   productInputRef.value?.focus();
   loadDefaultCustomer();
 });

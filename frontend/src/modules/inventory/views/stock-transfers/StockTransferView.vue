@@ -108,7 +108,9 @@
             <div v-if="lines.length === 0" class="text-center py-3">
               <small class="text-muted">Busque los productos que va a enviar y agréguelos.</small>
             </div>
-            <div v-else class="table-responsive">
+            <template v-else>
+            <!-- Escritorio: tabla. En móvil (<md) se usan las tarjetas de abajo. -->
+            <div class="table-responsive d-none d-md-block">
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
@@ -140,6 +142,32 @@
                 </tbody>
               </table>
             </div>
+
+            <!-- Móvil: una tarjeta por producto, mismos datos y validación que la tabla -->
+            <div class="d-md-none">
+              <div v-for="(l, i) in lines" :key="'m-' + l.ProductId" class="card mb-2">
+                <div class="card-body p-3">
+                  <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                      <div class="fw-semibold lh-sm">{{ l.ProductName }}</div>
+                      <small class="text-muted font-monospace">{{ l.ProductCode }}</small>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm flex-shrink-0" @click="lines.splice(i, 1)">
+                      <span class="fal fa-trash-alt"></span>
+                    </button>
+                  </div>
+                  <div class="small text-muted mt-2 mb-2">
+                    Disponible aquí: <strong class="text-body">{{ l.Available }}</strong>
+                  </div>
+                  <label class="form-label small text-muted mb-1">Cantidad</label>
+                  <input type="number" inputmode="numeric" min="1" class="form-control text-end"
+                    :class="{ 'is-invalid': l.Quantity <= 0 || l.Quantity > l.Available }"
+                    v-model.number="l.Quantity" />
+                  <small v-if="l.Quantity > l.Available" class="text-danger">Supera lo disponible</small>
+                </div>
+              </div>
+            </div>
+            </template>
           </div>
 
           <!-- Enviado o cerrado: lo que viajó, por lote -->
@@ -152,7 +180,8 @@
               Si llegó menos de lo enviado, corrija la cantidad recibida: la diferencia queda registrada como
               merma de la sucursal de origen.
             </p>
-            <div class="table-responsive">
+            <!-- Escritorio: tabla. En móvil (<md) se usan las tarjetas de abajo. -->
+            <div class="table-responsive d-none d-md-block">
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
@@ -193,6 +222,57 @@
                   </template>
                 </tbody>
               </table>
+            </div>
+
+            <!--
+              Móvil: una tarjeta por producto y, dentro, un bloque por lote o
+              serie. La tabla repetía el nombre en cada fila y dejaba el campo
+              "Recibido" (el que hay que llenar) fuera de la vista.
+            -->
+            <div class="d-md-none">
+              <div v-for="d in transfer.Detail" :key="'m-' + d.Id" class="card mb-2">
+                <div class="card-body p-3">
+                  <div class="fw-semibold lh-sm mb-2">{{ d.ProductName }}</div>
+
+                  <!-- Borrador ajeno o anulado: todavía no hay lotes -->
+                  <div v-if="d.Lots.length === 0" class="small text-muted">
+                    Cantidad: <strong class="text-body">{{ d.Quantity }}</strong>
+                  </div>
+
+                  <div v-for="(l, li) in d.Lots" :key="l.Id" :class="{ 'border-top pt-2 mt-2': li > 0 }">
+                    <div class="d-flex justify-content-between align-items-center gap-2 small">
+                      <span class="font-monospace">{{ l.SerialNumber || l.LotCode || 'Sin lote' }}</span>
+                      <span class="text-muted">Vence {{ formatDateOnly(l.ExpiryDate) }}</span>
+                    </div>
+                    <div class="small text-muted mt-1">
+                      {{ transfer.Status === 'borrador' ? 'Cantidad' : 'Enviado' }}:
+                      <strong class="text-body">{{ l.QuantitySent }}</strong>
+                    </div>
+
+                    <div v-if="canReceive" class="mt-2">
+                      <label class="form-label small text-muted mb-1">Recibido</label>
+                      <input type="number" inputmode="decimal" min="0" :max="l.QuantitySent"
+                        class="form-control text-end"
+                        :class="{ 'is-invalid': !validReceived(l) }"
+                        :step="l.SerialNumber ? 1 : 'any'"
+                        v-model.number="received[l.Id]" />
+                    </div>
+                    <div v-else-if="transfer.Status === 'recibido'" class="small mt-1"
+                      :class="{ 'text-danger fw-semibold': (l.QuantityReceived ?? 0) < l.QuantitySent }">
+                      Recibido: {{ l.QuantityReceived }}
+                    </div>
+                    <div v-else-if="transfer.Status === 'enviado'" class="small text-muted mt-1">en tránsito</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Barra fija: confirmar la recepción sin volver arriba -->
+              <div v-if="canReceive" class="action-bar d-flex justify-content-between align-items-center gap-3">
+                <small class="text-muted">Revise lo que llegó</small>
+                <button type="button" class="btn btn-success" :disabled="busy" @click="receive">
+                  <span class="fal fa-inbox-in me-1"></span>Confirmar recepción
+                </button>
+              </div>
             </div>
           </div>
 
@@ -405,4 +485,16 @@ const formatDateTime = (value: string | null) =>
   }) : '—';
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Barra fija del móvil: la acción principal queda a la vista sin recorrer la lista. */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: 0.5rem -1rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+</style>
