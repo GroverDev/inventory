@@ -392,6 +392,8 @@
                         <th>Dispositivo</th>
                         <th class="text-center">Origen</th>
                         <th class="text-center">Conectado desde</th>
+                        <th class="text-center">Duración</th>
+                        <th class="text-center">Vence</th>
                         <th class="text-center">Acciones</th>
                       </tr>
                     </thead>
@@ -400,6 +402,11 @@
                         <td><small class="text-muted">{{ session.Device || '—' }}</small></td>
                         <td class="text-center"><span class="badge bg-secondary">{{ session.LoginFrom }}</span></td>
                         <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.CreatedAt) }}</small></td>
+                        <td class="text-center">
+                          <span v-if="isLongSession(session)" class="badge bg-info" title="El usuario pidió mantener la sesión 30 días">30 días</span>
+                          <span v-else class="badge bg-secondary" title="Termina al cerrar el navegador">Sesión</span>
+                        </td>
+                        <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.ExpiresAt) }}</small></td>
                         <td class="text-center">
                           <button
                             v-if="canDeleteSessions"
@@ -435,7 +442,7 @@ import utils from '@/utils/msg';
 import { User } from '@/modules/user-account/models/users.model';
 import { Role } from '@/modules/user-account/models/role.model';
 import type { UserBranch } from '@/modules/user-account/models/branch.model';
-import { Session } from '@/modules/user-account/models/session.model';
+import { Session, isLongSession } from '@/modules/user-account/models/session.model';
 import useUser from '@/modules/user-account/composables/useUser';
 import useRole from '@/modules/user-account/composables/useRole';
 import useSessions from '@/modules/user-account/composables/useSessions';

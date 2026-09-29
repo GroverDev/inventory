@@ -20,7 +20,7 @@ namespace Seguridad.Infrastructure;
 public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshTokenRepository
 {
     public async Task<long> Create(
-        int userId, int tenantId, Guid branchId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt)
+        int userId, int tenantId, Guid branchId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt, long? trustedDeviceId = null)
     {
         using var db = _context.CreateAuthConnection;
         try
@@ -28,9 +28,9 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             db.Open();
             const string query = @"
                 INSERT INTO sec.refresh_tokens
-                    (user_id, tenant_id, branch_id, session_id, token_hash, device, login_from, expires_at)
+                    (user_id, tenant_id, branch_id, session_id, token_hash, device, login_from, expires_at, trusted_device_id)
                 VALUES
-                    (@user_id, @tenant_id, @branch_id, @session_id, @token_hash, @device, @login_from, @expires_at)
+                    (@user_id, @tenant_id, @branch_id, @session_id, @token_hash, @device, @login_from, @expires_at, @trusted_device_id)
                 RETURNING id";
 
             return await db.ExecuteScalarAsync<long>(query, new
@@ -42,7 +42,8 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
                 token_hash = tokenHash,
                 device = device ?? "",
                 login_from = loginFrom,
-                expires_at = expiresAt
+                expires_at = expiresAt,
+                trusted_device_id = trustedDeviceId
             });
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
@@ -57,7 +58,7 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
             db.Open();
             const string query = @"
                 SELECT id, user_id, tenant_id, branch_id, session_id, token_hash, device, login_from,
-                       created_at, expires_at, revoked_at, replaced_by
+                       created_at, expires_at, revoked_at, replaced_by, trusted_device_id
                 FROM sec.refresh_tokens
                 WHERE token_hash = @token_hash";
 
@@ -162,6 +163,45 @@ public class RefreshTokenRepository(SeguridadDbContext _context) : IRefreshToken
                  WHERE id = @id AND revoked_at IS NULL";
 
             await db.ExecuteAsync(query, new { id, replaced_by = replacedBy });
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<List<int>> RevokeByTrustedDevice(long trustedDeviceId, int userId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            // user_id además del id: un dispositivo ajeno no se puede tumbar adivinando su id.
+            const string query = @"
+                UPDATE sec.refresh_tokens
+                   SET revoked_at = now()
+                 WHERE trusted_device_id = @trusted_device_id AND user_id = @user_id AND revoked_at IS NULL
+                RETURNING session_id";
+
+            var ids = await db.QueryAsync<int?>(query, new { trusted_device_id = trustedDeviceId, user_id = userId });
+            return ids.Where(id => id.HasValue).Select(id => id!.Value).ToList();
+        }
+        catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
+        finally { db.Close(); }
+    }
+
+    public async Task<List<int>> RevokeAllTrustedDeviceSessions(int userId)
+    {
+        using var db = _context.CreateAuthConnection;
+        try
+        {
+            db.Open();
+            const string query = @"
+                UPDATE sec.refresh_tokens
+                   SET revoked_at = now()
+                 WHERE user_id = @user_id AND trusted_device_id IS NOT NULL AND revoked_at IS NULL
+                RETURNING session_id";
+
+            var ids = await db.QueryAsync<int?>(query, new { user_id = userId });
+            return ids.Where(id => id.HasValue).Select(id => id!.Value).ToList();
         }
         catch (Exception ex) { throw ExceptionHandler.HandleException<RefreshToken>(ex); }
         finally { db.Close(); }

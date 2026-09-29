@@ -31,6 +31,13 @@ public class LoginRequest
     /// este campo se ignora. Si es válido, el login salta el paso de TOTP.
     /// </summary>
     public string DeviceTrustToken { get; set; } = "";
+
+    /// <summary>
+    /// "Mantener sesión iniciada". Solo la web lo usa: si es true el refresh
+    /// token dura <c>RefreshTokenDays</c>; si no, la cookie muere al cerrar el
+    /// navegador y el token vence en <c>WebSessionHours</c>. El móvil lo ignora.
+    /// </summary>
+    public bool RememberMe { get; set; }
 }
 
 public class LoginRequestValidator : AbstractValidator<LoginRequest>

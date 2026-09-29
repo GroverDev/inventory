@@ -697,7 +697,8 @@
               class="list-group-item d-flex justify-content-between align-items-center px-0">
               <div>
                 <div class="fw-semibold small">{{ device.DeviceLabel || 'Dispositivo sin nombre' }}</div>
-                <small class="text-muted">Recordado hasta {{ formatDeviceDate(device.ExpiresAt) }}</small>
+                <small class="text-muted d-block">Registrado el {{ formatDeviceDateTime(device.CreatedAt) }}</small>
+                <small class="text-muted d-block">Recordado hasta {{ formatDeviceDate(device.ExpiresAt) }}</small>
               </div>
               <button type="button" class="btn btn-outline-danger btn-sm" @click="forgetDevice(device.Id)">
                 Olvidar
@@ -794,9 +795,19 @@ const changeBranch = async (branch: BranchOption) => {
 };
 
 const logout = async () => {
-  router.push({ name: 'login' });
+  // Primero se cierra la sesión: con el token aún puesto, el guard de la ruta
+  // login (isNotAuthenticatedGuard) devolvería al usuario al dashboard.
   await authStore.logout();
+  await router.push({ name: 'login' });
 }
+
+// Fecha y hora locales: el backend guarda en UTC y el navegador convierte.
+const formatDeviceDateTime = (date: string): string => {
+  if (!date) return '—';
+  return new Date(date).toLocaleString('es-BO', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+};
 
 const formatDeviceDate = (date: string): string => {
   if (!date) return '—';

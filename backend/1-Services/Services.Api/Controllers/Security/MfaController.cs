@@ -29,19 +29,39 @@ public class MfaController(
     /// token de dispositivo de confianza para saltar el TOTP en logins futuros.
     /// </summary>
     private async Task IssueTokens(
-        LoginResponse data, Seguridad.Domain.Enums.InicioSesionDesde from, string device, bool rememberDevice)
+        LoginResponse data, Seguridad.Domain.Enums.InicioSesionDesde from, string device, bool rememberDevice, bool rememberMe)
     {
         bool refreshable = LoginController.UsesRefreshToken(from);
+        bool isWeb = LoginController.UsesRefreshCookie(from);
 
         data.Token = TokenJwt.GetToken(data, _jwtSettings.Secret,
             refreshable ? _jwtSettings.TimeTokenRefreshable : _jwtSettings.TimeToken);
+
+        // En web hay una sola casilla en el login ("mantener sesión y recordar
+        // este equipo"): sesión persistente y dispositivo de confianza van
+        // juntos, así una sesión de 30 días nunca se salta el TOTP en un equipo
+        // que el usuario no marcó como de confianza. El móvil sigue mandando
+        // RememberDevice por su cuenta.
+        if (isWeb) rememberDevice = rememberMe;
+
+        // Primero el dispositivo, para poder enlazarle la sesión web: olvidarlo
+        // desde "Mi cuenta" cierra también esa sesión.
+        string? deviceRaw = null;
+        long? deviceId = null;
+        if (rememberDevice)
+        {
+            (deviceRaw, long id) = await _authenticationApplication.IssueTrustedDevice(
+                data.UserId, data.TenantId, device, _jwtSettings.TrustedDeviceDays);
+            deviceId = id;
+        }
 
         if (refreshable)
         {
             string rawRefresh = await _authenticationApplication.IssueRefreshToken(
                 data.UserId, data.TenantId, data.BranchId, data.SesionId, device,
                 Enum.GetName(typeof(Seguridad.Domain.Enums.InicioSesionDesde), from) ?? "",
-                _jwtSettings.RefreshTokenDays);
+                LoginController.RefreshLifetimeDays(_jwtSettings, from, rememberMe),
+                isWeb ? deviceId : null);
 
             // Misma regla que LoginController: en web va en cookie HttpOnly, no
             // en el cuerpo. Antes de esto viajaba siempre en el cuerpo, así que
@@ -49,14 +69,8 @@ public class MfaController(
             // (y a cualquier XSS) en vez de guardarlo fuera de su alcance.
             if (LoginController.UsesRefreshCookie(from))
             {
-                Response.Cookies.Append(LoginController.RefreshCookie, rawRefresh, new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = Request.IsHttps,
-                    SameSite = SameSiteMode.Lax,
-                    Path = "/api/Login",
-                    Expires = DateTimeOffset.UtcNow.AddDays(_jwtSettings.RefreshTokenDays)
-                });
+                LoginController.AppendRefreshCookie(
+                    Request, Response, rawRefresh, rememberMe, _jwtSettings.RefreshTokenDays);
             }
             else
             {
@@ -64,12 +78,11 @@ public class MfaController(
             }
         }
 
-        if (!rememberDevice) return;
+        if (deviceRaw == null) return;
 
-        string raw = await _authenticationApplication.IssueTrustedDevice(
-            data.UserId, data.TenantId, device, _jwtSettings.TrustedDeviceDays);
+        string raw = deviceRaw;
 
-        if (LoginController.UsesRefreshCookie(from))
+        if (isWeb)
         {
             // Misma cookie que el refresh token: HttpOnly, alcance /api/Login,
             // que es donde LoginController la lee en el siguiente intento.
@@ -138,9 +151,11 @@ public class MfaController(
             return Ok(errResp);
         }
 
+        request.Device = LoginController.ResolveDevice(Request, request.LoginFrom, request.Device);
+
         var resp = await _mfaApplication.VerifyTotpAndCompleteLogin(userId.Value, request);
         if (resp.ok)
-            await IssueTokens(resp.Data!, request.LoginFrom, request.Device, request.RememberDevice);
+            await IssueTokens(resp.Data!, request.LoginFrom, request.Device, request.RememberDevice, request.RememberMe);
 
         return Ok(resp);
     }
@@ -161,9 +176,11 @@ public class MfaController(
             return Ok(errResp);
         }
 
+        request.Device = LoginController.ResolveDevice(Request, request.LoginFrom, request.Device);
+
         var resp = await _mfaApplication.VerifyRecoveryAndCompleteLogin(userId.Value, request);
         if (resp.ok)
-            await IssueTokens(resp.Data!, request.LoginFrom, request.Device, request.RememberDevice);
+            await IssueTokens(resp.Data!, request.LoginFrom, request.Device, request.RememberDevice, request.RememberMe);
 
         return Ok(resp);
     }

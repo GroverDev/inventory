@@ -6,6 +6,10 @@ const isAuthenticatedGuard = async (to: any, _: any, next: any) => {
   const authStore = useAuthStore();
 
   document.title = to.meta.title;
+  // Pestaña nueva con sesión recordada: el token no se guarda en disco, así
+  // que se renueva en silencio con la cookie antes de decidir.
+  if (!authStore.getToken) await authStore.restoreSession();
+
   if (authStore.getToken !== '' && authStore.getToken != null) {
     next();
   } else {
@@ -20,6 +24,8 @@ const isAuthenticatedGuard = async (to: any, _: any, next: any) => {
  */
 const isNotAuthenticatedGuard: NavigationGuard = async (_to, _from, next) => {
   const authStore = useAuthStore();
+  if (!authStore.getToken) await authStore.restoreSession();
+
   if (authStore.getToken !== '' && authStore.getToken != null) {
     next({ name: 'inventory-dashboard' });
   } else {

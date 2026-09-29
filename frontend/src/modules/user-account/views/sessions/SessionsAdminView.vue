@@ -42,6 +42,8 @@
                       <th>Dispositivo</th>
                       <th class="text-center">Origen</th>
                       <th class="text-center">Conectado desde</th>
+                      <th class="text-center">Duración</th>
+                      <th class="text-center">Vence</th>
                       <th class="text-center">Acciones</th>
                     </tr>
                   </thead>
@@ -52,6 +54,11 @@
                       <td><small class="text-muted">{{ session.Device || '—' }}</small></td>
                       <td class="text-center"><span class="badge bg-secondary">{{ session.LoginFrom }}</span></td>
                       <td class="text-center"><small class="text-muted">{{ formatDate(session.CreatedAt) }}</small></td>
+                      <td class="text-center">
+                        <span v-if="isLongSession(session)" class="badge bg-info" title="El usuario pidió mantener la sesión 30 días">30 días</span>
+                        <span v-else class="badge bg-secondary" title="Termina al cerrar el navegador">Sesión</span>
+                      </td>
+                      <td class="text-center"><small class="text-muted">{{ formatDate(session.ExpiresAt) }}</small></td>
                       <td class="text-center">
                         <button
                           v-if="canDelete"
@@ -82,6 +89,11 @@
                         </small>
                         <small class="text-muted">
                           <i class="fal fa-clock me-1"></i>{{ formatDate(session.CreatedAt) }}
+                          <span v-if="isLongSession(session)" class="badge bg-info ms-1">30 días</span>
+                          <span v-else class="badge bg-secondary ms-1">Sesión</span>
+                        </small>
+                        <small class="text-muted">
+                          <i class="fal fa-hourglass-end me-1"></i>Vence {{ formatDate(session.ExpiresAt) }}
                         </small>
                         <button
                           v-if="canDelete"
@@ -108,7 +120,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import useSessions from '@/modules/user-account/composables/useSessions';
-import type { ConnectedUser } from '@/modules/user-account/models/session.model';
+import { isLongSession, type ConnectedUser } from '@/modules/user-account/models/session.model';
 import usePermissions from '@/modules/common/composables/usePermissions';
 import utils from '@/utils/msg';
 

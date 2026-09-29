@@ -6,8 +6,8 @@ export const useAuth = () => {
 
   const authStore = useAuthStore();
 
-  const loginApp = async (email: string, password: string, turnstileToken = '') => {
-    const ok = await authStore.login(email, password, turnstileToken)
+  const loginApp = async (email: string, password: string, turnstileToken = '', rememberMe = false) => {
+    const ok = await authStore.login(email, password, turnstileToken, rememberMe)
     if (ok.success) {
       await authStore.getAccessMenuApi();
     }

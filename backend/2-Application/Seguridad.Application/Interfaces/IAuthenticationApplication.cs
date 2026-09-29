@@ -39,13 +39,13 @@ public interface IAuthenticationApplication
     /// fila para poder revocar en memoria el access token correspondiente si
     /// esta sesión se cierra desde el panel de administración.
     /// </summary>
-    Task<string> IssueRefreshToken(int userId, int tenantId, Guid branchId, int sessionId, string device, string loginFrom, int days);
+    Task<string> IssueRefreshToken(int userId, int tenantId, Guid branchId, int sessionId, string device, string loginFrom, double days, long? trustedDeviceId = null);
 
     /// <summary>
     /// Canjea un refresh token por datos de sesión frescos y rota el token.
     /// El <see cref="LoginResponse.Token"/> (JWT) lo completa el controlador.
     /// </summary>
-    Task<Response<LoginResponse>> Refresh(RefreshTokenRequest request, int days);
+    Task<Response<LoginResponse>> Refresh(RefreshTokenRequest request, int days, double webSessionHours);
 
     /// <summary>
     /// Cambia la sesión en curso a otra sucursal en la que el usuario esté
@@ -55,31 +55,35 @@ public interface IAuthenticationApplication
     Task<(Response<LoginResponse> Resp, bool Renewable)> SwitchBranch(DataToken session, Guid branchId);
 
     /// <summary>Revoca un refresh token (cierre de sesión explícito).</summary>
-    Task<Response<bool>> RevokeRefreshToken(string refreshToken);
+    Task<Response<bool>> RevokeRefreshToken(string refreshToken, string deviceTrustToken = "", bool keepDevice = false);
 
     /// <summary>
     /// Emite y persiste un token de dispositivo de confianza. Devuelve el valor
-    /// en claro, que solo se entrega al cliente en esta llamada.
+    /// en claro, que solo se entrega al cliente en esta llamada, junto con el
+    /// id de la fila para poder enlazarle la sesión web.
     /// </summary>
-    Task<string> IssueTrustedDevice(int userId, int tenantId, string device, int days);
+    Task<(string Raw, long Id)> IssueTrustedDevice(int userId, int tenantId, string device, int days);
 
     /// <summary>
-    /// True si el token corresponde a un dispositivo de confianza vigente y no
-    /// revocado de ese usuario. Cualquier duda (token vacío, hash sin
-    /// coincidencia, vencido, revocado, de otro usuario) resuelve en false.
+    /// Id del dispositivo de confianza si el token corresponde a uno vigente y
+    /// no revocado de ese usuario. Cualquier duda (token vacío, hash sin
+    /// coincidencia, vencido, revocado, de otro usuario) resuelve en null.
     /// </summary>
-    Task<bool> IsTrustedDevice(int userId, string rawToken);
+    Task<long?> FindTrustedDevice(int userId, string rawToken);
 
     /// <summary>
-    /// Revoca todos los dispositivos de confianza del usuario. Se usa ante
-    /// cambio de contraseña o reset de MFA.
+    /// Olvida todos los dispositivos de confianza del usuario y cierra las
+    /// sesiones web abiertas con ellos.
     /// </summary>
     Task RevokeAllTrustedDevicesForUser(int userId);
 
     /// <summary>Dispositivos de confianza activos del propio usuario, para su autogestión.</summary>
     Task<Response<List<TrustedDeviceResponse>>> GetTrustedDevices(int userId);
 
-    /// <summary>Olvida un dispositivo de confianza puntual, solo si pertenece al propio usuario.</summary>
+    /// <summary>
+    /// Olvida un dispositivo de confianza puntual, solo si pertenece al propio
+    /// usuario, y cierra las sesiones web que se abrieron con él.
+    /// </summary>
     Task<Response<bool>> RevokeTrustedDevice(long id, int userId);
 
     /// <summary>Sesiones activas de un usuario, para su ficha de administración.</summary>

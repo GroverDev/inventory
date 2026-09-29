@@ -55,15 +55,15 @@ public class AuthenticationApplication(
         }
     }
 
-    public async Task<string> IssueRefreshToken(int userId, int tenantId, Guid branchId, int sessionId, string device, string loginFrom, int days)
+    public async Task<string> IssueRefreshToken(int userId, int tenantId, Guid branchId, int sessionId, string device, string loginFrom, double days, long? trustedDeviceId = null)
     {
         string raw = GenerateToken();
         await _refreshTokenRepository.Create(
-            userId, tenantId, branchId, sessionId, HashToken(raw), device, loginFrom, DateTime.UtcNow.AddDays(days));
+            userId, tenantId, branchId, sessionId, HashToken(raw), device, loginFrom, DateTime.UtcNow.AddDays(days), trustedDeviceId);
         return raw;
     }
 
-    public async Task<Response<LoginResponse>> Refresh(RefreshTokenRequest request, int days)
+    public async Task<Response<LoginResponse>> Refresh(RefreshTokenRequest request, int days, double webSessionHours)
     {
         var resp = new Response<LoginResponse>() { Data = new LoginResponse() };
         try
@@ -98,10 +98,25 @@ public class AuthenticationApplication(
                 throw new CustomException("La cuenta no está disponible. Contacta al administrador.");
             }
 
+            // En web la vida del token depende de si el usuario pidió mantener
+            // la sesión. No hay columna para esa elección: se deduce de la
+            // vida con que se emitió el token que se canjea (12 h frente a 30
+            // días), y la rotación la conserva. El móvil no pasa por acá: su
+            // token siempre dura lo mismo.
+            double lifetimeDays = days;
+            if (request.LoginFrom is Seguridad.Domain.Enums.InicioSesionDesde.Web
+                or Seguridad.Domain.Enums.InicioSesionDesde.ReconexionWeb)
+            {
+                double sessionDays = webSessionHours / 24.0;
+                double issuedDays = (stored.ExpiresAt - stored.CreatedAt).TotalDays;
+                data.RememberSession = issuedDays > (sessionDays + days) / 2.0;
+                lifetimeDays = data.RememberSession ? days : sessionDays;
+            }
+
             // Rotación: el token usado queda revocado y apuntando al nuevo.
             string raw = GenerateToken();
             long newId = await _refreshTokenRepository.Create(
-                stored.UserId, data.TenantId, data.BranchId, data.SesionId, HashToken(raw), request.Device, loginFrom, DateTime.UtcNow.AddDays(days));
+                stored.UserId, data.TenantId, data.BranchId, data.SesionId, HashToken(raw), request.Device, loginFrom, DateTime.UtcNow.AddDays(lifetimeDays), stored.TrustedDeviceId);
             await _refreshTokenRepository.Revoke(stored.Id, newId);
 
             data.RefreshToken = raw;
@@ -151,16 +166,35 @@ public class AuthenticationApplication(
         return (resp, renewable);
     }
 
-    public async Task<Response<bool>> RevokeRefreshToken(string refreshToken)
+    public async Task<Response<bool>> RevokeRefreshToken(string refreshToken, string deviceTrustToken = "", bool keepDevice = false)
     {
         var resp = new Response<bool>();
         try
         {
-            var stored = await _refreshTokenRepository.GetByHash(HashToken(refreshToken));
+            var stored = string.IsNullOrEmpty(refreshToken)
+                ? null
+                : await _refreshTokenRepository.GetByHash(HashToken(refreshToken));
             if (stored != null && !stored.IsRevoked)
             {
                 await _refreshTokenRepository.Revoke(stored.Id, null);
                 _sessionRegistry.Revoke(stored.SessionId);
+            }
+
+            // Cerrar sesión en web también olvida el equipo. Se revoca el
+            // dispositivo enlazado a la sesión y el de la cookie: pueden ser el
+            // mismo, o solo existir uno (sesión anterior al enlace, o sesión ya
+            // vencida con la cookie aún en el navegador). Revoke es idempotente.
+            // El enlace de la sesión solo se usa si también se pidió olvidar el
+            // equipo: KeepDevice llega aquí como deviceTrustToken vacío y se
+            // distingue con keepDevice.
+            if (!keepDevice && stored?.TrustedDeviceId is long linkedDeviceId)
+                await _trustedDeviceRepository.Revoke(linkedDeviceId);
+
+            if (!string.IsNullOrEmpty(deviceTrustToken))
+            {
+                var device = await _trustedDeviceRepository.GetByHash(HashToken(deviceTrustToken));
+                if (device != null && !device.IsRevoked)
+                    await _trustedDeviceRepository.Revoke(device.Id);
             }
 
             // Se responde igual exista o no: no se filtra si el token era válido.
@@ -188,24 +222,30 @@ public class AuthenticationApplication(
         return resp;
     }
 
-    public async Task<string> IssueTrustedDevice(int userId, int tenantId, string device, int days)
+    public async Task<(string Raw, long Id)> IssueTrustedDevice(int userId, int tenantId, string device, int days)
     {
         string raw = GenerateToken();
-        await _trustedDeviceRepository.Create(
+        long id = await _trustedDeviceRepository.Create(
             userId, tenantId, HashToken(raw), device, DateTime.UtcNow.AddDays(days));
-        return raw;
+        return (raw, id);
     }
 
-    public async Task<bool> IsTrustedDevice(int userId, string rawToken)
+    public async Task<long?> FindTrustedDevice(int userId, string rawToken)
     {
-        if (string.IsNullOrEmpty(rawToken)) return false;
+        if (string.IsNullOrEmpty(rawToken)) return null;
 
         var stored = await _trustedDeviceRepository.GetByHash(HashToken(rawToken));
-        return stored != null && stored.UserId == userId && stored.IsActive;
+        return stored != null && stored.UserId == userId && stored.IsActive ? stored.Id : null;
     }
 
-    public async Task RevokeAllTrustedDevicesForUser(int userId) =>
+    public async Task RevokeAllTrustedDevicesForUser(int userId)
+    {
         await _trustedDeviceRepository.RevokeAllForUser(userId);
+
+        // Sin esto la sesión ya abierta seguiría renovándose sola con su cookie.
+        var sessionIds = await _refreshTokenRepository.RevokeAllTrustedDeviceSessions(userId);
+        _sessionRegistry.RevokeMany(sessionIds);
+    }
 
     public async Task<Response<List<TrustedDeviceResponse>>> GetTrustedDevices(int userId)
     {
@@ -230,6 +270,16 @@ public class AuthenticationApplication(
             // (que no quede recordado con ese id) igual se cumple.
             if (device != null && !device.IsRevoked)
                 await _trustedDeviceRepository.Revoke(id);
+
+            // También las sesiones web abiertas con ese dispositivo: olvidarlo
+            // no debe dejar al equipo entrando sin contraseña ni TOTP por la
+            // cookie de refresh que ya tenía. Solo si el dispositivo es del
+            // usuario (device != null): el id solo no basta.
+            if (device != null)
+            {
+                var sessionIds = await _refreshTokenRepository.RevokeByTrustedDevice(id, userId);
+                _sessionRegistry.RevokeMany(sessionIds);
+            }
 
             resp.Data = resp.ok = true;
         }

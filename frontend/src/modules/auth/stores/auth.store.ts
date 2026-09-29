@@ -1,7 +1,7 @@
 // stores/auth.ts
 import { defineStore } from 'pinia'
-import { useLocalStorage, useStorage, useSessionStorage } from '@vueuse/core'
-import { computed, readonly } from 'vue'
+import { useLocalStorage, useSessionStorage } from '@vueuse/core'
+import { computed, readonly, type WritableComputedRef } from 'vue'
 import axios from 'axios';
 
 import { useApi } from '@/modules/common/composables/api/useApi';
@@ -12,12 +12,47 @@ import { AccessMenu } from '@/modules/auth/models/acccessMenu.interface';
 
 export const useAuthStore = defineStore('auth', () => {
   const { post, get } = useApi();
-  // Usando VueUse para localStorage reactivo
-  const token = useLocalStorage<string | null>('auth_token', null)
-  const user = useStorage<User>('auth_user', new User())
+  // "Mantener sesión iniciada": única marca que sobrevive al cierre del
+  // navegador. Sin ella nada de la sesión queda en disco, para que en una PC
+  // compartida o prestada el siguiente usuario encuentre el login.
+  const remember = useLocalStorage<boolean>('auth_remember', false)
+
+  // El JWT nunca va a localStorage: vive en sessionStorage (se borra al cerrar
+  // la pestaña). Si la sesión es "recordada", al abrir la web se renueva sola
+  // con la cookie HttpOnly de refresh — ver restoreSession().
+  const token = useSessionStorage<string | null>('auth_token', null)
+
+  // Usuario y menú no son secretos, pero tampoco deben quedar en un equipo
+  // ajeno: van a localStorage solo si la sesión es recordada, para poder
+  // rearmar la pantalla tras renovar el token sin volver a pedirlos.
+  const sessionOrLocal = <T>(key: string, initial: T): WritableComputedRef<T> => {
+    const inSession = useSessionStorage<T>(key, initial)
+    const inLocal = useLocalStorage<T>(key, initial)
+    return computed({
+      get: () => (remember.value ? inLocal.value : inSession.value) as T,
+      set: (value: T) => {
+        if (remember.value) inLocal.value = value
+        else inSession.value = value
+      },
+    })
+  }
+  const user = sessionOrLocal<User | null>('auth_user', new User())
+  const accessMenuUser = sessionOrLocal<AccessMenu[]>('auth_access_menu', [])
+
   const pendingUser = useSessionStorage<User | null>('auth_pending_user', null)
-  //
-  const accessMenuUser = useLocalStorage<AccessMenu[]>('auth_access_menu', [])
+  // Elección del login, que debe llegar hasta la verificación del TOTP.
+  const pendingRemember = useSessionStorage<boolean>('auth_pending_remember', false)
+
+  // Versiones anteriores guardaban el token en localStorage. Se borra siempre,
+  // y lo demás si no hay sesión recordada, para no dejar datos ni tokens
+  // olvidados en equipos donde alguien ya inició sesión.
+  try {
+    localStorage.removeItem('auth_token')
+    if (!remember.value) {
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('auth_access_menu')
+    }
+  } catch { /* almacenamiento bloqueado */ }
 
   // Computed para autenticación
   const isAuthenticated = computed(() => !!token.value)
@@ -26,11 +61,12 @@ export const useAuthStore = defineStore('auth', () => {
   const getToken = computed(() => token.value)
   const getUser = computed(() => user.value)
   const getPendingUser = computed(() => pendingUser.value)
+  const getPendingRemember = computed(() => pendingRemember.value)
   const getAccessMenu = computed(() => accessMenuUser.value)
   const isLoggedIn = computed(() => isAuthenticated.value)
 
   // Actions
-  const login = async (email: string, password: string, turnstileToken = '') => {
+  const login = async (email: string, password: string, turnstileToken = '', rememberMe = false) => {
     try {
 
       const responseLogin = await post<ResponseObject<User>>(`Login`,
@@ -46,7 +82,9 @@ export const useAuthStore = defineStore('auth', () => {
           LoginWith: 1,
           // Captcha de Cloudflare. El backend lo exige según la cabecera
           // Origin, no según este cuerpo; si no está configurado viaja vacío.
-          TurnstileToken: turnstileToken
+          TurnstileToken: turnstileToken,
+          // Solo la web lo usa (vida de la cookie de refresh); el móvil no lo manda.
+          RememberMe: rememberMe
         }
       );
 
@@ -56,11 +94,12 @@ export const useAuthStore = defineStore('auth', () => {
         // Caso 1: TOTP ya configurado → redirige a verificar código (tiene TotpSessionToken, no JWT real)
         if (newUser.RequireTotp) {
           pendingUser.value = newUser;
+          pendingRemember.value = rememberMe;
           return { success: false, requireTotp: true, totpSetupRequired: false };
         }
 
         // Caso 2: TOTP no configurado → el JWT real ya vino, pero debe configurarlo ahora
-        setAuth(newUser.Token, newUser);
+        setAuth(newUser.Token, newUser, rememberMe);
         if (newUser.TotpSetupRequired) {
           return { success: false, requireTotp: true, totpSetupRequired: true };
         }
@@ -95,7 +134,9 @@ export const useAuthStore = defineStore('auth', () => {
     accessMenuUser.value = newAccessMenu
   }
 
-  const setAuth = (newToken: string, newUser: User) => {
+  const setAuth = (newToken: string, newUser: User, rememberMe = false) => {
+    // Primero la marca: decide en qué storage se escriben el usuario y el menú.
+    remember.value = rememberMe
     token.value = newToken
     user.value = newUser
 
@@ -141,8 +182,23 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const completarTotp = (newUser: User) => {
-    setAuth(newUser.Token, newUser);
+    setAuth(newUser.Token, newUser, pendingRemember.value);
     pendingUser.value = null;
+    pendingRemember.value = false;
+  }
+
+  /// Al abrir la web sin token en esta pestaña: si la sesión fue recordada,
+  /// intenta renovarla en silencio con la cookie de refresh. Devuelve si
+  /// quedó autenticado. Si falla (cookie vencida o revocada) limpia todo.
+  const restoreSession = async (): Promise<boolean> => {
+    if (token.value) return true
+    if (!remember.value || !user.value?.Email) return false
+
+    const { tryRefreshSession } = await import('@/modules/common/composables/api/refreshSession')
+    if (await tryRefreshSession()) return true
+
+    clearSession()
+    return false
   }
 
   /// Limpia la sesión solo en el navegador, sin llamar al servidor. Se usa
@@ -150,18 +206,28 @@ export const useAuthStore = defineStore('auth', () => {
   const clearSession = () => {
     token.value = null
     user.value = null
-    pendingUser.value = null
     accessMenuUser.value = [];
+    pendingUser.value = null
+    pendingRemember.value = false
+    // Después de vaciar user/menú: mientras la marca siga puesta, esos
+    // valores se escriben en localStorage, que es donde hay que borrarlos.
+    remember.value = false
+    for (const key of ['auth_user', 'auth_access_menu']) {
+      try { localStorage.removeItem(key); sessionStorage.removeItem(key) } catch { /* bloqueado */ }
+    }
 
     // Remover header de autorización
     delete axios.defaults.headers.common['Authorization']
   }
 
-  const logout = async () => {
+  /// `keepDevice` es para el cierre automático (inactividad): revoca solo la
+  /// sesión y deja el equipo como de confianza. El botón "Cerrar sesión" no lo
+  /// usa, y ahí el servidor también olvida el equipo.
+  const logout = async (keepDevice = false) => {
     // Revoca el refresh token en el servidor y borra la cookie: sin esto la
     // sesión seguiría viva del lado del backend aunque el navegador la olvide.
     try {
-      await post(`Login/revoke`, { RefreshToken: '' });
+      await post(`Login/revoke`, { RefreshToken: '', KeepDevice: keepDevice });
     } catch {
       // Sin red o sesión ya vencida: igual se limpia el navegador.
     }
@@ -195,11 +261,13 @@ export const useAuthStore = defineStore('auth', () => {
     user: readonly(user),
     accessMenuUser: readonly(accessMenuUser),
     isAuthenticated,
+    remember: readonly(remember),
 
     // Getters
     getToken,
     getUser,
     getPendingUser,
+    getPendingRemember,
     getAccessMenu,
     isLoggedIn,
 
@@ -214,6 +282,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshBranches,
     clearSession,
     completarTotp,
+    restoreSession,
     logout,
     //verifyToken,
     //initializeAuth

@@ -21,6 +21,13 @@ public class JwtSettings
     public int RefreshTokenDays { get; set; } = 30;
 
     /// <summary>
+    /// Horas de vida del refresh token web cuando el usuario NO marca
+    /// "mantener sesión". Se renueva con cada refresh, así que actúa como tope
+    /// de inactividad en el servidor. No afecta al móvil.
+    /// </summary>
+    public int WebSessionHours { get; set; } = 12;
+
+    /// <summary>
     /// Días que dura un dispositivo marcado como "de confianza" tras verificar
     /// el TOTP con "recordar este dispositivo". Vencido ese plazo, vuelve a
     /// pedirse el segundo factor.

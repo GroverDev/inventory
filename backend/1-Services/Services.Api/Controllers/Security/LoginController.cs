@@ -53,25 +53,64 @@ public class LoginController(
     internal static bool UsesRefreshCookie(InicioSesionDesde from) =>
         from is InicioSesionDesde.Web or InicioSesionDesde.ReconexionWeb;
 
-    private void SetRefreshCookie(string token)
+    /// <summary>
+    /// Días de vida del refresh token. En web sin "mantener sesión" dura solo
+    /// <see cref="JwtSettings.WebSessionHours"/>; en el resto (móvil incluido)
+    /// no cambia: <see cref="JwtSettings.RefreshTokenDays"/>.
+    /// </summary>
+    internal static double RefreshLifetimeDays(JwtSettings settings, InicioSesionDesde from, bool rememberMe) =>
+        UsesRefreshCookie(from) && !rememberMe
+            ? settings.WebSessionHours / 24.0
+            : settings.RefreshTokenDays;
+
+    /// <summary>
+    /// Escribe la cookie del refresh token. Con <paramref name="persistent"/>
+    /// falso no lleva Expires: es cookie de sesión y el navegador la descarta
+    /// al cerrarse, que es lo que se busca en un equipo compartido.
+    /// </summary>
+    internal static void AppendRefreshCookie(
+        HttpRequest request, HttpResponse response, string token, bool persistent, int days)
     {
-        Response.Cookies.Append(RefreshCookie, token, new CookieOptions
+        response.Cookies.Append(RefreshCookie, token, new CookieOptions
         {
             HttpOnly = true,
             // En desarrollo la API va por http; exigir Secure impediría que el
             // navegador guardara la cookie.
-            Secure = Request.IsHttps,
+            Secure = request.IsHttps,
             // Web y API comparten dominio registrable (ideanueva.com), así que
             // Lax alcanza y no hace falta exponerla a contextos de terceros.
             SameSite = SameSiteMode.Lax,
             Path = "/api/Login",
-            Expires = DateTimeOffset.UtcNow.AddDays(_jwtSettings.RefreshTokenDays)
+            Expires = persistent ? DateTimeOffset.UtcNow.AddDays(days) : null
         });
     }
+
+    /// <summary>
+    /// Nombre del dispositivo. El móvil manda el suyo; la web no manda nada, así
+    /// que se arma desde el User-Agent ("Chrome en Windows") para poder
+    /// distinguir un equipo de otro en dispositivos de confianza y sesiones.
+    /// </summary>
+    internal static string ResolveDevice(HttpRequest request, InicioSesionDesde from, string? declared) =>
+        UsesRefreshCookie(from) && string.IsNullOrWhiteSpace(declared)
+            ? DeviceLabel.FromUserAgent(request.Headers.UserAgent.ToString())
+            : declared ?? "";
 
     private void ClearRefreshCookie()
     {
         Response.Cookies.Append(RefreshCookie, "", new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api/Login",
+            Expires = DateTimeOffset.UnixEpoch
+        });
+    }
+
+    /// <summary>Misma cookie que escribe MfaController, con las mismas opciones, ya vencida.</summary>
+    private void ClearDeviceTrustCookie()
+    {
+        Response.Cookies.Append(DeviceTrustCookie, "", new CookieOptions
         {
             HttpOnly = true,
             Secure = Request.IsHttps,
@@ -122,6 +161,8 @@ public class LoginController(
         ValidationResult result = new LoginRequestValidator().Validate(login);
         if (!result.IsValid) return ErrorsValidation<LoginResponse>.GetResponse(result.Errors);
 
+        login.Device = ResolveDevice(Request, login.LoginFrom, login.Device);
+
         var resp = await _authenticationApplication.Login(login);
         if (resp.ok)
         {
@@ -136,10 +177,9 @@ public class LoginController(
                     ? (Request.Cookies[DeviceTrustCookie] ?? "")
                     : login.DeviceTrustToken;
 
-                bool trustedDevice = !string.IsNullOrEmpty(deviceToken)
-                    && await _authenticationApplication.IsTrustedDevice(resp.Data.UserId, deviceToken);
+                long? trustedDeviceId = await _authenticationApplication.FindTrustedDevice(resp.Data.UserId, deviceToken);
 
-                if (trustedDevice)
+                if (trustedDeviceId != null)
                 {
                     resp.Data.RequireTotp = false;
 
@@ -154,7 +194,7 @@ public class LoginController(
                     // hace el camino normal. Sin esto el JWT queda con
                     // SessionId 0 y cualquier endpoint autenticado lo rechaza.
                     resp.Data.SesionId = await _authenticationApplication.RecordSuccessfulLogin(login, resp.Data.UserId);
-                    await IssueTokens(resp.Data, login.LoginFrom, login.Device);
+                    await IssueTokens(resp.Data, login.LoginFrom, login.Device, login.RememberMe, trustedDeviceId);
                 }
                 else
                 {
@@ -171,7 +211,7 @@ public class LoginController(
             }
             else
             {
-                await IssueTokens(resp.Data, login.LoginFrom, login.Device);
+                await IssueTokens(resp.Data, login.LoginFrom, login.Device, login.RememberMe);
             }
         }
 
@@ -190,12 +230,22 @@ public class LoginController(
         // cuerpo vacío y el token se toma de la cookie que envía el navegador.
         bool fromCookie = string.IsNullOrEmpty(request.RefreshToken);
         if (fromCookie)
+        {
             request.RefreshToken = Request.Cookies[RefreshCookie] ?? "";
+
+            // El canal manda, no lo que declare el cuerpo: quien llega con la
+            // cookie es web y se rige por las reglas de vida de la web.
+            if (!UsesRefreshCookie(request.LoginFrom))
+                request.LoginFrom = InicioSesionDesde.ReconexionWeb;
+        }
+
+        request.Device = ResolveDevice(Request, request.LoginFrom, request.Device);
 
         ValidationResult result = new RefreshTokenRequestValidator().Validate(request);
         if (!result.IsValid) return ErrorsValidation<LoginResponse>.GetResponse(result.Errors);
 
-        var resp = await _authenticationApplication.Refresh(request, _jwtSettings.RefreshTokenDays);
+        var resp = await _authenticationApplication.Refresh(
+            request, _jwtSettings.RefreshTokenDays, _jwtSettings.WebSessionHours);
 
         if (resp.ok)
         {
@@ -205,7 +255,8 @@ public class LoginController(
             // cookie, el token rotado vuelve a la cookie y no al cuerpo.
             if (fromCookie)
             {
-                SetRefreshCookie(resp.Data.RefreshToken);
+                AppendRefreshCookie(Request, Response, resp.Data.RefreshToken,
+                    resp.Data.RememberSession, _jwtSettings.RefreshTokenDays);
                 resp.Data.RefreshToken = "";
             }
         }
@@ -219,7 +270,12 @@ public class LoginController(
         return Ok(resp);
     }
 
-    /// <summary>Cierre de sesión explícito: invalida el refresh token.</summary>
+    /// <summary>
+    /// Cierre de sesión explícito: invalida el refresh token y, en web, olvida
+    /// el equipo (revoca el dispositivo de confianza y borra su cookie). Así,
+    /// tras cerrar sesión el siguiente login vuelve a pedir contraseña y TOTP.
+    /// El móvil no manda esa cookie, por lo que su token de dispositivo no se toca.
+    /// </summary>
     [AllowAnonymous]
     [HttpPost("revoke")]
     public async Task<ActionResult<Response<bool>>> Revoke([FromBody] RefreshTokenRequest request)
@@ -227,14 +283,20 @@ public class LoginController(
         if (string.IsNullOrEmpty(request.RefreshToken))
             request.RefreshToken = Request.Cookies[RefreshCookie] ?? "";
 
+        // Cierre automático (inactividad): no es una decisión del usuario, así
+        // que el equipo conserva su confianza y su cookie.
+        string deviceTrustToken = request.KeepDevice ? "" : Request.Cookies[DeviceTrustCookie] ?? "";
+
         ClearRefreshCookie();
+        if (!request.KeepDevice) ClearDeviceTrustCookie();
 
         // Cerrar sesión sin token vigente no es un error: el objetivo (no
-        // quedar con sesión abierta) igual se cumple.
-        if (string.IsNullOrEmpty(request.RefreshToken))
+        // quedar con sesión abierta) igual se cumple. Si aún queda la cookie
+        // del dispositivo se olvida igual.
+        if (string.IsNullOrEmpty(request.RefreshToken) && string.IsNullOrEmpty(deviceTrustToken))
             return Ok(new Response<bool> { ok = true, Data = true });
 
-        return Ok(await _authenticationApplication.RevokeRefreshToken(request.RefreshToken));
+        return Ok(await _authenticationApplication.RevokeRefreshToken(request.RefreshToken, deviceTrustToken, request.KeepDevice));
     }
 
     /// <summary>
@@ -263,7 +325,7 @@ public class LoginController(
         return Ok(resp);
     }
 
-    private async Task IssueTokens(LoginResponse data, InicioSesionDesde from, string device)
+    private async Task IssueTokens(LoginResponse data, InicioSesionDesde from, string device, bool rememberMe, long? trustedDeviceId = null)
     {
         bool refreshable = UsesRefreshToken(from);
 
@@ -274,10 +336,12 @@ public class LoginController(
 
         string raw = await _authenticationApplication.IssueRefreshToken(
             data.UserId, data.TenantId, data.BranchId, data.SesionId, device, Enum.GetName(typeof(InicioSesionDesde), from) ?? "",
-            _jwtSettings.RefreshTokenDays);
+            RefreshLifetimeDays(_jwtSettings, from, rememberMe),
+            // El enlace con el dispositivo es solo de la web: el móvil no se toca.
+            UsesRefreshCookie(from) ? trustedDeviceId : null);
 
         if (UsesRefreshCookie(from))
-            SetRefreshCookie(raw);
+            AppendRefreshCookie(Request, Response, raw, rememberMe, _jwtSettings.RefreshTokenDays);
         else
             data.RefreshToken = raw;
     }

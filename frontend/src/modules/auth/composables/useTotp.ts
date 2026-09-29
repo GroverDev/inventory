@@ -17,12 +17,16 @@ export const useTotp = () => {
   const authStore = useAuthStore();
 
   // Verify TOTP code during login (user has TOTP configured)
-  const verifyAndComplete = async (code: string, rememberDevice = false) => {
+  // La casilla "mantener sesión y recordar este equipo" se marcó en el login y
+  // vale para las dos cosas: sesión de 30 días y dispositivo de confianza.
+  const verifyAndComplete = async (code: string) => {
     const sessionToken = authStore.getPendingUser?.TotpSessionToken ?? '';
+    const remember = authStore.getPendingRemember;
     const response = await post<ResponseObject<User>>('Mfa/verify', {
       TotpSessionToken: sessionToken,
       TotpCode: code,
-      RememberDevice: rememberDevice,
+      RememberMe: remember,
+      RememberDevice: remember,
     });
     if (response.ok && response.Data?.Token) {
       authStore.completarTotp(response.Data);
@@ -33,12 +37,14 @@ export const useTotp = () => {
   };
 
   // Verify with recovery code during login
-  const verifyWithRecovery = async (recoveryCode: string, rememberDevice = false) => {
+  const verifyWithRecovery = async (recoveryCode: string) => {
     const sessionToken = authStore.getPendingUser?.TotpSessionToken ?? '';
+    const remember = authStore.getPendingRemember;
     const response = await post<ResponseObject<User>>('Mfa/verify-recovery', {
       TotpSessionToken: sessionToken,
       RecoveryCode: recoveryCode,
-      RememberDevice: rememberDevice,
+      RememberMe: remember,
+      RememberDevice: remember,
     });
     if (response.ok && response.Data?.Token) {
       authStore.completarTotp(response.Data);

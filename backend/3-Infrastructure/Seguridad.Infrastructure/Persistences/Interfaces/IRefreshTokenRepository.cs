@@ -5,7 +5,7 @@ namespace Seguridad.Infrastructure;
 public interface IRefreshTokenRepository
 {
     /// <summary>Persiste un refresh token nuevo y devuelve su id.</summary>
-    Task<long> Create(int userId, int tenantId, Guid branchId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt);
+    Task<long> Create(int userId, int tenantId, Guid branchId, int sessionId, string tokenHash, string device, string loginFrom, DateTime expiresAt, long? trustedDeviceId = null);
 
     Task<RefreshToken?> GetByHash(string tokenHash);
 
@@ -24,6 +24,15 @@ public interface IRefreshTokenRepository
     /// sesión no tiene refresh token (Postman, o 2FA a medio configurar).
     /// </summary>
     Task<int> SetBranchForSession(int userId, int sessionId, Guid branchId);
+
+    /// <summary>
+    /// Revoca los refresh tokens abiertos con ese dispositivo de confianza y
+    /// devuelve los SessionId afectados, para tumbar también sus access tokens.
+    /// </summary>
+    Task<List<int>> RevokeByTrustedDevice(long trustedDeviceId, int userId);
+
+    /// <summary>Igual, para todos los dispositivos de confianza del usuario.</summary>
+    Task<List<int>> RevokeAllTrustedDeviceSessions(int userId);
 
     /// <summary>Marca el token como revocado, opcionalmente indicando cuál lo reemplazó.</summary>
     Task Revoke(long id, long? replacedBy);

@@ -28,6 +28,13 @@ public class RefreshToken
     /// expirara solo.
     /// </summary>
     public int SessionId { get; set; }
+
+    /// <summary>
+    /// Dispositivo de confianza (sec.trusted_devices) con el que se abrió esta
+    /// sesión web. Al olvidar ese dispositivo se revocan también estos tokens.
+    /// Nulo en el móvil y en sesiones sin dispositivo de confianza.
+    /// </summary>
+    public long? TrustedDeviceId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
     public DateTime? RevokedAt { get; set; }

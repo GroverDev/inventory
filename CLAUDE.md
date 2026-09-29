@@ -37,6 +37,17 @@ The captcha is enforced in two stages, both in `LoginController.Authenticate`:
 
 Verification is fail-closed: a rejected token always blocks, and so does a one-off infrastructure failure. Only after `OutageThreshold` consecutive infrastructure failures does `TurnstileCircuitBreaker` declare an outage and let logins through for `OutageMinutes`, then retry on its own. `Enabled` is read through `IOptionsMonitor`, so it can be switched off without restarting when `appsettings.json` is a mounted volume.
 
+## Sesión web ("mantener sesión iniciada")
+
+El login web tiene una casilla, desmarcada por defecto, que envía `RememberMe` al backend. Solo la web la usa; el móvil la ignora y su refresh token sigue durando `RefreshTokenDays`.
+- **Sin marcar:** el JWT vive en `sessionStorage`; la cookie `refresh_token` no lleva `Expires` (muere al cerrar el navegador) y el token en BD dura `JwtSettings:WebSessionHours` (12). El frontend cierra la sesión tras 30 min sin actividad (`useIdleLogout`).
+- **Marcada:** cookie de `RefreshTokenDays` (30). Usuario y menú van a `localStorage` (nunca el JWT); al abrir una pestaña nueva el guard renueva el token en silencio con `authStore.restoreSession()`.
+- No hay columna que guarde la elección: `AuthenticationApplication.Refresh` la deduce de la vida con que se emitió el token que canjea, y la rotación la conserva.
+- **Una sola casilla ("Mantener sesión y recordar este equipo por 30 días")** cubre sesión persistente Y dispositivo de confianza del TOTP. En `MfaController.IssueTokens`, para web `rememberDevice = rememberMe`; la pantalla del TOTP ya no tiene casilla propia. El móvil sigue mandando `RememberDevice` por su cuenta.
+- **Olvidar un dispositivo de confianza cierra su sesión web:** `sec.refresh_tokens.trusted_device_id` (migración `2026-09-29_refresh_tokens_trusted_device.sql`) enlaza cada refresh web con su dispositivo, la rotación lo hereda, y `RevokeTrustedDevice` / `RevokeAllTrustedDevicesForUser` revocan esos tokens y tumban sus access tokens en `SessionRevocationRegistry`. El enlace es solo de web: el móvil no se toca.
+- **Nombre del dispositivo:** la web manda `Device` vacío, así que `LoginController.ResolveDevice` lo arma desde el `User-Agent` ("Chrome en Windows", `Common.Utilities.DeviceLabel`) en login, verificación TOTP y refresh. El móvil manda el suyo y no se toca. Sirve para dispositivos de confianza y sesiones activas.
+- **Cerrar sesión en web olvida el equipo:** `POST Login/revoke` además de revocar el refresh token revoca el dispositivo enlazado y el de la cookie `device_trust`, y borra ambas cookies; el siguiente login vuelve a pedir contraseña y TOTP. El móvil no manda esa cookie ni tiene enlace, así que su token de dispositivo no se toca. El cierre por inactividad manda `KeepDevice: true` (`auth.logout(true)`) y solo revoca la sesión: el equipo conserva su confianza.
+
 ## Backend (local)
 
 Correr desde `backend/1-Services/Services.Api`. Requiere .NET 10 SDK y una base Postgres accesible en `localhost:5432` (rol `app_pos`, base `punto_venta` — restaurar el backup más reciente de `db/` con `pg_restore`).

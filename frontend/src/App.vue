@@ -14,6 +14,7 @@ import { useLoadingStore } from '@/modules/common/store/loadingStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useApp } from '@/composables/useApp';
+import { useIdleLogout } from '@/modules/auth/composables/useIdleLogout';
 import { RouterView } from 'vue-router';
 import { provide } from 'vue';
 
@@ -28,6 +29,9 @@ provide('dialog', dialogStore);
 const { toggleFullscreen, printPage, initTooltips, initPopovers } = useApp();
 
 themeStore.initTheme();
+
+// Cierra por inactividad las sesiones que no se marcaron como "mantener iniciada".
+useIdleLogout();
 
 import { onMounted } from 'vue';
 

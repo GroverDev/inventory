@@ -62,6 +62,22 @@
               </div>
             </div>
 
+            <div class="form-check mb-4 remember-me">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                class="form-check-input"
+                v-model="rememberMe"
+              >
+              <label for="rememberMe" class="form-check-label">
+                Mantener sesión y recordar este equipo por 30 días
+              </label>
+              <div class="form-text">
+                No pedirá contraseña ni código de verificación en este equipo.
+                <strong>No lo marques en equipos compartidos o de otras personas.</strong>
+              </div>
+            </div>
+
             <!-- <div class="d-flex justify-content-end mb-4">
               <a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
             </div> -->
@@ -125,6 +141,9 @@ const canSubmit = computed(
   () => !turnstileSiteKey || turnstileToken.value !== '' || turnstileStatus.value === 'unavailable'
 );
 
+// Desmarcado por defecto: sin él la sesión muere al cerrar el navegador.
+const rememberMe = ref(false);
+
 const loginForm = ref({
   usuario: '',
   contrasenia: ''
@@ -144,7 +163,8 @@ const loginSubmit = async () => {
   const ok = await loginApp(
     loginForm.value.usuario,
     loginForm.value.contrasenia,
-    turnstileToken.value
+    turnstileToken.value,
+    rememberMe.value
   );
 
   if (ok.success) {

@@ -11,6 +11,9 @@ public class MfaRecoveryRequest
 
     /// <summary>Si es true, emite un token de dispositivo de confianza que salta el TOTP en logins futuros.</summary>
     public bool RememberDevice { get; set; }
+
+    /// <summary>Igual que <see cref="LoginRequest.RememberMe"/>: solo la web lo usa.</summary>
+    public bool RememberMe { get; set; }
 }
 
 public class MfaRecoveryRequestValidator : AbstractValidator<MfaRecoveryRequest>

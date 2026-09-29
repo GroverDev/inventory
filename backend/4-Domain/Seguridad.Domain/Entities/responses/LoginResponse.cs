@@ -37,6 +37,13 @@ public class LoginResponse
         /// </summary>
         public string DeviceTrustToken { get; set; }="";
 
+        /// <summary>
+        /// Solo interno: lo llena Refresh para que el controlador sepa si la
+        /// cookie web debe ser persistente. No viaja al cliente.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool RememberSession { get; set; }
+
         public bool RequireTotp { get; set; }
         public bool TotpSetupRequired { get; set; }
         public string TotpSessionToken { get; set; }="";
