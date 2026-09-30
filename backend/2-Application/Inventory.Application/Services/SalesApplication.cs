@@ -115,12 +115,14 @@ public class SalesApplication(
                 });
 
                 var sale = saleRequest.Adapt<Sale>();
-                // El mismo criterio de los descuentos: al cajero se le exige la
-                // autorización de un supervisor, y a quien tiene un rol
-                // administrativo no. Con la firma, el faltante se vende y el saldo
-                // queda negativo, como siempre. Lo aplica la base, dentro de la
+                // A diferencia de los descuentos, vender por encima del saldo exige
+                // la firma de un supervisor a TODOS los roles: un administrador
+                // también puede equivocarse, y el saldo negativo falsea el
+                // inventario. El administrador se firma a sí mismo con su
+                // contraseña en el mismo diálogo. Con la firma, el faltante se vende
+                // y el saldo queda negativo. Lo aplica la base, dentro de la
                 // transacción de la venta (ver fn_asignar_fefo).
-                sale.EnforceStock = cajeroSinAutorizacion;
+                sale.EnforceStock = !supervisorApproved;
                 // SaleDate llega como texto y Mapster lo parsea a hora local del
                 // servidor. Npgsql después guarda los dígitos tal cual, así que sin
                 // normalizar la venta quedaría corrida tantas horas como el servidor

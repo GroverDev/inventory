@@ -136,11 +136,23 @@ public class VentaSinStockTests(TenantDatabaseFixture db)
     }
 
     [Fact]
-    public async Task Un_rol_administrativo_no_necesita_supervisor()
+    public async Task Un_rol_administrativo_tambien_necesita_supervisor()
     {
         var producto = NuevoProducto("VSS ADMIN", stock: 0);
 
         var resp = await Ventas().CreateSale(Venta(producto, 1), 1, Admin);
+
+        Assert.False(resp.ok);
+        Assert.Equal(StockSupervisorRequiredException.MessageId, resp.Message.Id);
+        Assert.Equal(0, VentasDe(producto));
+    }
+
+    [Fact]
+    public async Task Un_administrador_con_firma_vende_sin_stock()
+    {
+        var producto = NuevoProducto("VSS ADMIN FIRMA", stock: 0);
+
+        var resp = await Ventas().CreateSale(Venta(producto, 1), 1, Admin, supervisorApproved: true);
 
         Assert.True(resp.ok, resp.Message.Description);
     }
