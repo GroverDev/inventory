@@ -1,0 +1,71 @@
+<app-breadcrumbs title="Reiniciar datos (esta farmacia)" [breadcrumbItems]="[{ label: 'Administración' }, { label: 'Reiniciar Datos', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger-subtle">
+                <h5 class="card-title mb-0 text-danger"><i class="ri-error-warning-line align-middle me-2"></i>Reiniciar datos <span class="fw-normal">(esta farmacia)</span></h5>
+            </div>
+            <div class="card-body">
+                <!-- Advertencia -->
+                <div class="alert alert-danger d-flex align-items-start" role="alert">
+                    <i class="ri-radar-line fs-2 me-3"></i>
+                    <div>
+                        <strong>Esta acción es irreversible.</strong>
+                        Se eliminarán <u>todos los datos de negocio de esta farmacia</u>: productos, clientes, proveedores, ventas, compras, inventario y caja.
+                        <br />
+                        Se conservan los <u>usuarios, roles y permisos</u>, y no se toca ninguna otra farmacia. Al terminar quedan sembrados los datos mínimos (unidad de medida, laboratorio, categoría y métodos de pago) para poder volver a operar, y su sesión sigue siendo válida.
+                    </div>
+                </div>
+
+                <form (ngSubmit)="onSubmit()" autocomplete="off">
+                    <div class="row g-4">
+                        <!-- Qué se conserva -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card h-100 mb-0 border">
+                                <div class="card-header fw-semibold"><i class="ri-shield-line me-1"></i> Qué se conserva</div>
+                                <div class="card-body">
+                                    <ul class="mb-0 ps-3">
+                                        <li class="mb-2">Los <strong>usuarios</strong> de la farmacia y sus contraseñas.</li>
+                                        <li class="mb-2">Los <strong>roles y permisos</strong> configurados.</li>
+                                        <li class="mb-2">Los <strong>datos de las demás farmacias</strong>, que no se tocan.</li>
+                                        <li class="mb-0">Un <strong>respaldo</strong> de lo borrado, salvo que lo omita más abajo.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confirmación de seguridad -->
+                        <div class="col-12 col-lg-6">
+                            <div class="card h-100 mb-0 border border-danger">
+                                <div class="card-header fw-semibold text-danger"><i class="ri-shield-check-line me-1"></i> Confirmación de seguridad</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="CurrentPassword">Su contraseña actual (SuperAdmin)</label>
+                                        <input type="password" id="CurrentPassword" name="CurrentPassword" class="form-control" [(ngModel)]="currentPassword" placeholder="Contraseña de su usuario" autocomplete="current-password">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="ConfirmationPhrase">Escriba <code class="text-danger">{{ expectedPhrase }}</code> para confirmar</label>
+                                        <input type="text" id="ConfirmationPhrase" name="ConfirmationPhrase" class="form-control" [class.is-valid]="phraseOk" [class.is-invalid]="!phraseOk && confirmationPhrase" [(ngModel)]="confirmationPhrase" placeholder="RESETEAR EMPRESA" autocomplete="off">
+                                    </div>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="chkBackup" name="chkBackup" [(ngModel)]="createBackup">
+                                        <label class="form-check-label" for="chkBackup">
+                                            Generar respaldo antes de reiniciar
+                                            <small class="text-muted d-block">Copia todos los datos a un esquema <code>backup_&lt;fecha&gt;</code> en la misma base.</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="button" class="btn btn-outline-secondary" (click)="goBack()">Cancelar</button>
+                        <button type="submit" class="btn btn-danger" [disabled]="!canSubmit"><i class="ri-delete-back-2-line me-1"></i> Reiniciar empresa</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,135 @@
+<app-breadcrumbs title="Gestión de Compras" [breadcrumbItems]="[{ label: 'Inventario' }, { label: 'Registro de Compras', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <button type="button" class="btn btn-primary btn-sm" (click)="create()">
+                    <i class="ri-add-line align-middle me-1"></i>Nueva Compra
+                </button>
+            </div>
+
+            <div class="card-body">
+                <div class="row align-items-end g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label" for="p-from">Fecha Inicio</label>
+                        <input id="p-from" type="date" class="form-control" [(ngModel)]="filter.dateInitial">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label" for="p-to">Fecha Fin</label>
+                        <input id="p-to" type="date" class="form-control" [(ngModel)]="filter.dateEnd">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label" for="p-status">Estado</label>
+                        <select id="p-status" class="form-select" [(ngModel)]="filter.statusId">
+                            <option [ngValue]="1">Solicitado</option>
+                            <option [ngValue]="2">Parcialmente recibido</option>
+                            <option [ngValue]="3">Totalmente recibido</option>
+                            <option [ngValue]="5">Cerrado con faltante</option>
+                            <option [ngValue]="4">Cancelado</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <button class="btn btn-primary w-100" (click)="search()">
+                            <i class="ri-search-line align-middle me-1"></i>Buscar
+                        </button>
+                    </div>
+                </div>
+
+                @if (purchases().length === 0) {
+                <div class="text-center py-5">
+                    <i class="ri-shopping-cart-2-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-2">Seleccione un rango de fechas y estado para buscar compras</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="create()">
+                        <i class="ri-add-line align-middle me-1"></i>Crear nueva compra
+                    </button>
+                </div>
+                } @else {
+                <p class="text-muted fs-13 mb-2">
+                    <i class="ri-list-check align-middle me-1"></i><strong>{{ purchases().length }}</strong> compra(s) encontrada(s)
+                </p>
+
+                <div class="d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Proveedor</th>
+                                <th class="text-center">Estado</th>
+                                <th class="d-none d-lg-table-cell">Entrega Estimada</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (purchase of purchases(); track purchase.Id) {
+                            <tr>
+                                <td>{{ formatDateOnly(purchase.PurchaseDate) }}</td>
+                                <td class="fw-semibold">{{ purchase.ProviderName }}</td>
+                                <td class="text-center">
+                                    <span [class]="statusBadge(purchase.PurchaseStatusId)">{{ purchase.PurchaseStatusName || statusLabel(purchase.PurchaseStatusId) }}</span>
+                                </td>
+                                <td class="d-none d-lg-table-cell"><small class="text-muted">{{ formatDateOnly(purchase.EstimatedDeliveryDate) }}</small></td>
+                                <td class="text-end fw-semibold">{{ formatCurrency(purchase.Total) }}</td>
+                                <td class="text-center text-nowrap">
+                                    @if (canReceive(purchase.PurchaseStatusId)) {
+                                    <button type="button" class="btn btn-soft-success btn-sm me-1" title="Recepcionar" (click)="receive(purchase.Id)"><i class="ri-inbox-archive-line"></i></button>
+                                    }
+                                    @if (canClose(purchase.PurchaseStatusId)) {
+                                    <button type="button" class="btn btn-soft-secondary btn-sm me-1" title="Cerrar con faltante" (click)="closeWithShortage(purchase.Id)"><i class="ri-lock-line"></i></button>
+                                    }
+                                    @if (canModify(purchase.PurchaseStatusId)) {
+                                    <button type="button" class="btn btn-soft-primary btn-sm me-1" title="Editar" (click)="edit(purchase.Id)"><i class="ri-edit-2-line"></i></button>
+                                    <button type="button" class="btn btn-soft-warning btn-sm me-1" title="Anular orden" (click)="cancelOrder(purchase.Id)"><i class="ri-forbid-line"></i></button>
+                                    <button type="button" class="btn btn-soft-danger btn-sm" title="Eliminar" (click)="remove(purchase.Id)"><i class="ri-delete-bin-line"></i></button>
+                                    }
+                                    @if (isFinal(purchase.PurchaseStatusId)) {
+                                    <span class="text-muted small"><i class="ri-lock-line me-1"></i>Sin acciones</span>
+                                    }
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tarjetas (móvil <md) -->
+                <div class="d-md-none">
+                    <div class="row g-3">
+                        @for (purchase of purchases(); track purchase.Id) {
+                        <div class="col-12">
+                            <div class="card shadow rounded-3 mb-0">
+                                <div class="card-body d-flex flex-column gap-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <p class="fw-semibold mb-0 lh-sm">{{ purchase.ProviderName }}</p>
+                                        <span [class]="statusBadge(purchase.PurchaseStatusId)">{{ purchase.PurchaseStatusName || statusLabel(purchase.PurchaseStatusId) }}</span>
+                                    </div>
+                                    <small class="text-muted"><i class="ri-calendar-line me-1"></i>{{ formatDateOnly(purchase.PurchaseDate) }}</small>
+                                    <div class="fs-6 fw-bold">{{ formatCurrency(purchase.Total) }}</div>
+                                    <div class="d-flex gap-2 pt-1 flex-wrap">
+                                        @if (canReceive(purchase.PurchaseStatusId)) {
+                                        <button type="button" class="btn btn-sm btn-outline-success flex-fill" (click)="receive(purchase.Id)"><i class="ri-inbox-archive-line align-middle me-1"></i>Recepcionar</button>
+                                        }
+                                        @if (canClose(purchase.PurchaseStatusId)) {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" (click)="closeWithShortage(purchase.Id)"><i class="ri-lock-line align-middle me-1"></i>Cerrar</button>
+                                        }
+                                        @if (canModify(purchase.PurchaseStatusId)) {
+                                        <button type="button" class="btn btn-sm btn-outline-primary flex-fill" (click)="edit(purchase.Id)"><i class="ri-edit-2-line align-middle me-1"></i>Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" title="Anular orden" (click)="cancelOrder(purchase.Id)"><i class="ri-forbid-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="remove(purchase.Id)"><i class="ri-delete-bin-line"></i></button>
+                                        }
+                                        @if (isFinal(purchase.PurchaseStatusId)) {
+                                        <small class="text-muted"><i class="ri-lock-line me-1"></i>Orden cerrada, sin acciones disponibles</small>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

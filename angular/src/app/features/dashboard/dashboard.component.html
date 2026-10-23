@@ -1,0 +1,129 @@
+<app-breadcrumbs title="Dashboard, Inventarios" [breadcrumbItems]="[{ label: 'Inicio' }, { label: 'Tablero Información', active: true }]"></app-breadcrumbs>
+
+@let k = kpi();
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm mb-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.7rem">Ventas Hoy</small>
+                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill"><i class="ri-store-3-line"></i></span>
+                </div>
+                <div class="h4 mb-0 fw-bold">Bs. {{ formatNum(k.TodaySalesTotal) }}</div>
+                <small class="text-muted">{{ k.TodaySalesCount }} venta(s)</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm mb-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.7rem">Ventas del Mes</small>
+                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill"><i class="ri-line-chart-line"></i></span>
+                </div>
+                <div class="h4 mb-0 fw-bold">Bs. {{ formatNum(k.MonthSalesTotal) }}</div>
+                <small class="text-muted">{{ k.MonthSalesCount }} venta(s)</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm mb-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.7rem">Compras Pendientes</small>
+                    <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill"><i class="ri-shopping-cart-2-line"></i></span>
+                </div>
+                <div class="h4 mb-0 fw-bold">{{ k.PendingPurchasesCount }}</div>
+                <small class="text-muted">órdenes por recibir</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="card h-100 border-0 shadow-sm mb-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.7rem">Stock Bajo</small>
+                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill"><i class="ri-archive-line"></i></span>
+                </div>
+                <div class="h4 mb-0 fw-bold">{{ k.LowStockCount }}</div>
+                <small class="text-muted">producto(s) bajo mínimo</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tablas -->
+<div class="row g-3">
+
+    <!-- Últimas ventas del día -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100 mb-0">
+            <div class="card-header bg-transparent border-bottom">
+                <h6 class="mb-0 fw-semibold"><i class="ri-receipt-line me-2 text-success"></i>Últimas Ventas del Día</h6>
+            </div>
+            <div class="card-body p-0">
+                @if (k.RecentSales.length === 0) {
+                <div class="text-center py-4">
+                    <i class="ri-inbox-line fs-2 text-muted d-block mb-2"></i>
+                    <small class="text-muted">Sin ventas registradas hoy</small>
+                </div>
+                } @else {
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Cliente</th><th>Hora</th><th class="text-end">Total</th></tr>
+                    </thead>
+                    <tbody>
+                        @for (sale of k.RecentSales; track sale.Id) {
+                        <tr>
+                            <td><span class="fw-semibold">{{ sale.CustomerName }}</span></td>
+                            <td><small class="text-muted">{{ formatTime(sale.SaleDate) }}</small></td>
+                            <td class="text-end fw-semibold text-success">Bs. {{ formatNum(sale.Total) }}</td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Productos con stock bajo -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100 mb-0">
+            <div class="card-header bg-transparent border-bottom">
+                <h6 class="mb-0 fw-semibold"><i class="ri-error-warning-line me-2 text-danger"></i>Productos con Stock Crítico</h6>
+            </div>
+            <div class="card-body p-0">
+                @if (k.LowStockProducts.length === 0) {
+                <div class="text-center py-4">
+                    <i class="ri-checkbox-circle-line fs-2 text-success d-block mb-2"></i>
+                    <small class="text-muted">Todos los productos tienen stock suficiente</small>
+                </div>
+                } @else {
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Producto</th><th class="text-center">Stock</th><th class="text-center">Mínimo</th></tr>
+                    </thead>
+                    <tbody>
+                        @for (product of k.LowStockProducts; track product.Id) {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">{{ product.ProductName }}</div>
+                                <small class="text-muted">{{ product.ProductCode }}</small>
+                            </td>
+                            <td class="text-center"><span class="badge bg-danger">{{ product.CurrentStock }}</span></td>
+                            <td class="text-center"><span class="text-muted">{{ product.MinReorderQuantity }}</span></td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>

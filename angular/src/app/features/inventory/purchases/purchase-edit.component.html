@@ -1,0 +1,131 @@
+<app-breadcrumbs [title]="purchase.Id ? 'Editar Compra' : 'Nueva Compra'" [breadcrumbItems]="[{ label: 'Inventario' }, { label: 'Registro de Compras' }, { label: purchase.Id ? 'Editar Compra' : 'Nueva Compra', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{{ purchase.Id ? 'Editar' : 'Nueva' }} Compra</h5>
+            </div>
+
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="back()" />
+                <!-- Datos de la orden -->
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-file-list-3-line align-middle me-1"></i> Datos de la Orden</h6>
+                <div class="row">
+                    <div class="col-12 col-md-5 mb-3 position-relative">
+                        <label class="form-label">Proveedor <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            @if (!purchase.ProviderId) {
+                            <input type="text" class="form-control" name="providerSearch" [(ngModel)]="providerSearch" placeholder="Buscar proveedor..." autocomplete="off" [disabled]="isSaved()" (keyup.enter)="searchProviders()">
+                            <button class="btn btn-outline-secondary" type="button" (click)="searchProviders()"><i class="ri-search-line"></i></button>
+                            } @else {
+                            <input type="text" class="form-control fw-semibold" [value]="purchase.ProviderName" readonly>
+                            @if (!isSaved()) {<button class="btn btn-outline-danger" type="button" (click)="clearProvider()"><i class="ri-close-line"></i></button>}
+                            }
+                        </div>
+                        @if (providerResults.length > 0) {
+                        <div class="list-group mt-1 shadow-sm position-absolute" style="z-index: 1000; width: min(350px, 100%)">
+                            @for (p of providerResults; track p.Id) {
+                            <button type="button" class="list-group-item list-group-item-action py-1 px-2" (click)="selectProvider(p)">{{ p.ProviderName }}</button>
+                            }
+                        </div>
+                        }
+                    </div>
+
+                    <div class="col-6 col-md-3 mb-3">
+                        <label class="form-label" for="PurchaseDate">Fecha de Compra <span class="text-danger">*</span></label>
+                        <input id="PurchaseDate" type="date" class="form-control" [(ngModel)]="purchase.PurchaseDate" [disabled]="isSaved()">
+                    </div>
+                    <div class="col-6 col-md-3 mb-3">
+                        <label class="form-label" for="EstimatedDeliveryDate">Entrega Estimada</label>
+                        <input id="EstimatedDeliveryDate" type="date" class="form-control" [(ngModel)]="purchase.EstimatedDeliveryDate" [disabled]="isSaved()">
+                    </div>
+                </div>
+
+                <!-- Agregar producto al detalle -->
+                @if (!isSaved()) {
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2"><i class="ri-add-circle-line align-middle me-1"></i> Agregar Producto</h6>
+                <div class="row align-items-end g-2 mb-2">
+                    <div class="col-12 col-md-4 position-relative">
+                        <label class="form-label">Producto</label>
+                        <div class="input-group">
+                            @if (!newLine.ProductId) {
+                            <input type="text" class="form-control" name="productSearch" [(ngModel)]="productSearch" placeholder="Buscar producto..." autocomplete="off" (keyup.enter)="searchProducts()">
+                            <button class="btn btn-outline-secondary" type="button" (click)="searchProducts()"><i class="ri-search-line"></i></button>
+                            } @else {
+                            <input type="text" class="form-control fw-semibold" [value]="newLine.ProductName" readonly>
+                            <button class="btn btn-outline-danger" type="button" (click)="clearProduct()"><i class="ri-close-line"></i></button>
+                            }
+                        </div>
+                        @if (productResults.length > 0) {
+                        <div class="list-group mt-1 shadow-sm position-absolute" style="z-index: 1000; width: min(350px, 100%)">
+                            @for (prod of productResults; track prod.Id) {
+                            <button type="button" class="list-group-item list-group-item-action py-1 px-2" (click)="selectProduct(prod)">{{ prod.ProductName }}</button>
+                            }
+                        </div>
+                        }
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label" for="line-qty">Cantidad</label>
+                        <input id="line-qty" type="number" inputmode="numeric" class="form-control text-end" min="1" [(ngModel)]="newLine.OrderedQuantity">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label" for="line-price">Precio Unit.</label>
+                        <input id="line-price" type="number" inputmode="decimal" class="form-control text-end" min="0" step="0.01" [(ngModel)]="newLine.OrderUnitPrice">
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label" for="line-sub">Subtotal</label>
+                        <input id="line-sub" type="number" class="form-control text-end" readonly [value]="lineSubtotal">
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <button type="button" class="btn btn-success w-100" [disabled]="!newLine.ProductId" (click)="addLine()">
+                            <i class="ri-add-line align-middle me-1"></i>Agregar
+                        </button>
+                    </div>
+                </div>
+                }
+
+                <!-- Detalle de la compra -->
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-3"><i class="ri-list-check align-middle me-1"></i> Detalle de la Orden</h6>
+
+                @if (purchase.Detail.length === 0) {
+                <div class="text-center py-3"><small class="text-muted">No hay productos en esta orden. Agregue productos usando el buscador de arriba.</small></div>
+                } @else {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-center">Cantidad</th>
+                                <th class="text-end">Precio Unit.</th>
+                                <th class="text-end">Subtotal</th>
+                                @if (!isSaved()) {<th class="text-center">Quitar</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (line of purchase.Detail; track $index) {
+                            <tr>
+                                <td class="fw-semibold">{{ line.ProductName }}</td>
+                                <td class="text-center">{{ line.OrderedQuantity }}</td>
+                                <td class="text-end">{{ formatCurrency(line.OrderUnitPrice) }}</td>
+                                <td class="text-end">{{ formatCurrency(line.OrderFinalPrice) }}</td>
+                                @if (!isSaved()) {
+                                <td class="text-center"><button type="button" class="btn btn-soft-danger btn-sm" (click)="removeLine($index)"><i class="ri-close-line"></i></button></td>
+                                }
+                            </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold">
+                                <td colspan="3" class="text-end">TOTAL</td>
+                                <td class="text-end">{{ formatCurrency(purchase.Total) }}</td>
+                                @if (!isSaved()) {<td></td>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

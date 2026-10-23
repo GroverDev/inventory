@@ -1,0 +1,199 @@
+/* Estilos del punto de venta. El componente usa ViewEncapsulation.None para que las
+   reglas de impresión puedan alcanzar el <body>; por eso todo cuelga de .pos-page
+   o lleva prefijo pos-. */
+
+.pos-modal {
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1080;
+}
+
+/* ── Botones de cada línea del carrito ──
+   Con mouse, 22 px: cómodos sin agrandar la fila. En pantallas táctiles
+   (pointer: coarse: tablets y celulares) crecen a 44 px, el mínimo recomendado
+   para un dedo. En los dos casos quitar el producto queda separado del
+   descuento, para que un clic desviado no borre la línea. */
+.pos-page {
+  .pos-line-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    min-height: 22px;
+  }
+  .pos-line-icon { font-size: 0.75rem; }
+  .pos-line-icon-xs { font-size: 0.7rem; }
+  .pos-line-remove i { font-size: 1rem; }
+  .pos-line-actions { gap: 0.5rem !important; }
+  .pos-line-btn-sm {
+    min-width: 18px;
+    min-height: 18px;
+  }
+
+  @media (pointer: coarse) {
+    .pos-line-btn {
+      min-width: 44px;
+      min-height: 44px;
+      font-size: 1.1rem;
+    }
+    .pos-line-btn-sm {
+      min-width: 36px;
+      min-height: 36px;
+    }
+    .pos-line-icon,
+    .pos-line-icon-xs { font-size: 1rem; }
+    .pos-line-remove i { font-size: 1.4rem; }
+    .pos-line-actions { gap: 1rem !important; }
+  }
+}
+
+.pos-pay-panel { min-height: 5.25rem; }
+.pos-pay-amount { font-size: 2rem; line-height: 1.2; }
+
+/* ── Layout flex de altura fija solo en desktop ── */
+
+/* Siempre ocupa el ancho completo del contenedor */
+.pos-page {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  /* Contenedor raíz: ocupa el alto disponible */
+  .pos-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 1rem);
+    overflow: hidden;
+  }
+  /* Cabecera POS (volver + título): altura fija, no hace scroll */
+  .pos-top-bar { flex-shrink: 0; }
+
+  /* Cuerpo split: ocupa el espacio restante */
+  .pos-split {
+    flex: 1;
+    display: flex;
+    gap: 0.5rem;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Panel izquierdo (carrito): ancho fijo, flex columna con 3 zonas */
+  .pos-cart-panel {
+    width: 33.333%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* Zona superior: crece y su lista interna hace scroll */
+  .pos-cart-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+  /* La card "Carrito" crece para empujar totales al fondo */
+  .pos-cart-items-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+  /* Lista de ítems: único elemento que hace scroll dentro del carrito */
+  .pos-cart-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  /* Zona inferior: totales + botones, siempre visible abajo */
+  .pos-cart-footer { flex-shrink: 0; }
+
+  /* Panel derecho (catálogo): ocupa el resto, flex columna */
+  .pos-catalog-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+  /* Buscador + pills: altura fija arriba, NO hace scroll */
+  .pos-catalog-head { flex-shrink: 0; }
+
+  /* Grid de productos: ÚNICO elemento que hace scroll */
+  .pos-catalog-grid {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    padding-bottom: 0.5rem;
+  }
+}
+
+/* ── Modal venta completada ── */
+.completed-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 1090;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.completed-card {
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px;
+  border: 1px solid var(--bs-border-color);
+}
+
+.completed-check-icon {
+  font-size: 4rem;
+  color: #10b981;
+  line-height: 1;
+}
+
+/* ── Recibo impresión ── */
+.receipt-print { display: none; }
+
+@media print {
+  /* Solo el recibo sale en papel: lo demás de la página se oculta. */
+  body * { visibility: hidden !important; }
+  .receipt-print,
+  .receipt-print * { visibility: visible !important; }
+  .receipt-print {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 16px;
+    background: #fff;
+    color: #000;
+  }
+}
+
+/* ── Cards de producto ── */
+.product-card {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: visible;
+}
+.product-card:hover:not(.product-card--disabled) {
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.12) !important;
+}
+.product-card--disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

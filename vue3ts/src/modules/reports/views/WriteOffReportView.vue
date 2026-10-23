@@ -1,0 +1,182 @@
+<template>
+  <Layout>
+    <PageHeader title="Mermas" page-title="Reportes" />
+
+
+    <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Reporte de <span class="fw-light"><i>Mermas</i></span></h5>
+        </div>
+        <!-- Filtros -->
+          <div class="pt-0 card-body">
+            <div class="row align-items-end g-2">
+              <div class="col-6 col-md-3">
+                <label class="form-label">Fecha Inicio</label>
+                <input type="date" class="form-control form-control-sm" v-model="filtro.desde" />
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label">Fecha Fin</label>
+                <input type="date" class="form-control form-control-sm" v-model="filtro.hasta" />
+              </div>
+              <BranchFilter v-model="branch" />
+              <div class="col-12 col-md-3 d-flex gap-2">
+                <button class="btn btn-primary btn-sm flex-fill" @click="load">
+                  <i class="ri-search-line me-1"></i>Buscar
+                </button>
+                <button class="btn btn-success btn-sm flex-fill" :disabled="!reporte.Detalle.length" @click="exportar">
+                  <i class="ri-file-excel-2-line me-1"></i>Excel
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Totales -->
+          <div class="pt-0 card-body" v-if="cargado">
+            <div class="row g-2">
+              <div class="col-6 col-md-4">
+                <div class="card border-0 bg-body-secondary text-center py-2">
+                  <small class="text-muted">Eventos de baja</small>
+                  <div class="fw-bold fs-5">{{ reporte.TotalEventos }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="card border-0 bg-body-secondary text-center py-2">
+                  <small class="text-muted">Unidades perdidas</small>
+                  <div class="fw-bold fs-5">{{ reporte.TotalUnidades }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="card border-0 bg-danger bg-opacity-10 text-center py-2">
+                  <small class="text-muted">Valor perdido</small>
+                  <div class="fw-bold fs-5 text-danger">{{ fmt(reporte.TotalValorPerdido) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sin buscar todavía -->
+          <div class="pt-0 card-body" v-if="!cargado">
+            <div class="text-center py-5">
+              <i class="ri-search-line ri-3x text-muted d-block mb-3"></i>
+              <p class="text-muted">Seleccione un rango de fechas y haga clic en Buscar</p>
+            </div>
+          </div>
+
+          <template v-else>
+            <div class="pt-0 card-body" v-if="reporte.Detalle.length === 0">
+              <div class="text-center py-5">
+                <i class="ri-thumb-up-line ri-3x text-muted d-block mb-3"></i>
+                <p class="text-muted">No hubo bajas por vencimiento en este período.</p>
+              </div>
+            </div>
+
+            <template v-else>
+              <!-- Por producto -->
+              <div class="pt-0 card-body">
+                <h6 class="text-muted border-bottom pb-2 mb-3">Por producto</h6>
+                <div class="table-responsive">
+                  <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Producto</th>
+                        <th class="text-center">Eventos</th>
+                        <th class="text-center">Unidades</th>
+                        <th class="text-end">Valor Perdido</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="p in reporte.PorProducto" :key="p.ProductId">
+                        <td><small class="text-muted font-monospace">{{ p.ProductCode }}</small></td>
+                        <td class="fw-semibold">{{ p.ProductName }}</td>
+                        <td class="text-center">{{ p.Eventos }}</td>
+                        <td class="text-center">{{ p.Unidades }}</td>
+                        <td class="text-end text-danger fw-semibold">{{ fmt(p.ValorPerdido) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Detalle -->
+              <div class="pt-0 card-body">
+                <h6 class="text-muted border-bottom pb-2 mb-3">Detalle</h6>
+                <div class="table-responsive">
+                  <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th v-if="consolidated">Sucursal</th>
+                        <th>Producto</th>
+                        <th>Lote</th>
+                        <th class="text-center">Cantidad</th>
+                        <th class="text-end">Valor</th>
+                        <th>Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(d, i) in reporte.Detalle" :key="i">
+                        <td class="text-nowrap"><small>{{ fmtDate(d.Created) }}</small></td>
+                        <td v-if="consolidated"><small>{{ d.BranchName }}</small></td>
+                        <td>{{ d.ProductName }}</td>
+                        <td><code class="bg-body-secondary rounded px-2 py-1 small">{{ d.LotCode || '—' }}</code></td>
+                        <td class="text-center">{{ d.Cantidad }}</td>
+                        <td class="text-end text-danger">{{ fmt(d.ValorPerdido) }}</td>
+                        <td><small>{{ d.Reason ?? '—' }}</small></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </template>
+          </template>
+
+        
+      </div>
+    
+  </Layout>
+</template>
+
+<script setup lang="ts">
+import Layout from '@/layouts/main.vue'
+import PageHeader from '@/components/page-header.vue'
+import { ref, computed } from 'vue';
+import useStockMovement from '@/modules/inventory/composables/useStockMovement';
+import BranchFilter from '@/modules/reports/components/BranchFilter.vue';
+import { WriteOffReportResponse } from '@/modules/inventory/models/stockMovement.model';
+import { exportToExcel } from '@/utils/excelHelper';
+import { todayIso, firstOfMonthIso } from '@/utils/dateHelper';
+
+const { getWriteOffs } = useStockMovement();
+const reporte = ref(new WriteOffReportResponse());
+const cargado = ref(false);
+
+const filtro = ref({ desde: firstOfMonthIso(), hasta: todayIso() });
+
+// '' = sucursal activa, un id, o 'all' (consolidado de las sucursales del usuario).
+const branch = ref('');
+const consolidated = computed(() => branch.value === 'all');
+
+const fmt     = (v: number) => v.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' });
+const fmtDate = (v: string) => new Date(v).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+const load = async () => {
+  const { ok, Data } = await getWriteOffs(filtro.value.desde, filtro.value.hasta, undefined, branch.value);
+  if (ok) reporte.value = Data;
+  cargado.value = true;
+};
+
+const exportar = () => {
+  const rows = reporte.value.Detalle.map(d => ({
+    Fecha:    fmtDate(d.Created),
+    Sucursal: d.BranchName,
+    Producto: d.ProductName,
+    SKU:      d.ProductCode,
+    Lote:     d.LotCode ?? '',
+    Cantidad: d.Cantidad,
+    Valor:    d.ValorPerdido,
+    Motivo:   d.Reason ?? '',
+  }));
+  exportToExcel(rows, `reporte_mermas_${filtro.value.desde}_${filtro.value.hasta}.xlsx`);
+};
+</script>

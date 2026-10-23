@@ -1,0 +1,87 @@
+import { useApi } from '@/api/useApi';
+import type { ResponseArray, ResponseObject } from '@/models/response';
+import type { User } from '@/modules/user-account/models/users.model';
+import type { Role } from '@/modules/user-account/models/role.model';
+import type { UserBranch } from '@/modules/user-account/models/branch.model';
+
+const { post, get, put, del } = useApi();
+
+const useUser = () => {
+
+  const getUsersByName = async (
+    searchUserName: string,
+    searchEmail: string,
+    includeInactive = false,
+  ): Promise<ResponseArray<User>> => {
+    return await post<ResponseArray<User>>(
+      `Users/GetUsers`,
+      {
+        Email: searchEmail,
+        FullName: searchUserName,
+        // true = solo activos, null = todos (activos + inactivos)
+        IsActive: includeInactive ? null : true,
+      }
+    );
+  }
+
+  const createUser = async (user: User): Promise<ResponseObject<string>> => {
+    return await post<ResponseObject<string>>('Users', {
+      email: user.Email,
+      password: user.Password,
+      fullName: user.FullName
+    });
+  }
+
+  const updateUser = async (user: User): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${user.Uuid}`, {
+         userName: user.UserName,
+         email: user.Email,
+         fullName: user.FullName
+    });
+  }
+
+  const getUserById = async (userId: string): Promise<ResponseObject<User>> => {
+    return await get<ResponseObject<User>>(`Users/${userId}`);
+  }
+
+  const deleteUser = async (userId: string): Promise<ResponseObject<boolean>> => {
+      return await del<ResponseObject<boolean>>(`Users/${userId}`);
+  }
+
+  const getUserRoles = async (uuid: string): Promise<ResponseArray<Role>> => {
+    return await get<ResponseArray<Role>>(`Users/${uuid}/roles`);
+  }
+
+  const assignRolesToUser = async (uuid: string, roleIds: number[]): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/roles`, { roleIds });
+  }
+
+  const getUserBranches = async (uuid: string): Promise<ResponseArray<UserBranch>> => {
+    return await get<ResponseArray<UserBranch>>(`Users/${uuid}/branches`);
+  }
+
+  const assignBranchesToUser = async (
+    uuid: string, branchIds: string[], defaultBranchId: string,
+  ): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/branches`, { branchIds, defaultBranchId });
+  }
+
+  const changeUserPassword = async (uuid: string, newPassword: string): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/password`, { newPassword });
+  }
+
+  const adminResetMfa = async (uuid: string): Promise<ResponseObject<boolean>> => {
+    return await post<ResponseObject<boolean>>(`Users/${uuid}/mfa/reset`, {});
+  }
+
+  const adminRequireMfa = async (uuid: string): Promise<ResponseObject<boolean>> => {
+    return await put<ResponseObject<boolean>>(`Users/${uuid}/mfa/required`, {});
+  }
+
+  const adminUnrequireMfa = async (uuid: string): Promise<ResponseObject<boolean>> => {
+    return await del<ResponseObject<boolean>>(`Users/${uuid}/mfa/required`);
+  }
+
+  return { getUsersByName, createUser, updateUser, getUserById, deleteUser, getUserRoles, assignRolesToUser, getUserBranches, assignBranchesToUser, changeUserPassword, adminResetMfa, adminRequireMfa, adminUnrequireMfa }
+}
+export default useUser;

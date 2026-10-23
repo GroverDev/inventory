@@ -1,0 +1,87 @@
+<app-breadcrumbs [title]="form.Id ? 'Editar Formulario' : 'Nuevo Formulario'" [breadcrumbItems]="[{ label: 'Cuenta' }, { label: 'Registro de Formularios' }, { label: form.Id ? 'Editar Formulario' : 'Nuevo Formulario', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">{{ form.Id ? 'Editar' : 'Nuevo' }} Formulario</h5></div>
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="back()" />
+
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-profile-line align-middle me-1"></i> Identificación del Formulario</h6>
+                <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="NameForm">Nombre del Formulario <span class="text-danger">*</span></label>
+                        <input type="text" id="NameForm" name="NameForm" class="form-control form-control-sm" [class.is-invalid]="submitted && !form.NameForm.trim()" placeholder="Nombre del Formulario" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="form.NameForm">
+                        <small class="invalid-feedback">Requerido.</small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="Description">Descripción</label>
+                        <input type="text" id="Description" name="Description" class="form-control form-control-sm" placeholder="Descripción del formulario" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="form.Description">
+                    </div>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2"><i class="ri-code-s-slash-line align-middle me-1"></i> Configuración Técnica</h6>
+                <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="Route">Ruta <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm has-validation">
+                            <span class="input-group-text"><i class="ri-link"></i></span>
+                            <input type="text" id="Route" name="Route" class="form-control" [class.is-invalid]="submitted && !form.Route.trim()" placeholder="/ruta" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="form.Route">
+                            <div class="invalid-feedback">Requerido.</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="Controller">Controlador</label>
+                        <input type="text" id="Controller" name="Controller" class="form-control form-control-sm" [class.is-invalid]="submitted && !form.Controller.trim()" placeholder="NombreController" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="form.Controller">
+                    </div>
+                    <div class="col-12 col-sm-4 col-md-3 mb-3">
+                        <label class="form-label" for="Orden">Orden en Menú</label>
+                        <input type="number" id="Orden" name="Orden" class="form-control form-control-sm text-end" placeholder="0" min="0" [disabled]="isSaved()" [(ngModel)]="form.Orden">
+                    </div>
+                    <div class="col-12 col-sm-8 col-md-5 mb-3">
+                        <label class="form-label" for="IconCss">Ícono CSS</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i [class]="iconClass + ' text-primary'"></i></span>
+                            <input type="text" id="IconCss" name="IconCss" class="form-control" placeholder="fal fa-file" [disabled]="isSaved()" [(ngModel)]="form.IconCss">
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2"><i class="ri-apps-line align-middle me-1"></i> Módulo y Jerarquía</h6>
+                <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label" for="ModuleId">Módulo al que pertenece</label>
+                        <select id="ModuleId" name="ModuleId" class="form-select form-select-sm" [disabled]="isSaved()" [(ngModel)]="form.ModuleId">
+                            <option [ngValue]="0">— Seleccione un módulo —</option>
+                            @for (m of modules; track m.Id) {<option [ngValue]="m.Id">{{ m.NameModule }}</option>}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label" for="FormId">Formulario padre</label>
+                        <select id="FormId" name="FormId" class="form-select form-select-sm" [disabled]="isSaved()" [(ngModel)]="form.FormId">
+                            <option [ngValue]="0">— Sin padre (formulario raíz) —</option>
+                            @for (p of parentForms; track p.Id) {<option [ngValue]="p.Id">{{ p.NameForm }}</option>}
+                        </select>
+                        <small class="text-muted">Déjalo vacío si es un formulario de nivel raíz.</small>
+                    </div>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2"><i class="ri-equalizer-line align-middle me-1"></i> Configuración</h6>
+                <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="ShowMenu" name="ShowMenu" role="switch" [disabled]="isSaved()" [(ngModel)]="form.ShowMenu">
+                            <label class="form-check-label" for="ShowMenu">Mostrar en Menú</label>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="IsFormRegister" name="IsFormRegister" role="switch" [disabled]="isSaved()" [(ngModel)]="form.IsFormRegister">
+                            <label class="form-check-label" for="IsFormRegister">Es Formulario de Registro</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,65 @@
+<div class="card mt-4 card-bg-fill">
+    <div class="card-body p-4">
+        <div class="text-center mt-2">
+            <div class="avatar-md mx-auto mb-3">
+                <div class="avatar-title bg-primary-subtle text-primary rounded-circle fs-24">
+                    <i class="ri-shield-check-line"></i>
+                </div>
+            </div>
+            <h5 class="text-primary">Verificación en dos pasos</h5>
+            <p class="text-muted">
+                Ingresa el código de 6 dígitos de tu aplicación autenticadora
+                @if (auth.pendingUser()?.Email) { para <strong>{{ auth.pendingUser()?.Email }}</strong>}
+            </p>
+        </div>
+
+        <div class="p-2 mt-3">
+            <form (ngSubmit)="submit()">
+                <app-otp-input [hasError]="hasError()" (codeChange)="code.set($event); hasError.set(false)" (completed)="submit()" />
+
+                @if (hasError()) {
+                <div class="text-danger text-center fs-13 mt-2">
+                    <i class="ri-error-warning-line align-middle me-1"></i>Código incorrecto. Intenta de nuevo.
+                </div>
+                }
+
+                <p class="text-muted text-center fs-12 mt-3 mb-0">
+                    El código se renueva cada 30 segundos · <span class="fw-medium text-primary">{{ timeLeft() }} s</span>
+                </p>
+
+                <div class="mt-3">
+                    <button class="btn btn-success w-100" type="submit" [disabled]="code().length < 6 || loading()">
+                        @if (loading()) {<span class="spinner-border spinner-border-sm me-2" role="status"></span>}
+                        {{ loading() ? 'Verificando...' : 'Verificar' }}
+                    </button>
+                </div>
+            </form>
+
+            <div class="text-center mt-3">
+                <button type="button" class="btn btn-link btn-sm text-decoration-none" (click)="showRecovery.set(!showRecovery())">
+                    <i class="ri-key-2-line align-middle me-1"></i>
+                    {{ showRecovery() ? 'Usar código TOTP' : 'Usar código de recuperación' }}
+                </button>
+            </div>
+
+            @if (showRecovery()) {
+            <form (ngSubmit)="submitRecovery()" class="mt-2">
+                <input class="form-control text-center" [class.is-invalid]="recoveryError()" type="text" name="recovery" placeholder="XXXXX-XXXXX" autocomplete="off" [(ngModel)]="recoveryCode" (ngModelChange)="recoveryError.set(false)">
+                @if (recoveryError()) {
+                <div class="invalid-feedback d-block text-center">Código inválido o ya utilizado.</div>
+                }
+                <div class="mt-2">
+                    <button type="submit" class="btn btn-success w-100" [disabled]="!recoveryCode.trim() || loading()">
+                        @if (loading()) {<span class="spinner-border spinner-border-sm me-2"></span>}
+                        {{ loading() ? 'Verificando...' : 'Ingresar con código de recuperación' }}
+                    </button>
+                </div>
+            </form>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 text-center">
+    <a routerLink="/auth/login" class="fw-semibold text-primary text-decoration-underline">← Volver al inicio</a>
+</div>

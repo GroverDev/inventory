@@ -1,0 +1,59 @@
+<app-breadcrumbs title="Baja de Stock" [breadcrumbItems]="[{ label: 'Inventarios' }, { label: 'Vencimientos' }, { label: 'Baja de Stock', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Baja de existencia</h5>
+            </div>
+
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="location.back()" />
+                <!-- Info del lote -->
+                <div class="alert alert-warning border mb-3 py-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="ri-error-warning-line fs-2"></i>
+                        <div>
+                            <div class="fw-semibold">{{ productName }}</div>
+                            <small class="text-muted font-monospace">{{ productCode }}</small>
+                            <div>
+                                <code class="bg-body-secondary rounded px-2 py-1 small">{{ lot || '(sin lote)' }}</code>
+                                <small class="ms-2 text-muted">vence {{ expiry }}</small>
+                            </div>
+                        </div>
+                        <div class="ms-auto text-end">
+                            <small class="text-muted d-block">Cantidad disponible</small>
+                            <span class="badge fs-6 bg-danger">{{ availableQty }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form (ngSubmit)="save()" novalidate>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="wo-qty">Cantidad a dar de baja <span class="text-danger">*</span></label>
+                            <input id="wo-qty" name="quantity" type="number" class="form-control" [class.is-invalid]="submitted && quantityInvalid" min="1" [max]="availableQty" [(ngModel)]="quantity" [disabled]="saved()">
+                            <small class="invalid-feedback">Ingrese una cantidad entre 1 y {{ availableQty }}.</small>
+                        </div>
+
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="wo-reason">Motivo <span class="text-danger">*</span></label>
+                            <select id="wo-reason" name="reason" class="form-select" [class.is-invalid]="submitted && !reason" [(ngModel)]="reason" [disabled]="saved()">
+                                <option value="">-- Seleccione --</option>
+                                <option value="Vencimiento">Vencimiento</option>
+                                <option value="Producto dañado">Producto dañado</option>
+                                <option value="Retiro de lote">Retiro de lote</option>
+                            </select>
+                            <small class="invalid-feedback">Seleccione un motivo.</small>
+                        </div>
+
+                        <div class="col-12 mb-3">
+                            <label class="form-label" for="wo-obs">Observación</label>
+                            <input id="wo-obs" name="observation" type="text" class="form-control" placeholder="Observación opcional" [(ngModel)]="observation" [disabled]="saved()" autocomplete="off">
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,174 @@
+<app-breadcrumbs title="Control de Vencimientos" [breadcrumbItems]="[{ label: 'Inventarios' }, { label: 'Vencimientos', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <!-- Filtros -->
+                <div class="row align-items-end g-2 mb-3">
+                    <div class="col-12 col-md-5 col-lg-4">
+                        <label class="form-label" for="exp-search">Buscar producto o lote</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                            <input id="exp-search" type="text" class="form-control" [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Nombre, SKU o lote..." autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label" for="exp-days">Horizonte</label>
+                        <select id="exp-days" class="form-select" [(ngModel)]="dias" (ngModelChange)="load()">
+                            <option [ngValue]="30">Próximos 30 días</option>
+                            <option [ngValue]="60">Próximos 60 días</option>
+                            <option [ngValue]="90">Próximos 90 días</option>
+                            <option [ngValue]="180">Próximos 6 meses</option>
+                            <option [ngValue]="0">Todo lo fechado</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label" for="exp-status">Urgencia</label>
+                        <select id="exp-status" class="form-select" [ngModel]="estado()" (ngModelChange)="estado.set($event)">
+                            <option value="">Todas</option>
+                            <option value="VENCIDO">Vencido</option>
+                            <option value="CRITICO">Crítico</option>
+                            <option value="PROXIMO">Próximo</option>
+                            <option value="VIGENTE">Vigente</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto ms-md-auto">
+                        <button type="button" class="btn btn-outline-success w-100" [disabled]="filtered().length === 0" (click)="exportList()">
+                            <i class="ri-file-excel-2-line align-middle me-1"></i>Exportar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Resumen: lo que hay que decidir hoy, antes de mirar la lista -->
+                @if (!loading() && items().length > 0) {
+                <div class="row g-2 mb-3">
+                    @for (card of summary(); track card.estado) {
+                    <div class="col-6 col-lg-3">
+                        <div class="card h-100 border shadow-sm mb-0" [class]="card.border">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted text-uppercase" style="font-size: 0.7rem">{{ card.label }}</small>
+                                    <span class="badge" [class]="card.badge">{{ card.count }}</span>
+                                </div>
+                                <div class="fw-semibold">{{ formatCurrency(card.valor) }}</div>
+                                <small class="text-muted" style="font-size: 0.7rem">{{ card.unidades }} unidad(es) en riesgo</small>
+                            </div>
+                        </div>
+                    </div>
+                    }
+                </div>
+                }
+
+                @if (loading()) {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>
+                    <p class="text-muted mt-2">Cargando vencimientos...</p>
+                </div>
+                } @else if (items().length === 0) {
+                <!--
+                  Que no haya nada por vencer es una buena noticia, pero también es lo que se ve
+                  cuando ningún producto usa lotes todavía: el mensaje explica cómo empezar.
+                -->
+                <div class="text-center py-5">
+                    <i class="ri-calendar-check-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-1">No hay existencias con vencimiento en este horizonte.</p>
+                    <small class="text-muted">El vencimiento se registra al recibir un pedido de un producto que lleve control por lotes. Se activa desde la ficha del producto.</small>
+                </div>
+                } @else if (filtered().length === 0) {
+                <div class="text-center py-5">
+                    <i class="ri-filter-3-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted">Ningún lote coincide con el filtro.</p>
+                </div>
+                } @else {
+                <p class="text-muted fs-13 mb-2">
+                    <i class="ri-stack-line align-middle me-1"></i><strong>{{ filtered().length }}</strong> lote(s) — valor en riesgo <strong>{{ formatCurrency(totalFiltrado()) }}</strong>
+                </p>
+
+                <div class="d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Lote</th>
+                                <th class="text-center">Vence</th>
+                                <th class="text-center">Días</th>
+                                <th class="text-center">Cantidad</th>
+                                <th class="text-end">Valor en riesgo</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (item of filtered(); track item.StockItemId) {
+                            <tr>
+                                <td><small class="text-muted font-monospace">{{ item.ProductCode }}</small></td>
+                                <td class="fw-semibold">{{ item.ProductName }}</td>
+                                <td><code class="bg-body-secondary rounded px-2 py-1 small">{{ item.LotCode || '—' }}</code></td>
+                                <td class="text-center">{{ formatDate(item.ExpiryDate) }}</td>
+                                <td class="text-center">{{ diasTexto(item) }}</td>
+                                <td class="text-center">{{ item.Quantity }}</td>
+                                <td class="text-end fw-semibold">{{ formatCurrency(item.ValorEnRiesgo) }}</td>
+                                <td class="text-center"><span [class]="estadoBadge(item.Estado)">{{ estadoLabel(item.Estado) }}</span></td>
+                                <td class="text-center text-nowrap">
+                                    <button type="button" class="btn btn-soft-info btn-sm me-1" title="Ver historial de movimientos" (click)="goHistory(item)">
+                                        <i class="ri-history-line align-middle me-1"></i>Historial
+                                    </button>
+                                    @if (item.LotCode) {
+                                    <button type="button" class="btn btn-soft-secondary btn-sm me-1" title="A quién se le vendió este lote" (click)="goTraceability(item)">
+                                        <i class="ri-route-line"></i>
+                                    </button>
+                                    }
+                                    @if (item.Estado === 'VENCIDO') {
+                                    <button type="button" class="btn btn-soft-danger btn-sm" title="Dar de baja esta existencia" (click)="goWriteOff(item)">
+                                        <i class="ri-delete-bin-line"></i>
+                                    </button>
+                                    }
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tarjetas (móvil <md) -->
+                <div class="d-md-none">
+                    <div class="row g-3">
+                        @for (item of filtered(); track item.StockItemId) {
+                        <div class="col-12 col-sm-6">
+                            <div class="card h-100 shadow rounded-3 mb-0">
+                                <div class="card-body d-flex flex-column gap-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <code class="bg-body-secondary rounded px-2 py-1 small">{{ item.ProductCode }}</code>
+                                        <span class="rounded-pill" [class]="estadoBadge(item.Estado)">{{ estadoLabel(item.Estado) }}</span>
+                                    </div>
+                                    <p class="fw-semibold mb-0 lh-sm">{{ item.ProductName }}</p>
+                                    <small class="text-muted">Lote <strong>{{ item.LotCode || '—' }}</strong> · vence {{ formatDate(item.ExpiryDate) }} ({{ diasTexto(item) }})</small>
+                                    <div class="d-flex justify-content-between align-items-end">
+                                        <div>
+                                            <span class="fw-semibold">{{ item.Quantity }}</span>
+                                            <div class="text-muted" style="font-size: 0.7rem">Unidades</div>
+                                        </div>
+                                        <div class="text-end">
+                                            <small class="fw-semibold">{{ formatCurrency(item.ValorEnRiesgo) }}</small>
+                                            <div class="text-muted" style="font-size: 0.7rem">En riesgo</div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-1 mt-auto">
+                                        <button type="button" class="btn btn-sm btn-outline-info flex-grow-1" (click)="goHistory(item)"><i class="ri-history-line align-middle me-1"></i>Historial</button>
+                                        @if (item.Estado === 'VENCIDO') {
+                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Dar de baja" (click)="goWriteOff(item)"><i class="ri-delete-bin-line"></i></button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

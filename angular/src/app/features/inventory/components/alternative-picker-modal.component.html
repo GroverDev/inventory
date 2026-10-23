@@ -1,0 +1,112 @@
+@if (visible()) {
+<!-- Por encima de la barra lateral y de otros modales de la plantilla. -->
+<div class="modal d-block" tabindex="-1" style="background: rgba(0, 0, 0, 0.5); z-index: 1080">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold"><i class="ri-arrow-left-right-line align-middle me-2"></i>Sugerir una alternativa</h6>
+                <button type="button" class="btn-close" aria-label="Cerrar" (click)="close.emit()"></button>
+            </div>
+
+            <div class="modal-body">
+                <p class="small text-muted mb-3">
+                    Lo que elijas acá se le va a ofrecer al vendedor cuando alguien pida <strong>{{ productName() }}</strong>.
+                </p>
+
+                @if (!elegido()) {
+                <!-- Paso 1: elegir el producto -->
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="ri-search-line"></i></span>
+                    <input #buscador type="text" class="form-control" placeholder="Buscar por nombre..." [(ngModel)]="busqueda" (keyup.enter)="buscar()">
+                    <button class="btn btn-primary" type="button" [disabled]="busqueda.trim().length < 3" (click)="buscar()">Buscar</button>
+                </div>
+
+                @if (buscando()) {
+                <div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Buscando...</span></div></div>
+                } @else if (!buscado()) {
+                <!-- Sin buscar todavía no es lo mismo que sin resultados. -->
+                <div class="text-center py-4 text-muted">
+                    <i class="ri-search-line fs-2 d-block mb-2"></i>
+                    <p class="mb-0 small">Escribí al menos 3 letras del nombre y buscá.</p>
+                </div>
+                } @else if (resultados().length === 0) {
+                <div class="text-center py-4 text-muted">
+                    <i class="ri-archive-line fs-2 d-block mb-2"></i>
+                    <p class="mb-1 small">Ningún producto coincide con «{{ busqueda }}».</p>
+                    @if (ocultos() > 0) {<small>{{ ocultos() }} quedaron fuera por estar ya sugeridos o deducirse solos.</small>}
+                </div>
+                } @else {
+                <div class="table-responsive" style="max-height: 340px; overflow-y: auto">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-end">Precio</th>
+                                <th class="text-end">Diferencia</th>
+                                <th class="text-center">Stock</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (p of resultados(); track p.Id) {
+                            <tr [class.opacity-50]="p.CurrentStock <= 0">
+                                <td>
+                                    <span class="fw-semibold">{{ p.ProductName }}</span>
+                                    <small class="d-block text-muted">{{ p.LaboratoryName || '—' }}</small>
+                                </td>
+                                <td class="text-end">{{ formatCurrency(p.SalePrice) }}</td>
+                                <!-- Contra el producto que se edita: si el motivo común es "más económico", el dato tiene que estar a la vista al elegir. -->
+                                <td class="text-end"><span [class]="claseDiferencia(p.SalePrice)">{{ diferencia(p.SalePrice) }}</span></td>
+                                <td class="text-center">
+                                    <span class="badge border" [class]="p.CurrentStock > 0 ? 'bg-success-subtle text-success-emphasis border-success-subtle' : 'bg-secondary-subtle text-secondary-emphasis border-secondary-subtle'">{{ p.CurrentStock }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <!-- Sin stock no se puede elegir: una sugerencia que no se puede entregar hace perder la venta. -->
+                                    <button type="button" class="btn btn-sm" [class]="p.CurrentStock > 0 ? 'btn-outline-primary' : 'btn-outline-secondary'" [disabled]="p.CurrentStock <= 0" [title]="p.CurrentStock > 0 ? '' : 'Sin stock: no se puede sugerir'" (click)="elegir(p)">
+                                        {{ p.CurrentStock > 0 ? 'Elegir' : 'Sin stock' }}
+                                    </button>
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (ocultos() > 0) {
+                <small class="text-muted d-block mt-2">
+                    <i class="ri-information-line me-1"></i>{{ ocultos() }} resultado(s) ocultos: ya están sugeridos o el sistema los deduce solo por composición.
+                </small>
+                }
+                }
+                } @else {
+                <!-- Paso 2: por qué se sugiere -->
+                @let e = elegido()!;
+                <div class="d-flex justify-content-between align-items-start border rounded p-2 mb-3">
+                    <div>
+                        <span class="fw-semibold">{{ e.ProductName }}</span>
+                        <small class="d-block text-muted">
+                            {{ formatCurrency(e.SalePrice) }} · <span [class]="claseDiferencia(e.SalePrice)">{{ diferencia(e.SalePrice) }}</span>
+                        </small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="elegido.set(null)">Cambiar</button>
+                </div>
+
+                <label class="form-label">¿Por qué se sugiere?</label>
+                <!-- Los motivos frecuentes van como botones: es el texto que el vendedor lee en el mostrador. -->
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    @for (m of motivosFrecuentes; track m) {
+                    <button type="button" class="btn btn-sm" [class]="motivo === m ? 'btn-primary' : 'btn-outline-secondary'" (click)="motivo = m">{{ m }}</button>
+                    }
+                </div>
+                <input type="text" class="form-control" maxlength="150" placeholder="O escribí otro motivo..." [(ngModel)]="motivo">
+                }
+            </div>
+
+            <div class="modal-footer py-2">
+                <button class="btn btn-outline-secondary btn-sm" (click)="close.emit()">Cancelar</button>
+                <button class="btn btn-primary btn-sm" [disabled]="!elegido()" (click)="confirmar()">Agregar sugerencia</button>
+            </div>
+        </div>
+    </div>
+</div>
+}

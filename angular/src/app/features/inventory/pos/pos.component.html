@@ -1,0 +1,1011 @@
+<div class="pos-page px-2 px-md-3 pt-2">
+
+    <!-- ── Cabecera: volver + título + estado de caja ── -->
+    <div class="pos-top-bar d-flex align-items-center mb-2 gap-2">
+        <button class="btn btn-sm btn-outline-secondary" type="button" (click)="leavePos()">
+            <i class="ri-arrow-left-line align-middle me-1"></i>Volver
+        </button>
+        <h6 class="mb-0 fw-semibold">Punto de Venta</h6>
+        <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+            @if (cashChecking) {
+            <!-- Verificando: aún no se sabe si hay caja abierta -->
+            <span class="badge bg-secondary-subtle text-secondary border small d-inline-flex align-items-center gap-1">
+                <span class="spinner-border spinner-border-sm"></span>Verificando caja...
+            </span>
+            } @else if (cashError) {
+            <!-- No se pudo consultar: no se afirma que esté cerrada -->
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle small">
+                <i class="ri-error-warning-line me-1"></i>No se pudo verificar la caja
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" (click)="checkCash()"><i class="ri-refresh-line align-middle me-1"></i>Reintentar</button>
+            } @else if (cashSession) {
+            <!-- Caja abierta -->
+            <span class="badge bg-success-subtle text-success border border-success-subtle small d-none d-md-inline-flex align-items-center gap-1">
+                <i class="ri-store-3-line"></i>Caja: Bs. {{ formatNum(cashSession.OpeningAmount) }}
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" title="Registrar gasto u otro movimiento" (click)="showMovementModal = true">
+                <i class="ri-receipt-line align-middle me-1"></i><span class="d-none d-md-inline">Gasto</span>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" title="Cerrar caja" (click)="openCloseCash()">
+                <i class="ri-lock-line align-middle me-1"></i><span class="d-none d-md-inline">Cerrar caja</span>
+            </button>
+            } @else {
+            <!-- Sin caja -->
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle small"><i class="ri-error-warning-line me-1"></i>Sin caja abierta</span>
+            <button class="btn btn-sm btn-success" (click)="showOpenCashModal = true"><i class="ri-store-3-line align-middle me-1"></i>Abrir caja</button>
+            }
+        </div>
+    </div>
+
+    <!-- ══ MODAL: Abrir Caja ══ -->
+    @if (showOpenCashModal) {
+    <div class="modal d-block pos-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold"><i class="ri-store-3-line me-2"></i>Abrir Caja</h6>
+                    <button type="button" class="btn-close" aria-label="Cerrar" (click)="showOpenCashModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small text-muted" for="opening-amount">Fondo inicial (Bs.)</label>
+                    <input id="opening-amount" type="number" class="form-control" name="openingAmount" [(ngModel)]="openingAmount" min="0" step="0.01" placeholder="0.00">
+                    <small class="text-muted">Ingresa el monto de efectivo con que inicias el turno.</small>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-outline-secondary btn-sm" (click)="showOpenCashModal = false">Cancelar</button>
+                    <button class="btn btn-success btn-sm" [disabled]="savingCash" (click)="doOpenCash()">
+                        @if (savingCash) {<span class="spinner-border spinner-border-sm me-1"></span>} @else {<i class="ri-lock-unlock-line align-middle me-1"></i>}Abrir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    }
+
+    <!-- ══ MODAL: Cerrar Caja ══ -->
+    @if (showCloseCashModal && cashSession) {
+    <div class="modal d-block pos-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold"><i class="ri-lock-line me-2"></i>Cerrar Caja</h6>
+                    <button type="button" class="btn-close" aria-label="Cerrar" (click)="showCloseCashModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Una venta en espera no es un faltante: no se cobró. Pero conviene resolverla antes de cerrar para que no quede olvidada. -->
+                    @if (heldSales.length) {
+                    <div class="alert alert-warning py-2 small">
+                        <i class="ri-hourglass-line me-1"></i>Hay <strong>{{ heldSales.length }}</strong> venta(s) en espera en esta sucursal.
+                        <a href="javascript:void(0)" class="alert-link" (click)="openHeldFromClose()">Revisarlas</a>
+                    </div>
+                    }
+                    <!-- Conteo a ciegas: se declara lo contado sin ver lo esperado. La diferencia se calcula en el servidor y se muestra al cerrar. -->
+                    <p class="small text-muted mb-3">Cuente y declare lo que tiene. El sistema compara con lo esperado al confirmar el cierre.</p>
+                    @for (m of countedMethods; track m.Id) {
+                    <div class="mb-2">
+                        <label class="form-label small mb-1" [for]="'decl-' + m.Id">
+                            <i [class]="icon(m.IconCss) + ' me-1 text-muted'"></i><strong>{{ m.Name }}</strong>
+                            <span class="text-muted"> · {{ countHint(m) }}</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">Bs.</span>
+                            <input [id]="'decl-' + m.Id" [name]="'decl-' + m.Id" type="number" class="form-control text-end" min="0" step="0.01" placeholder="0.00"
+                                [readOnly]="m.AffectsCash && countingByDenomination" [(ngModel)]="declaredCounts[m.Id]">
+                            @if (m.AffectsCash && !closeSettings.RequireDenominations) {
+                            <button type="button" class="btn btn-outline-secondary" [class.active]="showDenominations" title="Contar por billetes y monedas" (click)="showDenominations = !showDenominations">
+                                <i class="ri-money-dollar-circle-line"></i>
+                            </button>
+                            }
+                        </div>
+                        <!-- Conteo por billete y moneda: el total va al efectivo declarado. -->
+                        @if (m.AffectsCash && (showDenominations || closeSettings.RequireDenominations)) {
+                        <div class="border rounded p-2 mt-2">
+                            <div class="small text-muted mb-1">Billetes y monedas@if (closeSettings.RequireDenominations) {<span> (obligatorio)</span>}</div>
+                            <div class="row g-1">
+                                @for (v of BOB_DENOMINATIONS; track v) {
+                                <div class="col-6 col-sm-4">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text justify-content-end" style="min-width: 4.2rem">{{ formatDenomination(v) }}</span>
+                                        <input type="number" min="0" step="1" class="form-control text-end" placeholder="0" [name]="'den-' + v" [(ngModel)]="denominationQty[v]" (input)="syncCashFromDenominations()">
+                                    </div>
+                                </div>
+                                }
+                            </div>
+                            <div class="text-end small mt-1">Total contado: <strong>Bs. {{ denominationTotal.toFixed(2) }}</strong></div>
+                        </div>
+                        }
+                    </div>
+                    }
+                    <div class="mb-2 mt-2">
+                        <label class="form-label small text-muted" for="close-notes">Observaciones</label>
+                        <textarea id="close-notes" class="form-control form-control-sm" name="closeNotes" rows="2" [(ngModel)]="closeNotes" placeholder="Obligatoria si hay una diferencia importante. Ej.: faltante por billete roto..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-outline-secondary btn-sm" (click)="showCloseCashModal = false">Cancelar</button>
+                    <button class="btn btn-danger btn-sm" [disabled]="savingCash" (click)="doCloseCash()">
+                        @if (savingCash) {<span class="spinner-border spinner-border-sm me-1"></span>} @else {<i class="ri-lock-line align-middle me-1"></i>}Cerrar y arquear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    }
+
+    <!-- ══ MODAL: Registrar Movimiento (Gasto / Retiro / Ingreso) ══ -->
+    @if (showMovementModal && cashSession) {
+    <div class="modal d-block pos-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold"><i class="ri-receipt-line me-2"></i>Registrar Movimiento</h6>
+                    <button type="button" class="btn-close" aria-label="Cerrar" (click)="showMovementModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Tipo</label>
+                        <div class="d-flex gap-2">
+                            @for (t of movementTypes; track t.value) {
+                            <button type="button" class="btn btn-sm flex-fill" [class]="movementType === t.value ? t.activeClass : 'btn-outline-secondary'" (click)="movementType = t.value">
+                                <i [class]="t.icon + ' align-middle me-1'"></i>{{ t.label }}
+                            </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted" for="mov-amount">Monto (Bs.)</label>
+                        <input id="mov-amount" type="number" class="form-control form-control-sm" name="movementAmount" [(ngModel)]="movementAmount" min="0.01" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted" for="mov-desc">Descripción <span class="text-danger">*</span></label>
+                        <input id="mov-desc" type="text" class="form-control form-control-sm" name="movementDescription" [(ngModel)]="movementDescription" placeholder="Ej: Almuerzo cajero" maxlength="255">
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-outline-secondary btn-sm" (click)="showMovementModal = false">Cancelar</button>
+                    <button class="btn btn-primary btn-sm" [disabled]="savingMovement" (click)="doAddMovement()">
+                        @if (savingMovement) {<span class="spinner-border spinner-border-sm me-1"></span>} @else {<i class="ri-save-line align-middle me-1"></i>}Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    }
+
+    @if (cashChecking) {
+    <!-- ══ VERIFICANDO: todavía no se sabe si hay caja abierta ══ -->
+    <div class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+        <span class="spinner-border text-primary mb-3"></span>
+        <h5 class="fw-semibold mb-1">Verificando caja...</h5>
+        <p class="text-muted mb-0">Comprobando si tienes una caja abierta.</p>
+    </div>
+    } @else if (cashError) {
+    <!-- ══ ERROR: no se pudo consultar la caja ══ -->
+    <div class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+        <i class="ri-wifi-off-line display-3 text-muted mb-3"></i>
+        <h5 class="fw-semibold mb-1">No se pudo verificar la caja</h5>
+        <p class="text-muted mb-3">Revisa tu conexión e inténtalo de nuevo antes de abrir una caja.</p>
+        <button class="btn btn-primary px-4" (click)="checkCash()"><i class="ri-refresh-line align-middle me-2"></i>Reintentar</button>
+    </div>
+    } @else if (!cashSession) {
+    <!-- ══ BLOQUEO: sin caja abierta ══ -->
+    <div class="d-flex flex-column align-items-center justify-content-center py-5 text-center">
+        <i class="ri-store-3-line display-3 text-muted mb-3"></i>
+        <h5 class="fw-semibold mb-1">Caja cerrada</h5>
+        <p class="text-muted mb-3">Debes abrir la caja antes de realizar ventas.</p>
+        <button class="btn btn-success px-4" (click)="showOpenCashModal = true"><i class="ri-lock-unlock-line align-middle me-2"></i>Abrir caja</button>
+    </div>
+    } @else {
+
+    <!-- ══ MÓVIL: cliente + tabs ══ -->
+    <div class="d-md-none mb-2" style="position: relative">
+        <!-- Selector de cliente -->
+        <div class="card mb-2">
+            <div class="card-body py-2 px-3">
+                @if (!selectedCustomer) {
+                <div>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="ri-user-line"></i></span>
+                        <input type="text" class="form-control" name="customerSearchM" placeholder="Buscar cliente..." [(ngModel)]="customerSearch" (keyup.enter)="searchCustomers()">
+                        <button class="btn btn-outline-secondary" type="button" (click)="searchCustomers()"><i class="ri-search-line"></i></button>
+                        <button class="btn btn-outline-primary" type="button" title="Nuevo cliente" (click)="openNewCustomerModal()"><i class="ri-user-add-line"></i></button>
+                    </div>
+                    @if (customerResults.length > 0) {
+                    <div class="list-group shadow position-absolute start-0 end-0 mx-3" style="z-index: 1060; top: 100%">
+                        @for (c of customerResults; track c.Id) {
+                        <button type="button" class="list-group-item list-group-item-action py-2 px-3" (click)="selectCustomer(c)">
+                            <div class="fw-semibold">{{ c.FullName }}</div>
+                            <small class="text-muted">{{ c.DocumentNumber }}</small>
+                        </button>
+                        }
+                    </div>
+                    }
+                </div>
+                } @else {
+                <div class="d-flex align-items-center justify-content-between">
+                    <div><i class="ri-user-line text-primary me-1"></i><span class="fw-semibold">{{ selectedCustomer.FullName }}</span></div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-primary small">Bs. {{ formatNum(total) }}</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" (click)="clearCustomer()"><i class="ri-close-line"></i></button>
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+
+        <!-- Tabs productos / carrito -->
+        <ul class="nav nav-pills nav-fill mb-2">
+            <li class="nav-item">
+                <button class="nav-link w-100" [class.active]="activeTab === 'products'" (click)="activeTab = 'products'"><i class="ri-apps-line align-middle me-1"></i>Productos</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link w-100 position-relative" [class.active]="activeTab === 'cart'" (click)="activeTab = 'cart'">
+                    <i class="ri-shopping-cart-2-line align-middle me-1"></i>Carrito
+                    @if (totalItems > 0) {<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem">{{ totalItems }}</span>}
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <!-- ══ LAYOUT SPLIT ══ -->
+    <div class="pos-split">
+
+        <!-- ════ PANEL IZQUIERDO: carrito ════ -->
+        <div class="pos-cart-panel" [class]="activeTab === 'cart' ? '' : 'd-none d-md-flex'">
+            <!-- Zona superior: cliente + lista (crece y hace scroll en desktop) -->
+            <div class="pos-cart-body">
+
+                <!-- Cliente (solo desktop) -->
+                <div class="card mb-2 d-none d-md-block" style="position: relative">
+                    <div class="card-header py-2 px-3"><span class="fw-semibold small"><i class="ri-user-line me-1 text-primary"></i>Cliente</span></div>
+                    <div class="card-body py-2 px-3">
+                        @if (!selectedCustomer) {
+                        <div>
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" name="customerSearchD" placeholder="Buscar cliente..." [(ngModel)]="customerSearch" (keyup.enter)="searchCustomers()">
+                                <button class="btn btn-outline-secondary" type="button" (click)="searchCustomers()"><i class="ri-search-line"></i></button>
+                                <button class="btn btn-outline-primary" type="button" title="Nuevo cliente" (click)="openNewCustomerModal()"><i class="ri-user-add-line"></i></button>
+                            </div>
+                            @if (customerResults.length > 0) {
+                            <div class="list-group shadow position-absolute start-0 end-0 mx-2" style="z-index: 1060; top: 100%">
+                                @for (c of customerResults; track c.Id) {
+                                <button type="button" class="list-group-item list-group-item-action py-2 px-3" (click)="selectCustomer(c)">
+                                    <div class="fw-semibold">{{ c.FullName }}</div>
+                                    <small class="text-muted">{{ c.DocumentNumber }}</small>
+                                </button>
+                                }
+                            </div>
+                            }
+                            <small class="text-muted d-block mt-1">Ingresa nombre y presiona Enter</small>
+                        </div>
+                        } @else {
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="fw-semibold">{{ selectedCustomer.FullName }}</div>
+                                <small class="text-muted">{{ selectedCustomer.DocumentNumber }}</small>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearCustomer()"><i class="ri-close-line"></i></button>
+                        </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Items del carrito -->
+                <div class="card mb-2 pos-cart-items-card">
+                    <div class="card-header py-2 px-3 d-flex align-items-center gap-2">
+                        <span class="fw-semibold small">
+                            <i class="ri-shopping-cart-2-line me-1 text-primary"></i>Carrito
+                            @if (totalItems > 0) {<span class="badge bg-primary ms-1">{{ totalItems }}</span>}
+                        </span>
+                        <!-- Ventas en espera: dejar esta para atender a otro, y retomarla después -->
+                        <div class="ms-auto d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-warning py-0 pos-line-btn" [disabled]="cart.length === 0" title="Poner en espera" aria-label="Poner la venta en espera" (click)="openHoldModal()">
+                                <i class="ri-pause-line"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm py-0 pos-line-btn" [class]="heldSales.length ? 'btn-warning' : 'btn-outline-secondary'" title="Ventas en espera" aria-label="Ventas en espera" (click)="openHeldList()">
+                                <i class="ri-hourglass-line"></i>
+                                @if (heldSales.length) {<span class="ms-1 fw-semibold">{{ heldSales.length }}</span>}
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (cart.length === 0) {
+                    <div class="card-body text-center py-4">
+                        <i class="ri-shopping-cart-line fs-2 text-muted d-block mb-2"></i>
+                        <small class="text-muted">Sin productos.<br>Selecciona del catálogo.</small>
+                    </div>
+                    } @else {
+                    <div class="list-group list-group-flush pos-cart-list">
+                        @for (line of cart; track line.ProductId; let i = $index) {
+                        <div class="list-group-item px-3 py-2">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <span class="fw-semibold lh-sm" style="font-size: 0.85rem">{{ line.ProductName }}</span>
+                                <!-- En pantallas táctiles estos botones crecen y se separan: quitar el producto queda lejos del descuento. -->
+                                <div class="d-flex align-items-center gap-1 ms-1 pos-line-actions">
+                                    <button type="button" class="btn btn-sm py-0 px-1 lh-1 pos-line-btn" [class]="line.DiscountLabel ? 'btn-success' : 'btn-outline-secondary'" title="Aplicar descuento" aria-label="Aplicar descuento" (click)="openDiscountModal(i)">
+                                        <i class="ri-percent-line pos-line-icon"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm text-danger p-0 pos-line-btn pos-line-remove btn-outline-danger" title="Quitar del carrito" aria-label="Quitar del carrito" (click)="removeFromCart(i)">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Descuento aplicado en línea -->
+                            @if (line.DiscountLabel) {
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="d-flex align-items-center gap-1">
+                                    <small class="text-success" style="font-size: 0.7rem"><i class="ri-price-tag-3-line me-1"></i>{{ line.DiscountLabel }}</small>
+                                    <button type="button" class="btn btn-link p-0 text-danger lh-1 pos-line-btn pos-line-btn-sm" title="Quitar descuento" aria-label="Quitar descuento" (click)="removeLineDiscount(i)">
+                                        <i class="ri-close-line pos-line-icon-xs"></i>
+                                    </button>
+                                </div>
+                                <small class="text-success fw-semibold" style="font-size: 0.7rem">− Bs. {{ formatNum(line.LineTotalDiscounts) }}</small>
+                            </div>
+                            }
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center gap-1">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 lh-1 pos-line-btn" aria-label="Restar uno" (click)="decreaseQty(i)">−</button>
+                                    <span class="fw-bold px-2">{{ line.Quantity }}</span>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 lh-1 pos-line-btn" aria-label="Sumar uno" (click)="increaseQty(i)">+</button>
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted d-block" style="font-size: 0.72rem">Bs. {{ formatNum(line.UnitPrice) }} × {{ line.Quantity }}</small>
+                                    <span class="fw-bold text-primary" style="font-size: 0.9rem">Bs. {{ formatNum(line.LineTotal) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                    }
+
+                    <!-- Deshacer: un toque errado en la X no obliga a volver a buscar el producto. Desaparece sola a los pocos segundos. -->
+                    @if (lastRemoved) {
+                    <div class="card-footer d-flex align-items-center justify-content-between gap-2 py-2 px-3 pos-undo-bar" role="status">
+                        <small class="text-truncate"><i class="ri-delete-bin-line me-1 text-danger"></i>Quitado: <strong>{{ lastRemoved.line.ProductName }}</strong></small>
+                        <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0 pos-line-btn" (click)="undoRemove()"><i class="ri-arrow-go-back-line align-middle me-1"></i>Deshacer</button>
+                    </div>
+                    }
+                </div>
+            </div><!-- /pos-cart-body -->
+
+            <!-- Zona inferior: totales + botones (pegada al fondo en desktop) -->
+            <div class="pos-cart-footer">
+                <!-- Totales -->
+                @if (cart.length > 0) {
+                <div class="card mb-2">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between mb-1"><small class="text-muted">Subtotal</small><small>Bs. {{ formatNum(subtotal) }}</small></div>
+                        @if (totalLineDiscounts > 0) {
+                        <div class="d-flex justify-content-between mb-1"><small class="text-muted">Desc. por línea</small><small class="text-success fw-semibold">− Bs. {{ formatNum(totalLineDiscounts) }}</small></div>
+                        }
+                        <!-- Descuento global aplicado -->
+                        @if (headerDiscountAmount > 0) {
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex align-items-center gap-1">
+                                <small class="text-muted">{{ headerDiscountLabel }}</small>
+                                <button type="button" class="btn btn-link p-0 text-danger lh-1" title="Quitar descuento global" (click)="removeHeaderDiscount()"><i class="ri-close-line" style="font-size: 0.8rem"></i></button>
+                            </div>
+                            <small class="text-success fw-semibold">− Bs. {{ formatNum(headerDiscountAmount) }}</small>
+                        </div>
+                        }
+                        <!-- Botón agregar descuento global -->
+                        <div class="mb-1">
+                            <button type="button" class="btn btn-sm w-100 py-0" [class]="headerDiscountAmount > 0 ? 'btn-outline-success' : 'btn-outline-secondary'" (click)="openDiscountModal(-1)">
+                                <i class="ri-price-tag-3-line align-middle me-1"></i>{{ headerDiscountAmount > 0 ? 'Cambiar descuento global' : 'Agregar descuento global' }}
+                            </button>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-1">
+                            <span class="fw-bold">TOTAL</span>
+                            <span class="fw-bold fs-5 text-primary">Bs. {{ formatNum(total) }}</span>
+                        </div>
+                    </div>
+                </div>
+                }
+
+                <!-- Botones de acción -->
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary" [disabled]="cart.length === 0 || !selectedCustomer" (click)="confirmSale()">
+                        <i class="ri-checkbox-circle-line align-middle me-1"></i>{{ selectedCustomer ? 'Cobrar — Bs. ' + formatNum(total) : 'Selecciona un cliente' }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" [disabled]="cart.length === 0 && !selectedCustomer" (click)="resetAll()">
+                        <i class="ri-delete-bin-line align-middle me-1"></i>Limpiar todo
+                    </button>
+                </div>
+            </div><!-- /pos-cart-footer -->
+        </div><!-- /pos-cart-panel -->
+
+        <!-- ════ MODAL: elegir números de serie ════ -->
+        @if (showSerialModal) {
+        <div class="modal d-block pos-modal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold"><i class="ri-barcode-line me-2"></i>Elegir unidad</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="showSerialModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-3">
+                            <strong>{{ serialProduct?.ProductName }}</strong> se identifica por número de serie. Marcá las unidades que entregás: la garantía queda atada a ese número.
+                        </p>
+                        @if (serialLoading) {
+                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+                        } @else if (serialAvailable.length === 0) {
+                        <div class="text-center py-4">
+                            <i class="ri-archive-line fs-2 text-muted d-block mb-2"></i>
+                            <p class="text-muted mb-0">No hay unidades disponibles de este producto.</p>
+                        </div>
+                        } @else {
+                        <div class="list-group" style="max-height: 340px; overflow-y: auto">
+                            @for (u of serialAvailable; track u.StockItemId) {
+                            <label class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+                                <input class="form-check-input m-0" type="checkbox" [checked]="serialSelected.includes(u.SerialNumber)" (change)="toggleSerial(u.SerialNumber)">
+                                <span class="font-monospace flex-grow-1">{{ u.SerialNumber }}</span>
+                                @if (u.ExpiryDate) {<small class="text-muted">vence {{ formatSerialExpiry(u.ExpiryDate) }}</small>}
+                            </label>
+                            }
+                        </div>
+                        }
+                    </div>
+                    <div class="modal-footer py-2 d-flex justify-content-between">
+                        <small class="text-muted">{{ serialSelected.length }} de {{ serialAvailable.length }} seleccionada(s)</small>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" (click)="showSerialModal = false">Cancelar</button>
+                            <button class="btn btn-primary btn-sm" (click)="confirmSerials()">Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ MODAL: Aplicar Descuento ════ -->
+        @if (showDiscountModal) {
+        <div class="modal d-block pos-modal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold"><i class="ri-price-tag-3-line me-2"></i>{{ discountTargetIndex >= 0 ? 'Descuento por línea' : 'Descuento global' }}</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="showDiscountModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Base amount info -->
+                        <div class="d-flex justify-content-between small text-muted mb-3"><span>Base</span><span class="fw-semibold">Bs. {{ formatNum(discountBaseAmount) }}</span></div>
+
+                        <!-- Tabs: Predefinido / Manual -->
+                        <div class="d-flex gap-0 mb-3 border-bottom">
+                            <button class="btn btn-sm px-3 pb-2 me-1" style="border-radius: 0; border-bottom: 2px solid transparent" [style.border-bottom-color]="discountMode === 'catalog' ? 'var(--bs-primary)' : null" [class]="discountMode === 'catalog' ? 'text-primary fw-semibold' : 'text-muted'" (click)="discountMode = 'catalog'">
+                                <i class="ri-list-check align-middle me-1"></i>Predefinido
+                            </button>
+                            <button class="btn btn-sm px-3 pb-2" style="border-radius: 0; border-bottom: 2px solid transparent" [style.border-bottom-color]="discountMode === 'manual' ? 'var(--bs-primary)' : null" [class]="discountMode === 'manual' ? 'text-primary fw-semibold' : 'text-muted'" (click)="discountMode = 'manual'">
+                                <i class="ri-keyboard-line align-middle me-1"></i>Manual
+                            </button>
+                        </div>
+
+                        <!-- Modo catálogo -->
+                        @if (discountMode === 'catalog') {
+                        <div>
+                            @if (discountCatalog.length === 0) {
+                            <div class="text-center text-muted py-3"><i class="ri-price-tag-3-line fs-2 d-block mb-2 opacity-50"></i><small>Sin descuentos configurados.</small></div>
+                            } @else {
+                            <div class="list-group list-group-flush" style="max-height: 240px; overflow-y: auto">
+                                @for (d of discountCatalog; track d.Id) {
+                                <button type="button" class="list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center" [class.active]="selectedDiscountId === d.Id" (click)="selectedDiscountId = d.Id">
+                                    <div>
+                                        <div class="fw-semibold small">{{ d.Name }}</div>
+                                        @if (d.Description) {<small class="opacity-75">{{ d.Description }}</small>}
+                                    </div>
+                                    <span class="badge ms-2 flex-shrink-0" [class]="selectedDiscountId === d.Id ? 'bg-white text-primary' : 'bg-primary-subtle text-primary'">{{ d.Type === 'Percentage' ? d.Value + '%' : 'Bs. ' + formatNum(d.Value) }}</span>
+                                </button>
+                                }
+                            </div>
+                            }
+                        </div>
+                        }
+
+                        <!-- Modo manual -->
+                        @if (discountMode === 'manual') {
+                        <div>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted mb-1">Tipo de descuento</label>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm flex-fill" [class]="manualDiscountType === 'Percentage' ? 'btn-primary' : 'btn-outline-secondary'" (click)="manualDiscountType = 'Percentage'"><i class="ri-percent-line align-middle me-1"></i>Porcentaje</button>
+                                    <button type="button" class="btn btn-sm flex-fill" [class]="manualDiscountType === 'FixedAmount' ? 'btn-primary' : 'btn-outline-secondary'" (click)="manualDiscountType = 'FixedAmount'"><i class="ri-money-dollar-circle-line align-middle me-1"></i>Monto fijo</button>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-1" for="manual-discount">{{ manualDiscountType === 'Percentage' ? 'Porcentaje (%)' : 'Monto (Bs.)' }}</label>
+                                <input id="manual-discount" type="number" class="form-control form-control-sm" name="manualDiscountValue" [(ngModel)]="manualDiscountValue" [attr.max]="manualDiscountType === 'Percentage' ? 100 : null" min="0.01" step="0.01" placeholder="0">
+                            </div>
+                        </div>
+                        }
+
+                        <!-- Preview del descuento -->
+                        @if (discountPreview > 0) {
+                        <div class="alert alert-success py-2 mb-0 mt-2 small"><i class="ri-checkbox-circle-line me-1"></i><strong>Ahorro:</strong> Bs. {{ formatNum(discountPreview) }}</div>
+                        }
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button class="btn btn-outline-secondary btn-sm" (click)="showDiscountModal = false">Cancelar</button>
+                        <button class="btn btn-success btn-sm" [disabled]="!canApplyDiscount" (click)="applyDiscount()"><i class="ri-check-line align-middle me-1"></i>Aplicar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ MODAL: Resultado del arqueo (después de cerrar) ════ -->
+        @if (showCloseResult) {
+        <div class="modal d-block pos-modal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold"><i class="ri-lock-line me-2"></i>Caja cerrada</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="showCloseResult = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (closeResult.length) {
+                        <table class="table table-sm align-middle mb-0">
+                            <thead><tr><th>Medio</th><th class="text-end">Esperado</th><th class="text-end">Declarado</th><th class="text-end">Diferencia</th></tr></thead>
+                            <tbody>
+                                @for (c of closeResult; track c.PaymentMethodId) {
+                                <tr>
+                                    <td><i [class]="icon(c.IconCss) + ' me-1 text-muted'"></i>{{ c.Name }}</td>
+                                    <td class="text-end">{{ formatNum(c.Expected) }}</td>
+                                    <td class="text-end">{{ formatNum(c.Declared) }}</td>
+                                    <td class="text-end fw-semibold" [class]="c.Difference === 0 ? 'text-success' : c.Difference > 0 ? 'text-warning-emphasis' : 'text-danger'">
+                                        {{ c.Difference > 0 ? '+' : '' }}{{ formatNum(c.Difference) }}
+                                        <small class="d-block fw-normal">{{ c.Difference === 0 ? 'cuadra' : c.Difference > 0 ? 'sobrante' : 'faltante' }}</small>
+                                    </td>
+                                </tr>
+                                }
+                            </tbody>
+                        </table>
+                        } @else {
+                        <p class="mb-0">La caja se cerró correctamente.</p>
+                        }
+                    </div>
+                    <div class="modal-footer py-2"><button class="btn btn-primary btn-sm" (click)="showCloseResult = false">Aceptar</button></div>
+                </div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ MODAL: Poner venta en espera ════ -->
+        @if (showHoldModal) {
+        <div class="modal d-block pos-modal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold"><i class="ri-pause-line me-2"></i>Poner en espera</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="showHoldModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-2">La venta queda guardada en esta sucursal y cualquier caja la puede retomar. No reserva stock: los precios y el stock se validan al cobrarla.</p>
+                        <label class="form-label small text-muted" for="hold-label">Nota para reconocerla (opcional)</label>
+                        <input id="hold-label" type="text" class="form-control form-control-sm" name="holdLabel" maxlength="100" [(ngModel)]="holdLabel" placeholder="Ej.: señor de camisa azul" (keyup.enter)="holdCurrentSale()">
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button class="btn btn-outline-secondary btn-sm" (click)="showHoldModal = false">Cancelar</button>
+                        <button class="btn btn-warning btn-sm" [disabled]="holding" (click)="holdCurrentSale()"><i class="ri-pause-line align-middle me-1"></i>Poner en espera</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ MODAL: Ventas en espera ════ -->
+        @if (showHeldList) {
+        <div class="modal d-block pos-modal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold"><i class="ri-hourglass-line me-2"></i>Ventas en espera</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="showHeldList = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (heldSales.length === 0) {
+                        <div class="text-center py-3"><small class="text-muted">No hay ventas en espera en esta sucursal.</small></div>
+                        } @else {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr><th>Hora</th><th>Nota / Cliente</th><th>Dejó</th><th class="text-center">Ítems</th><th class="text-end">Total</th><th class="text-center">Acciones</th></tr>
+                                </thead>
+                                <tbody>
+                                    @for (h of heldSales; track h.Id) {
+                                    <tr>
+                                        <td class="text-nowrap"><small>{{ formatHeldTime(h.Created) }}</small></td>
+                                        <td><div class="fw-semibold">{{ h.Label || '—' }}</div><small class="text-muted">{{ h.CustomerName }}</small></td>
+                                        <td><small>{{ h.UserName }}</small></td>
+                                        <td class="text-center">{{ h.ItemsCount }}</td>
+                                        <td class="text-end">Bs. {{ formatNum(h.Total) }}</td>
+                                        <td class="text-center text-nowrap">
+                                            <button type="button" class="btn btn-sm btn-success me-1" (click)="resumeHeldSale(h)"><i class="ri-play-line align-middle me-1"></i>Retomar</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" title="Descartar" aria-label="Descartar" (click)="discardHeldSale(h)"><i class="ri-delete-bin-line"></i></button>
+                                        </td>
+                                    </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ MODAL: Autorización Supervisor ════ -->
+        <!-- z-index por encima del modal de cobro, que aparece después en el DOM y lo taparía. -->
+        @if (showSupervisorModal) {
+        <div class="modal d-block pos-modal" tabindex="-1" style="background: rgba(0, 0, 0, 0.65); z-index: 1095">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header py-2 bg-warning-subtle">
+                        <h6 class="modal-title fw-bold text-warning-emphasis"><i class="ri-shield-line me-2"></i>Autorización requerida</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="showSupervisorModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (supervisorPurpose === 'close') {
+                        <p class="small text-muted mb-3">{{ supervisorReason }} Ingresa las credenciales de un supervisor para autorizar el cierre.</p>
+                        } @else if (supervisorPurpose === 'stock') {
+                        <p class="small text-muted mb-3">{{ supervisorReason }} Ingresa las credenciales de un supervisor para vender de todos modos.</p>
+                        } @else {
+                        <p class="small text-muted mb-3">
+                            El descuento manual supera el límite permitido para cajeros (<strong>{{ maxCashierDiscountPct }}%</strong> por porcentaje / <strong>Bs. {{ maxCashierDiscountAmount }}</strong> por monto fijo).
+                            Ingresa las credenciales de un supervisor para autorizar.
+                        </p>
+                        }
+                        <div class="mb-2">
+                            <label class="form-label small text-muted" for="sup-email">Email del supervisor</label>
+                            <input id="sup-email" type="email" class="form-control form-control-sm" name="supervisorEmail" [(ngModel)]="supervisorEmail" placeholder="supervisor@empresa.com" autocomplete="off">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-muted" for="sup-pass">Contraseña</label>
+                            <input id="sup-pass" type="password" class="form-control form-control-sm" name="supervisorPassword" [(ngModel)]="supervisorPassword" placeholder="••••••••" (keyup.enter)="verifySupervisor()">
+                        </div>
+                        @if (supervisorError) {
+                        <div class="alert alert-danger py-2 small mb-0 mt-2"><i class="ri-error-warning-line me-1"></i>{{ supervisorError }}</div>
+                        }
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="showSupervisorModal = false">Cancelar</button>
+                        <button type="button" class="btn btn-warning btn-sm" [disabled]="supervisorLoading" (click)="verifySupervisor()">
+                            @if (supervisorLoading) {<span class="spinner-border spinner-border-sm me-1"></span>} @else {<i class="ri-lock-unlock-line align-middle me-1"></i>}Autorizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ MODAL DE COBRO ════ -->
+        @if (showPaymentModal) {
+        <div class="modal d-block pos-modal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold"><i class="ri-store-3-line me-2"></i>Cobrar venta</h6>
+                        <button type="button" class="btn-close" aria-label="Cerrar" (click)="closePaymentModal()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Total a cobrar -->
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded bg-primary bg-opacity-10 border border-primary border-opacity-25">
+                            <span class="fw-semibold text-primary">Total a cobrar</span>
+                            <span class="fw-bold fs-5 text-primary">Bs. {{ formatNum(total) }}</span>
+                        </div>
+
+                        <!-- Selector de método + monto -->
+                        <div class="mb-2">
+                            <small class="text-muted fw-semibold d-block mb-2">Seleccionar método de pago</small>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                @for (m of paymentMethods; track m.Id) {
+                                <button type="button" class="btn btn-sm" [class]="selectedMethodId === m.Id ? 'btn-primary' : 'btn-outline-secondary'" (click)="selectMethod(m)">
+                                    <i [class]="icon(m.IconCss) + ' align-middle me-1'"></i>{{ m.Name }}
+                                </button>
+                                }
+                            </div>
+
+                            @if (selectedMethodId) {
+                            <!-- Efectivo arranca vacío: se escribe lo que el cliente entregó. Tarjeta o QR arrancan con el saldo: se cobra exacto. -->
+                            <label class="form-label small text-muted mb-1" for="pay-amount">{{ methodGivesChange ? 'Efectivo recibido' : 'Monto a cobrar' }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Bs.</span>
+                                <input #amountInput id="pay-amount" type="number" class="form-control form-control-lg text-end" name="currentAmount" [class.is-invalid]="exceedsNoChange"
+                                    [placeholder]="methodGivesChange ? 'Monto recibido' : 'Monto'" [(ngModel)]="currentAmount" min="0" step="0.01" (keyup.enter)="onAmountEnter()">
+                                <button class="btn btn-success" type="button" [disabled]="!canAddPayment" (click)="addPaymentLine()"><i class="ri-add-line align-middle me-1"></i>Agregar</button>
+                            </div>
+
+                            <!-- Atajos: el monto exacto y los billetes con que suele pagarse -->
+                            @if (methodGivesChange) {
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" (click)="setAmount(pendingAmount)">Exacto</button>
+                                @for (v of quickAmounts; track v) {<button type="button" class="btn btn-sm btn-outline-secondary" (click)="setAmount(v)">Bs. {{ v }}</button>}
+                            </div>
+                            }
+                            }
+                        </div>
+
+                        <!-- Panel de cobro, siempre visible y de alto fijo (el modal no salta): cuánto cobrar, cuánto falta y cuánto devolver. -->
+                        @let panel = payPanel;
+                        <div class="rounded p-2 mb-3 text-center d-flex flex-column justify-content-center pos-pay-panel" [class]="panel.cls">
+                            <div class="small">{{ panel.label }}</div>
+                            @if (panel.amount !== null) {<div class="fw-bold pos-pay-amount">Bs. {{ formatNum(panel.amount) }}</div>} @else {<div class="fw-semibold">{{ panel.note }}</div>}
+                        </div>
+
+                        <!-- Líneas de pago agregadas -->
+                        @if (paymentLines.length > 0) {
+                        <div class="mb-3">
+                            <small class="text-muted fw-semibold d-block mb-1">Pagos registrados</small>
+                            @for (line of paymentLines; track $index) {
+                            <div class="d-flex align-items-center justify-content-between py-1 px-2 mb-1 rounded border">
+                                <div><i [class]="icon(line.IconCss) + ' me-1 text-muted'"></i><span class="small">{{ line.PaymentMethodName }}</span></div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="fw-semibold small">Bs. {{ formatNum(line.AmountGiven) }}</span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" (click)="removePaymentLine($index)"><i class="ri-close-line"></i></button>
+                                </div>
+                            </div>
+                            }
+                        </div>
+                        }
+
+                        <!-- Resumen de totales -->
+                        <div class="border-top pt-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">Total pagado</span>
+                                <span [class]="totalPaid >= total ? 'text-success fw-semibold' : 'text-danger fw-semibold'">Bs. {{ formatNum(totalPaid) }}</span>
+                            </div>
+                            @if (totalPaid < total) {
+                            <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Pendiente</span><span class="text-danger fw-semibold">Bs. {{ formatNum(total - totalPaid) }}</span></div>
+                            }
+                        </div>
+                    </div><!-- /modal-body -->
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="closePaymentModal()">Cancelar</button>
+                        <button type="button" class="btn btn-primary btn-sm" [disabled]="totalPaid < total || savingPayment" (click)="finalizeSale()">
+                            @if (savingPayment) {<span class="spinner-border spinner-border-sm me-1"></span>} @else {<i class="ri-check-line align-middle me-1"></i>}Confirmar venta
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /modal cobro -->
+        }
+
+        <!-- ════ MODAL VENTA COMPLETADA ════ -->
+        @if (showCompletedModal) {
+        <div class="completed-overlay">
+            <div class="completed-card shadow-lg">
+                <!-- Icono éxito -->
+                <div class="text-center mb-3">
+                    <div class="completed-check-icon"><i class="ri-checkbox-circle-line"></i></div>
+                    <h4 class="fw-bold mb-0 mt-2">Venta Completada</h4>
+                    <small class="text-muted">{{ completedDate }}</small>
+                </div>
+
+                <!-- Cliente -->
+                <div class="text-center mb-3">
+                    <span class="badge bg-light text-dark border px-3 py-2"><i class="ri-user-line me-1"></i>{{ completedCustomer }}</span>
+                </div>
+
+                <!-- Total y vuelto -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="card bg-primary text-white text-center py-3 mb-0"><div class="small opacity-75">Total cobrado</div><div class="fw-bold fs-5">Bs. {{ formatNum(completedTotal) }}</div></div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card bg-success text-white text-center py-3 mb-0"><div class="small opacity-75">Vuelto</div><div class="fw-bold fs-5">Bs. {{ formatNum(completedChange) }}</div></div>
+                    </div>
+                </div>
+
+                <!-- Métodos de pago: legibles, es lo que se consulta ante un reclamo. En efectivo, cuánto entregó y cuánto se le devolvió. -->
+                <ul class="list-group mb-4 text-start">
+                    @for (p of completedPayments; track $index) {
+                    <li class="list-group-item d-flex justify-content-between align-items-center gap-2 py-2">
+                        <span class="fw-semibold"><i [class]="icon(p.IconCss) + ' me-2 text-muted'"></i>{{ p.PaymentMethodName }}</span>
+                        <span class="text-end">
+                            @if (p.AmountReturned > 0) {
+                            entregó <strong>Bs. {{ formatNum(p.AmountGiven) }}</strong><span class="text-muted mx-1">·</span>vuelto <strong class="text-success">Bs. {{ formatNum(p.AmountReturned) }}</strong>
+                            } @else {
+                            <strong>Bs. {{ formatNum(p.AmountGiven) }}</strong>
+                            }
+                        </span>
+                    </li>
+                    }
+                </ul>
+
+                <!-- Botones -->
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary btn-lg" (click)="newOrder()"><i class="ri-add-line align-middle me-2"></i>Nueva Orden</button>
+                    <button class="btn btn-outline-secondary" (click)="printReceipt()"><i class="ri-printer-line align-middle me-1"></i>Imprimir recibo</button>
+                    <!-- Una devolución justo después de cobrar es rara: no compite con las acciones principales, y pide confirmación antes de salir. -->
+                    <button type="button" class="btn btn-link btn-sm text-muted" (click)="goToReturn()"><i class="ri-arrow-go-back-line align-middle me-1"></i>Ver venta / Devolver</button>
+                </div>
+            </div>
+
+            <!-- Recibo oculto para impresión -->
+            <div class="receipt-print">
+                <div style="text-align: center; margin-bottom: 12px">
+                    <strong style="font-size: 1.2em">RECIBO DE VENTA</strong><br>
+                    <span>{{ completedDate }}</span>
+                </div>
+                <div>Cliente: {{ completedCustomer }}</div>
+                <hr>
+                @for (d of completedDetail; track $index) {
+                <div>
+                    <div style="display: flex; justify-content: space-between"><span>{{ d.ProductName }} x{{ d.Quantity }}</span><span>Bs. {{ formatNum(d.LineSubtotal) }}</span></div>
+                    @if (d.LineTotalDiscounts > 0) {
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85em; color: #555">
+                        <span style="padding-left: 8px">{{ d.DiscountLabel || 'Descuento' }}</span><span>− Bs. {{ formatNum(d.LineTotalDiscounts) }}</span>
+                    </div>
+                    }
+                </div>
+                }
+                <hr>
+                @if (completedTotalLineDiscounts > 0) {
+                <div style="display: flex; justify-content: space-between"><span>Desc. por línea</span><span>− Bs. {{ formatNum(completedTotalLineDiscounts) }}</span></div>
+                }
+                @if (completedHeaderDiscountAmount > 0) {
+                <div style="display: flex; justify-content: space-between"><span>Desc. global</span><span>− Bs. {{ formatNum(completedHeaderDiscountAmount) }}</span></div>
+                }
+                <div style="display: flex; justify-content: space-between; font-weight: bold; margin-top: 4px"><span>TOTAL</span><span>Bs. {{ formatNum(completedTotal) }}</span></div>
+                <div style="display: flex; justify-content: space-between"><span>Vuelto</span><span>Bs. {{ formatNum(completedChange) }}</span></div>
+            </div>
+        </div>
+        }
+
+        <!-- ════ PANEL DERECHO: catálogo ════ -->
+        <div class="pos-catalog-panel" [class]="activeTab === 'products' ? '' : 'd-none d-md-flex'">
+            <!-- Buscador + pills (sticky en desktop) -->
+            <div class="pos-catalog-head">
+                <!-- Buscador de productos -->
+                <div class="card mb-2">
+                    <div class="card-body py-2 px-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                            <input #productInput type="text" class="form-control" name="productSearch" placeholder="Buscar producto por nombre..." [ngModel]="productSearch()" (ngModelChange)="productSearch.set($event)">
+                            @if (productSearch()) {
+                            <button class="btn btn-outline-secondary" type="button" (click)="productSearch.set('')"><i class="ri-close-line"></i></button>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pills de categoría -->
+                @if (categoryFilters().length > 0) {
+                <div class="mb-2 d-flex flex-wrap gap-1">
+                    <button type="button" class="btn btn-sm" [class]="selectedCategory() === '' ? 'btn-primary' : 'btn-outline-secondary'" (click)="selectedCategory.set('')">Todos</button>
+                    @for (cat of categoryFilters(); track cat) {
+                    <button type="button" class="btn btn-sm" [class]="selectedCategory() === cat ? 'btn-primary' : 'btn-outline-secondary'" (click)="selectedCategory.set(cat === selectedCategory() ? '' : cat)">{{ cat }}</button>
+                    }
+                </div>
+                }
+            </div>
+
+            <!-- Grid scrollable (solo esta sección hace scroll) -->
+            <div class="pos-catalog-grid">
+                @if (loadingProducts()) {
+                <!-- Cargando -->
+                <div class="text-center py-5"><span class="spinner-border text-primary"></span><p class="text-muted mt-2 mb-0">Cargando catálogo...</p></div>
+                } @else if (filteredProducts().length === 0) {
+                <!-- Sin resultados -->
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="ri-search-line fs-2 text-muted d-block mb-2"></i>
+                        <p class="text-muted mb-0">No se encontraron productos.</p>
+                    </div>
+                </div>
+                } @else {
+                <!-- Grid de productos -->
+                <div class="row g-2 pt-2">
+                    @for (prod of filteredProducts(); track prod.Id) {
+                    <div class="col-6 col-sm-4 col-lg-3">
+                        <div class="card h-100 product-card" [class.border-primary]="cartQty(prod.Id) > 0" [class.shadow-sm]="cartQty(prod.Id) > 0" [class.product-card--disabled]="prod.CurrentStock <= 0" (click)="prod.CurrentStock > 0 && addToCart(prod)">
+                            <!-- Badge cantidad en carrito -->
+                            @if (cartQty(prod.Id) > 0) {
+                            <span class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-primary" style="font-size: 0.65rem; z-index: 2; margin: 0.25rem">{{ cartQty(prod.Id) }}</span>
+                            }
+
+                            <div class="card-body p-2 d-flex flex-column">
+                                <!-- Nombre -->
+                                <div class="fw-semibold mb-1 lh-sm" style="font-size: 0.82rem; min-height: 2.5em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical">{{ prod.ProductName }}</div>
+
+                                <!-- Miniatura debajo del nombre, centrada. Solo si la tiene; sin foto la tarjeta no gasta espacio en un cuadro vacío. -->
+                                @if (prod.ImagePath) {
+                                <div class="text-center mb-2"><app-product-thumb [path]="prod.ImagePath" [size]="75" [alt]="prod.ProductName" /></div>
+                                }
+
+                                <!-- Lab + acceso a la ficha -->
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <small class="text-muted text-truncate" style="font-size: 0.72rem">{{ prod.LaboratoryName || '—' }}</small>
+                                    <!-- La ficha se abre desde acá: es la pregunta del mostrador y no debería obligar a salir del punto de venta. -->
+                                    <button type="button" class="btn text-primary d-inline-flex align-items-center justify-content-center p-0" style="font-size: 1.35rem; line-height: 1; width: 2rem; height: 2rem"
+                                        title="Ver composición, prospecto y alternativas" aria-label="Ver información del producto" (click)="$event.stopPropagation(); abrirFicha(prod)">
+                                        <i class="ri-information-line"></i>
+                                    </button>
+                                </div>
+                                <!-- Lo que condiciona la venta se ve sin abrir nada. -->
+                                @if (prod.RequiresAuthorization) {
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle mb-2" style="font-size: 0.62rem"><i class="ri-file-text-line me-1"></i>Con receta</span>
+                                }
+
+                                <div class="mt-auto">
+                                    <!-- Precio + stock -->
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-bold text-primary" style="font-size: 0.9rem">Bs. {{ formatNum(prod.SalePrice) }}</span>
+                                        <small style="font-size: 0.7rem" [class]="prod.CurrentStock > 5 ? 'text-success' : prod.CurrentStock > 0 ? 'text-warning' : 'text-danger'">
+                                            <i class="ri-archive-line me-1"></i>{{ prod.CurrentStock > 0 ? prod.CurrentStock : 'Agotado' }}
+                                        </small>
+                                    </div>
+
+                                    @if (prod.CurrentStock <= 0) {
+                                    <!-- Sin stock -->
+                                    <div class="btn btn-sm btn-outline-secondary w-100 disabled" style="font-size: 0.75rem">Sin stock</div>
+                                    } @else if (cartQty(prod.Id) === 0) {
+                                    <!-- No está en carrito -->
+                                    <button type="button" class="btn btn-sm btn-outline-primary w-100" style="font-size: 0.75rem" (click)="$event.stopPropagation(); addToCart(prod)"><i class="ri-add-line align-middle me-1"></i>Agregar</button>
+                                    } @else {
+                                    <!-- Ya está en carrito: controles +/- -->
+                                    <div class="d-flex align-items-center justify-content-between gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary flex-fill py-0" (click)="$event.stopPropagation(); decreaseQtyByProduct(prod.Id)">−</button>
+                                        <span class="fw-bold text-primary px-1">{{ cartQty(prod.Id) }}</span>
+                                        <button type="button" class="btn btn-sm btn-outline-primary flex-fill py-0" (click)="$event.stopPropagation(); addToCart(prod)">+</button>
+                                    </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    }
+                </div>
+                }
+            </div><!-- /pos-catalog-grid -->
+        </div><!-- /pos-catalog-panel -->
+    </div><!-- /pos-split -->
+    }
+</div>
+
+<app-product-info-modal
+    [visible]="fichaVisible()"
+    [producto]="productoFicha()"
+    (cerrar)="fichaVisible.set(false)"
+    (agregar)="agregarDesdeFicha($event)"
+    (actualizado)="actualizarProducto($event)" />
+
+<!-- ════ MODAL: Nuevo cliente ════ -->
+@if (showNewCustomerModal) {
+<div class="modal d-block pos-modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold"><i class="ri-user-add-line me-2"></i>Nuevo cliente</h6>
+                <button type="button" class="btn-close" aria-label="Cerrar" (click)="showNewCustomerModal = false"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small text-muted mb-1" for="nc-name">Nombre completo <span class="text-danger">*</span></label>
+                    <input id="nc-name" type="text" class="form-control form-control-sm" name="ncName" [(ngModel)]="newCustomer.FullName">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted mb-1" for="nc-doc">Documento <span class="text-danger">*</span></label>
+                    <input id="nc-doc" type="text" class="form-control form-control-sm" name="ncDoc" [(ngModel)]="newCustomer.DocumentNumber">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted mb-1" for="nc-phone">Celular</label>
+                    <input id="nc-phone" type="text" class="form-control form-control-sm" name="ncPhone" [(ngModel)]="newCustomer.Cellphone">
+                </div>
+                <div class="mb-0">
+                    <label class="form-label small text-muted mb-1" for="nc-mail">Correo</label>
+                    <input id="nc-mail" type="email" class="form-control form-control-sm" name="ncMail" [(ngModel)]="newCustomer.Email">
+                </div>
+                @if (newCustomerError) {<div class="alert alert-danger py-2 mt-3 mb-0 small">{{ newCustomerError }}</div>}
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-outline-secondary btn-sm" (click)="showNewCustomerModal = false">Cancelar</button>
+                <button class="btn btn-primary btn-sm" [disabled]="savingNewCustomer || !newCustomer.FullName.trim() || !newCustomer.DocumentNumber.trim()" (click)="saveNewCustomer()">
+                    <i class="ri-check-line align-middle me-1"></i>{{ savingNewCustomer ? 'Guardando...' : 'Guardar y seleccionar' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+}

@@ -1,0 +1,59 @@
+<app-breadcrumbs title="Límites del Descuento Manual" [breadcrumbItems]="[{ label: 'Ventas' }, { label: 'Límites de Descuento', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <ul class="small text-muted mb-3">
+                    <li><strong>Tope del cajero:</strong> por encima, el punto de venta pide la autorización de un supervisor.</li>
+                    <li><strong>Tope máximo:</strong> nadie lo supera, ni un administrador ni con autorización. Vacío = sin tope.</li>
+                    <li>Cada sucursal usa su valor si lo tiene; si no, el de la empresa. Deje en blanco para heredar.</li>
+                    <li>Los descuentos del catálogo no están sujetos a estos topes: ya los aprobó quien los dio de alta.</li>
+                </ul>
+
+                @if (levels().length === 0) {
+                <div class="text-center py-4"><small class="text-muted">Cargando...</small></div>
+                } @else {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-3">
+                        <thead class="table-light">
+                            <tr>
+                                <th rowspan="2" class="align-bottom">Nivel</th>
+                                <th colspan="2" class="text-center border-bottom-0">Tope del cajero</th>
+                                <th colspan="2" class="text-center border-bottom-0">Tope máximo</th>
+                            </tr>
+                            <tr>
+                                <th class="text-center" style="width: 9rem">%</th>
+                                <th class="text-center" style="width: 9rem">Bs.</th>
+                                <th class="text-center" style="width: 9rem">%</th>
+                                <th class="text-center" style="width: 9rem">Bs.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (l of levels(); track l.BranchId ?? 'empresa'; let i = $index) {
+                            <tr [class.table-active]="i === 0">
+                                <td>
+                                    @if (i === 0) {<span class="fw-semibold">Toda la empresa</span>} @else {<span class="ps-3">{{ l.BranchName }}</span>}
+                                </td>
+                                @for (campo of campos; track campo.key) {
+                                <td>
+                                    <input type="number" min="0" [attr.max]="campo.pct ? 100 : null" step="0.01" class="form-control text-end"
+                                        [name]="campo.key + i" [disabled]="!canUpdate()" [placeholder]="heredado(i, campo.key)" [(ngModel)]="l[campo.key]">
+                                </td>
+                                }
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+
+                @if (canUpdate() && levels().length) {
+                <button type="button" class="btn btn-primary btn-sm" [disabled]="saving()" (click)="save()">
+                    <i class="ri-save-line align-middle me-1"></i>Guardar
+                </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>

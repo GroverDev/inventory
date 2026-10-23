@@ -1,0 +1,654 @@
+<template>
+  <Layout>
+    <PageHeader title="Turnos de Caja" page-title="Punto de Venta" />
+
+
+    <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Turnos de <span class="fw-light"><i>CAJA</i></span></h5>
+        </div>
+        <div class="pt-0 card-body">
+
+            <!-- Filtros -->
+            <div class="mb-3">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="text-muted small me-1">Ver:</span>
+                <button v-for="q in quickFilters" :key="q.key" type="button"
+                  class="btn btn-sm" :class="activeQuick === q.key ? 'btn-primary' : 'btn-outline-secondary'"
+                  @click="applyQuick(q.key)">
+                  <i :class="q.icon" class="me-1"></i>{{ q.label }}
+                </button>
+              </div>
+              <div class="row align-items-end g-2">
+                <div class="col-6 col-md-3">
+                  <label class="form-label small text-muted mb-1">Desde</label>
+                  <input type="date" class="form-control form-control-sm" v-model="filtro.dateFrom" @change="activeQuick = null" />
+                </div>
+                <div class="col-6 col-md-3">
+                  <label class="form-label small text-muted mb-1">Hasta</label>
+                  <input type="date" class="form-control form-control-sm" v-model="filtro.dateTo" @change="activeQuick = null" />
+                </div>
+                <div class="col-12 col-md-3">
+                  <button class="btn btn-primary btn-sm w-100" @click="loadSessions">
+                    <i class="ri-search-line me-1"></i>Buscar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Estado vacío -->
+            <div v-if="sessions.length === 0" class="text-center py-5">
+              <i class="ri-money-dollar-box-line ri-3x text-muted d-block mb-3"></i>
+              <p class="text-muted mb-0">No se encontraron turnos de caja en el período seleccionado.</p>
+            </div>
+
+            <!-- Tabla desktop -->
+            <div v-else class="d-none d-md-block">
+              <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="">
+                  <tr>
+                    <th>Cajero</th>
+                    <th>Apertura</th>
+                    <th>Cierre</th>
+                    <th class="text-end">Fondo</th>
+                    <th class="text-end">Ventas</th>
+                    <th class="text-end">Gastos</th>
+                    <th class="text-end">Esperado</th>
+                    <th class="text-end">Declarado</th>
+                    <th class="text-end">Diferencia</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-center">Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="s in sessions" :key="s.Id">
+                    <td>
+                      <i class="ri-user-line me-1 text-muted"></i>
+                      <span class="fw-semibold">{{ s.UserFullName }}</span>
+                    </td>
+                    <td><small>{{ formatDate(s.OpenedAt) }}</small></td>
+                    <td><small>{{ s.ClosedAt ? formatDate(s.ClosedAt) : '—' }}</small></td>
+                    <td class="text-end small">Bs. {{ formatNum(s.OpeningAmount) }}</td>
+                    <td class="text-end small text-success">
+                      Bs. {{ formatNum(s.TotalSales) }}
+                      <PaymentBreakdown :items="s.ByPaymentMethod" variant="inline" />
+                    </td>
+                    <td class="text-end small text-danger">
+                      Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}
+                      <small v-if="s.TotalReturns > 0" class="text-muted d-block">
+                        devoluciones Bs. {{ formatNum(s.TotalReturns) }}
+                      </small>
+                    </td>
+                    <td class="text-end small fw-semibold">
+                      Bs. {{ formatNum(expectedAmount(s)) }}
+                    </td>
+                    <td class="text-end small">{{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}</td>
+                    <td class="text-end small fw-semibold"
+                      :class="s.Difference === null ? '' : s.Difference >= 0 ? 'text-success' : 'text-danger'">
+                      {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
+                    </td>
+                    <td class="text-center">
+                      <span class="badge" :class="isStaleOpen(s) ? 'bg-warning text-dark' : s.IsOpen ? 'bg-success' : 'bg-secondary'">
+                        {{ s.IsOpen ? 'Abierta' : 'Cerrada' }}
+                      </span>
+                      <small v-if="isStaleOpen(s)" class="d-block text-warning mt-1">
+                        <i class="ri-error-warning-line me-1"></i>hace {{ daysOpen(s) }} día{{ daysOpen(s) === 1 ? '' : 's' }}
+                      </small>
+                    </td>
+                    <td class="text-center">
+                      <button class="btn btn-sm btn-outline-secondary py-0 px-2" @click="selectSession(s)">
+                        <i class="ri-eye-line"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Cards móvil -->
+            <div class="d-md-none">
+              <div class="row g-3">
+                <div v-for="s in sessions" :key="s.Id" class="col-12">
+                  <div class="card shadow rounded-3">
+                    <div class="card-body d-flex flex-column gap-2">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <p class="fw-semibold mb-0 lh-sm">{{ s.UserFullName }}</p>
+                        <span class="badge rounded-pill" :class="isStaleOpen(s) ? 'text-bg-warning' : s.IsOpen ? 'text-bg-success' : 'text-bg-secondary'">
+                          {{ s.IsOpen ? 'Abierta' : 'Cerrada' }}
+                        </span>
+                      </div>
+                      <small class="text-muted"><i class="ri-calendar-line me-1"></i>{{ formatDate(s.OpenedAt) }}</small>
+                      <small v-if="isStaleOpen(s)" class="text-warning">
+                        <i class="ri-error-warning-line me-1"></i>Abierta hace {{ daysOpen(s) }} día{{ daysOpen(s) === 1 ? '' : 's' }}
+                      </small>
+                      <!-- Los mismos seis importes que las columnas de la tabla en
+                           escritorio, para que la tarjeta no cuente otra historia. -->
+                      <div class="row g-1 text-center small">
+                        <div class="col-4">
+                          <div class="text-muted">Fondo</div>
+                          <div class="fw-semibold">Bs. {{ formatNum(s.OpeningAmount) }}</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Ventas</div>
+                          <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
+                          <PaymentBreakdown :items="s.ByPaymentMethod" variant="inline" />
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Gastos</div>
+                          <div class="text-danger fw-semibold">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</div>
+                        </div>
+                      </div>
+                      <div class="row g-1 text-center small border-top pt-1">
+                        <div class="col-4">
+                          <div class="text-muted">Esperado</div>
+                          <div class="fw-semibold">Bs. {{ formatNum(expectedAmount(s)) }}</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Declarado</div>
+                          <div class="fw-semibold">
+                            {{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}
+                          </div>
+                        </div>
+                        <div class="col-4">
+                          <div class="text-muted">Diferencia</div>
+                          <div :class="s.Difference === null ? 'text-muted' : s.Difference >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                            {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
+                          </div>
+                        </div>
+                      </div>
+                      <button class="btn btn-sm btn-outline-secondary w-100 mt-auto pt-1" @click="selectSession(s)">
+                        <i class="ri-eye-line me-1"></i>Ver detalle
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        
+      </div>
+    
+
+    <!-- ══ MODAL: Detalle de Sesión ══ -->
+    <div v-if="selectedSession" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5); z-index:3000;">
+      <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h6 class="modal-title fw-bold">
+              <i class="ri-money-dollar-box-line me-2"></i>Turno — {{ selectedSession.UserFullName }}
+              <small class="text-muted fw-normal ms-2">{{ formatDate(selectedSession.OpenedAt) }}</small>
+              <span v-if="isStaleOpen(selectedSession)" class="badge bg-warning text-dark ms-2">
+                <i class="ri-error-warning-line me-1"></i>Abierta hace {{ daysOpen(selectedSession) }} día{{ daysOpen(selectedSession) === 1 ? '' : 's' }}
+              </span>
+            </h6>
+            <button type="button" class="btn-close" @click="selectedSession = null"></button>
+          </div>
+          <div class="modal-body" style="max-height:80vh; overflow-y:auto;">
+
+            <!-- Resumen arqueo -->
+            <!-- Se muestran los cuatro términos que componen el esperado, y no
+                 solo algunos: si falta uno (los ingresos, por ejemplo) la cuenta
+                 no cierra en pantalla y la diferencia parece salida de la nada. -->
+            <div class="row g-2 mb-2">
+              <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Fondo inicial</small>
+                  <strong>Bs. {{ formatNum(selectedSession.OpeningAmount) }}</strong>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">+ Ventas</small>
+                  <strong class="text-success">Bs. {{ formatNum(selectedSession.TotalSales) }}</strong>
+                  <small v-if="selectedSession.TotalCashSales !== selectedSession.TotalSales"
+                         class="text-muted d-block">
+                    en efectivo Bs. {{ formatNum(selectedSession.TotalCashSales) }} · el resto no entra al cajón
+                  </small>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">+ Ingresos</small>
+                  <strong class="text-success">Bs. {{ formatNum(selectedSession.TotalIncome) }}</strong>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">− Gastos + Retiros</small>
+                  <strong class="text-danger">Bs. {{ formatNum(selectedSession.TotalExpenses + selectedSession.TotalWithdrawals) }}</strong>
+                  <small v-if="selectedSession.TotalReturns > 0" class="text-muted d-block">
+                    + devoluciones Bs. {{ formatNum(selectedSession.TotalReturns) }}
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Por medio de pago: el efectivo entra al esperado; QR y tarjeta no
+                 pasan por el cajón y se cuadran contra el banco o el datáfono. -->
+            <div v-if="selectedSession.ByPaymentMethod.length" class="mb-2">
+              <small class="text-muted fw-semibold d-block mb-1">
+                Cobrado por medio de pago
+                <span class="fw-normal">· QR y tarjeta se cuadran contra el banco o el datáfono</span>
+              </small>
+              <PaymentBreakdown :items="selectedSession.ByPaymentMethod" />
+            </div>
+
+            <!-- Arqueo del cierre por medio: lo declarado a ciegas contra lo esperado -->
+            <div v-if="selectedSession.Counts.length" class="mb-3">
+              <small class="text-muted fw-semibold d-block mb-1">
+                Arqueo del cierre
+                <span v-if="selectedSession.CloseAttempts > 0" class="badge bg-warning text-dark ms-1"
+                  title="Cierres rechazados por diferencia sin observación antes del definitivo">
+                  {{ selectedSession.CloseAttempts }} intento(s) rechazado(s)
+                </span>
+                <span v-if="selectedSession.CloseAuthorizedBy" class="badge bg-info-subtle text-info-emphasis ms-1"
+                  title="El cierre necesitó autorización por la diferencia o por los intentos">
+                  <i class="ri-shield-check-line me-1"></i>Autorizó {{ selectedSession.CloseAuthorizedByName || 'un supervisor' }}
+                </span>
+              </small>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Medio</th>
+                      <th class="text-end">Esperado</th>
+                      <th class="text-end">Declarado</th>
+                      <th class="text-end">Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="c in selectedSession.Counts" :key="c.PaymentMethodId">
+                      <td><i :class="c.IconCss" class="me-1 text-muted"></i>{{ c.Name }}</td>
+                      <td class="text-end">Bs. {{ formatNum(c.Expected) }}</td>
+                      <td class="text-end">Bs. {{ formatNum(c.Declared) }}</td>
+                      <td class="text-end fw-semibold"
+                        :class="c.Difference === 0 ? 'text-success' : c.Difference > 0 ? 'text-warning-emphasis' : 'text-danger'">
+                        {{ c.Difference > 0 ? '+' : '' }}Bs. {{ formatNum(c.Difference) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- Conteo del efectivo por billete y moneda -->
+              <div v-if="selectedSession.Denominations?.length" class="small mt-2">
+                <span class="text-muted me-1">Efectivo contado:</span>
+                <span v-for="d in selectedSession.Denominations" :key="d.Value" class="badge bg-body-secondary text-body me-1">
+                  {{ d.Quantity }} × {{ d.Value >= 1 ? d.Value : d.Value.toFixed(2) }}
+                </span>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-4">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Esperado en caja</small>
+                  <strong>Bs. {{ formatNum(expectedAmount(selectedSession)) }}</strong>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="border rounded p-2 text-center">
+                  <small class="text-muted d-block">Declarado</small>
+                  <strong>{{ selectedSession.DeclaredAmount !== null ? 'Bs. ' + formatNum(selectedSession.DeclaredAmount) : '—' }}</strong>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="border rounded text-center p-2"
+                  :class="selectedSession.Difference === null ? '' : selectedSession.Difference >= 0 ? 'border-success' : 'border-danger'">
+                  <small class="text-muted d-block">Diferencia</small>
+                  <!-- Mientras la caja siga abierta no hay arqueo: un "0.00" en
+                       verde se leería como que cuadra. -->
+                  <strong v-if="selectedSession.Difference === null" class="text-muted">—</strong>
+                  <strong v-else :class="selectedSession.Difference >= 0 ? 'text-success' : 'text-danger'">
+                    Bs. {{ formatNum(selectedSession.Difference) }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3">
+              <li class="nav-item">
+                <button class="nav-link" :class="activeTab === 'sales' ? 'active' : ''" @click="activeTab = 'sales'">
+                  <i class="ri-bill-line me-1"></i>Ventas
+                  <span v-if="sessionSales.length" class="badge bg-primary ms-1">{{ sessionSales.length }}</span>
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" :class="activeTab === 'movements' ? 'active' : ''" @click="activeTab = 'movements'">
+                  <i class="ri-exchange-line me-1"></i>Movimientos
+                  <span v-if="selectedSession.Movements.length" class="badge bg-secondary ms-1">{{ selectedSession.Movements.length }}</span>
+                </button>
+              </li>
+            </ul>
+
+            <!-- TAB: Ventas -->
+            <div v-show="activeTab === 'sales'">
+              <div v-if="loadingSales" class="text-center py-4 text-muted">
+                <i class="ri-loader-4-line ri-spin me-2"></i>Cargando ventas...
+              </div>
+              <div v-else-if="sessionSales.length === 0" class="text-center py-4 text-muted small">
+                No hay ventas registradas en este turno.
+              </div>
+              <template v-else>
+                <!-- Totales de ventas -->
+                <div class="row g-2 mb-3">
+                  <div class="col-6 col-md-3">
+                    <div class="card border text-center py-2 mb-0">
+                      <small class="text-muted d-block">Transacciones</small>
+                      <strong>{{ sessionSales.length }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="card border text-center py-2 mb-0">
+                      <small class="text-muted d-block">Subtotal</small>
+                      <strong>Bs. {{ formatNum(salesTotals.subtotal) }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="card border text-center py-2 mb-0">
+                      <small class="text-muted d-block">Descuentos</small>
+                      <strong class="text-danger">Bs. {{ formatNum(salesTotals.discounts) }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <!-- Lo cobrado, ya neto de devoluciones. Si hubo alguna se aclara
+                         debajo el facturado, para que el número no parezca no cuadrar
+                         con la suma de la columna Total. -->
+                    <div class="card border border-success text-center py-2 mb-0">
+                      <small class="text-muted d-block">Total cobrado</small>
+                      <strong class="text-success">Bs. {{ formatNum(salesTotals.net) }}</strong>
+                      <small v-if="salesTotals.returned > 0" class="text-warning">
+                        Facturado Bs. {{ formatNum(salesTotals.billed) }} · devuelto − Bs. {{ formatNum(salesTotals.returned) }}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tabla de ventas con detalle expandible -->
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="">
+                      <tr>
+                        <th style="width:28px"></th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Cajero</th>
+                        <th>Método pago</th>
+                        <th class="text-end">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template v-for="sale in sessionSales" :key="sale.Id">
+                        <tr @click="toggleSale(sale.Id)" style="cursor:pointer;">
+                          <td class="text-center">
+                            <i :class="expandedSales.has(sale.Id) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'" style="font-size:.7rem;"></i>
+                          </td>
+                          <td><small>{{ formatDate(sale.SaleDate) }}</small></td>
+                          <td class="fw-semibold small">
+                            {{ sale.CustomerName }}
+                            <span v-if="sale.SaleStatus === 'anulada'" class="badge bg-danger ms-1">Anulada</span>
+                          </td>
+                          <td><small class="text-muted">{{ sale.SellerName }}</small></td>
+                          <td>
+                            <small v-for="p in sale.Payments" :key="p.PaymentMethodName" class="badge bg-secondary bg-opacity-10 text-secondary border me-1">
+                              {{ p.PaymentMethodName }}
+                            </small>
+                          </td>
+                          <!-- Con devolución se muestra el neto y el facturado tachado: el
+                               importe que cuenta es lo que quedó cobrado. -->
+                          <td class="text-end fw-semibold small" :class="returnedOf(sale) > 0 ? 'text-warning' : 'text-success'">
+                            <span v-if="returnedOf(sale) > 0" class="text-muted text-decoration-line-through me-1">
+                              Bs. {{ formatNum(sale.Total) }}
+                            </span>Bs. {{ formatNum(netOf(sale)) }}
+                          </td>
+                        </tr>
+                        <!-- Detalle de productos -->
+                        <tr v-if="expandedSales.has(sale.Id)">
+                          <td colspan="6" class="p-0">
+                            <table class="table table-sm mb-0 bg-body-secondary">
+                              <thead>
+                                <tr class="text-muted small">
+                                  <th class="ps-4">Producto</th>
+                                  <th class="text-center">Cant.</th>
+                                  <th class="text-end">P. Unit.</th>
+                                  <th class="text-end">Descuento</th>
+                                  <th class="text-end">Subtotal</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-for="d in sale.Detail" :key="d.ProductName" class="small">
+                                  <td class="ps-4">{{ d.ProductName }}</td>
+                                  <td class="text-center">{{ d.Quantity }}</td>
+                                  <td class="text-end">Bs. {{ formatNum(d.UnitPrice) }}</td>
+                                  <td class="text-end text-danger">{{ d.LineTotalDiscounts > 0 ? 'Bs. ' + formatNum(d.LineTotalDiscounts) : '—' }}</td>
+                                  <td class="text-end fw-semibold">Bs. {{ formatNum(d.LineTotal) }}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                            <div v-if="sale.HeaderDiscountAmount > 0" class="small text-danger px-3 py-1 border-top">
+                              <i class="ri-price-tag-3-line me-1"></i>Descuento aplicado a toda la venta: Bs. {{ formatNum(sale.HeaderDiscountAmount) }}
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </div>
+
+            <!-- TAB: Movimientos -->
+            <div v-show="activeTab === 'movements'">
+              <div v-if="selectedSession.Movements.length === 0" class="text-center py-3 text-muted small">
+                Sin movimientos en este turno.
+              </div>
+              <table v-else class="table table-sm table-hover align-middle mb-0">
+                <thead class="">
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Descripción</th>
+                    <th class="text-end">Monto</th>
+                    <th>Fecha</th>
+                    <th>Registrado por</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="m in selectedSession.Movements" :key="m.Id">
+                    <td>
+                      <span class="badge"
+                        :class="m.MovementType === 'income' ? 'bg-success-subtle text-success' : m.MovementType === 'withdrawal' ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger'">
+                        {{ movementLabel(m.MovementType) }}
+                      </span>
+                    </td>
+                    <td><small>{{ m.Description }}</small></td>
+                    <td class="text-end small">Bs. {{ formatNum(m.Amount) }}</td>
+                    <td><small class="text-muted">{{ formatDate(m.Created) }}</small></td>
+                    <td><small class="text-muted">{{ m.CreatedByName || '—' }}</small></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="selectedSession.Notes" class="mt-3 alert alert-secondary py-2 small">
+                <strong>Observaciones:</strong> {{ selectedSession.Notes }}
+              </div>
+            </div>
+
+          </div>
+          <div class="modal-footer py-2 d-flex justify-content-between">
+            <button v-if="activeTab === 'sales' && sessionSales.length" class="btn btn-success btn-sm" @click="exportSessionSales">
+              <i class="ri-file-excel-2-line me-1"></i>Exportar Excel
+            </button>
+            <span v-else></span>
+            <button class="btn btn-outline-secondary btn-sm" @click="selectedSession = null">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Layout>
+</template>
+
+<script setup lang="ts">
+import Layout from '@/layouts/main.vue'
+import PageHeader from '@/components/page-header.vue'
+import { computed, ref, onMounted } from 'vue';
+import type { CashSession, SessionSale } from '@/modules/inventory/models/cashSession.model';
+import { MovementTypeLabels } from '@/modules/inventory/models/cashMovement.model';
+import useCashSession from '@/modules/inventory/composables/useCashSession';
+import { exportToExcel } from '@/utils/excelHelper';
+import PaymentBreakdown from '@/modules/inventory/components/PaymentBreakdown.vue';
+import { todayIso, toIsoDate } from '@/utils/dateHelper';
+
+const { getSessions, getSessionById, getSessionSales } = useCashSession();
+
+const sessions = ref<CashSession[]>([]);
+const selectedSession = ref<CashSession | null>(null);
+const activeQuick = ref<string | null>('today');
+const activeTab = ref<'sales' | 'movements'>('sales');
+const sessionSales = ref<SessionSale[]>([]);
+const loadingSales = ref(false);
+const expandedSales = ref<Set<string>>(new Set());
+
+const today = todayIso;
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return toIsoDate(d);
+};
+
+const filtro = ref({ dateFrom: today(), dateTo: today() });
+
+const quickFilters = [
+  { key: 'today',   label: 'Hoy',           icon: 'ri-calendar-line' },
+  { key: 'week',    label: 'Esta semana',    icon: 'ri-calendar-event-line' },
+  { key: 'month',   label: 'Este mes',       icon: 'ri-calendar-line' },
+];
+
+const applyQuick = (key: string) => {
+  activeQuick.value = key;
+  if (key === 'today') {
+    filtro.value = { dateFrom: today(), dateTo: today() };
+  } else if (key === 'week') {
+    filtro.value = { dateFrom: daysAgo(6), dateTo: today() };
+  } else if (key === 'month') {
+    filtro.value = { dateFrom: daysAgo(29), dateTo: today() };
+  }
+  loadSessions();
+};
+
+const loadSessions = async () => {
+  const resp = await getSessions(filtro.value.dateFrom, filtro.value.dateTo);
+  sessions.value = resp.ok ? (resp.Data ?? []) : [];
+};
+
+const selectSession = async (s: CashSession) => {
+  selectedSession.value = s;
+  activeTab.value = 'sales';
+  expandedSales.value = new Set();
+  sessionSales.value = [];
+  loadingSales.value = true;
+
+  const [salesResp, sessionResp] = await Promise.all([
+    getSessionSales(s.Id),
+    getSessionById(s.Id),
+  ]);
+
+  sessionSales.value = salesResp.ok ? (salesResp.Data ?? []) : [];
+  if (sessionResp.ok && sessionResp.Data) {
+    selectedSession.value = sessionResp.Data;
+  }
+
+  loadingSales.value = false;
+};
+
+const toggleSale = (id: string) => {
+  if (expandedSales.value.has(id)) {
+    expandedSales.value.delete(id);
+  } else {
+    expandedSales.value.add(id);
+  }
+  expandedSales.value = new Set(expandedSales.value);
+};
+
+/**
+ * La API vieja no netea las ventas del turno: la consulta leía `sales` y no
+ * `v_sales_net`, así que TotalReturned y NetTotal llegan en 0 y SaleStatus vacío.
+ * Con SaleStatus vacío se toma el facturado como neto, en vez de mostrar Bs. 0,00
+ * en toda la tabla.
+ */
+const isNetAware = (s: SessionSale): boolean => !!s.SaleStatus;
+const returnedOf = (s: SessionSale): number => (isNetAware(s) ? s.TotalReturned : 0);
+const netOf = (s: SessionSale): number => (isNetAware(s) ? s.NetTotal : s.Total);
+
+const salesTotals = computed(() =>
+  sessionSales.value.reduce(
+    (acc, s) => ({
+      subtotal:  acc.subtotal  + s.Subtotal,
+      discounts: acc.discounts + s.TotalDiscounts,
+      billed:    acc.billed    + s.Total,
+      returned:  acc.returned  + returnedOf(s),
+      net:       acc.net       + netOf(s),
+    }),
+    { subtotal: 0, discounts: 0, billed: 0, returned: 0, net: 0 },
+  ),
+);
+
+const exportSessionSales = () => {
+  if (!selectedSession.value) return;
+  const rows: object[] = [];
+  for (const sale of sessionSales.value) {
+    for (const d of sale.Detail) {
+      rows.push({
+        Fecha: formatDate(sale.SaleDate),
+        Cliente: sale.CustomerName,
+        Cajero: sale.SellerName,
+        Producto: d.ProductName,
+        Cantidad: d.Quantity,
+        PrecioUnitario: d.UnitPrice,
+        Descuento: d.LineTotalDiscounts,
+        Subtotal: d.LineTotal,
+        Facturado: sale.Total,
+        Devuelto: returnedOf(sale),
+        TotalVenta: netOf(sale),
+        MetodoPago: sale.Payments.map(p => p.PaymentMethodName).join(' / '),
+      });
+    }
+  }
+  const cajero = selectedSession.value.UserFullName.replace(/\s+/g, '_');
+  const fecha = selectedSession.value.OpenedAt.slice(0, 10);
+  exportToExcel(rows, `turno_${cajero}_${fecha}.xlsx`);
+};
+
+const formatNum = (val: number) =>
+  (val ?? 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const formatDate = (val: string) =>
+  new Date(val).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+
+// Turnos pensados para durar un día; uno abierto por más tiempo suele ser un
+// olvido (nadie lo cerró) más que un caso de uso real — se avisa en vez de
+// cerrarlo solo, porque un cajero puede legítimamente cruzar medianoche.
+const STALE_OPEN_DAYS = 1;
+
+const daysOpen = (s: CashSession): number =>
+  Math.floor((Date.now() - new Date(s.OpenedAt).getTime()) / 86_400_000);
+
+const isStaleOpen = (s: CashSession): boolean => s.IsOpen && daysOpen(s) >= STALE_OPEN_DAYS;
+
+/**
+ * Lo que debería haber en la caja. Es la misma fórmula que aplica el backend al
+ * cerrar (CashSessionApplication.CloseSession).
+ *
+ * En una sesión ya cerrada se muestra el valor que quedó guardado, no uno
+ * recalculado: el arqueo es un hecho histórico y recalcularlo lo haría cambiar
+ * si algún movimiento se editara después.
+ */
+const expectedAmount = (s: CashSession): number =>
+  s.ExpectedAmount !== null
+    ? s.ExpectedAmount
+    : s.OpeningAmount + s.TotalCashSales + s.TotalIncome
+      - s.TotalExpenses - s.TotalWithdrawals - s.TotalReturns;
+
+const movementLabel = (type: string) => MovementTypeLabels[type] ?? type;
+
+onMounted(() => loadSessions());
+</script>

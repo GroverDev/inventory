@@ -1,0 +1,55 @@
+<div class="card mt-4 card-bg-fill">
+    <div class="card-body p-4">
+        <div class="text-center mt-2">
+            <h5 class="text-primary">Iniciar sesión</h5>
+            <p class="text-muted">Ingresa tus credenciales para continuar</p>
+        </div>
+        <div class="p-2 mt-4">
+            <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+
+                <div class="mb-3">
+                    <label class="form-label" for="email">Usuario</label>
+                    <input type="email" class="form-control" id="email" formControlName="usuario" placeholder="Ingresa tu usuario" autocomplete="username" [class.is-invalid]="submitted() && f.usuario.errors">
+                    @if (submitted() && f.usuario.errors) {
+                    <div class="invalid-feedback">
+                        @if (f.usuario.errors['required']) {<div>El usuario es obligatorio.</div>}
+                        @else if (f.usuario.errors['email']) {<div>Formato de correo inválido.</div>}
+                    </div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="password-input">Contraseña</label>
+                    <div class="position-relative auth-pass-inputgroup mb-3">
+                        <input [type]="showPassword() ? 'text' : 'password'" class="form-control pe-5" placeholder="Ingresa tu contraseña" id="password-input" formControlName="contrasenia" autocomplete="current-password" [class.is-invalid]="submitted() && f.contrasenia.errors">
+                        <button class="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted" type="button" id="password-addon" [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'" (click)="showPassword.set(!showPassword())">
+                            <i class="mdi align-middle" [class.mdi-eye-off-outline]="!showPassword()" [class.mdi-eye-outline]="showPassword()"></i>
+                        </button>
+                        @if (submitted() && f.contrasenia.errors) {
+                        <div class="invalid-feedback">La contraseña es obligatoria.</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="auth-remember-check" formControlName="rememberMe">
+                    <label class="form-check-label" for="auth-remember-check">Mantener sesión y recordar este equipo por 30 días</label>
+                    <div class="form-text">
+                        No pedirá contraseña ni código de verificación en este equipo.
+                        <strong>No lo marques en equipos compartidos o de otras personas.</strong>
+                    </div>
+                </div>
+
+                <!-- Normalmente no se ve: solo aparece si Cloudflare pide un clic. -->
+                <app-turnstile class="d-block mt-3" [siteKey]="turnstileSiteKey" (token)="turnstileToken.set($event)" (status)="turnstileStatus.set($event)" />
+
+                <div class="mt-4">
+                    <button class="btn btn-success w-100" type="submit" [disabled]="!canSubmit() || loading()">
+                        @if (loading()) {<span class="spinner-border spinner-border-sm me-2" role="status"></span>}
+                        Ingresar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

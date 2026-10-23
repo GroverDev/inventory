@@ -1,0 +1,226 @@
+<app-breadcrumbs [title]="user.Uuid ? 'Editar Usuario' : 'Nuevo Usuario'" [breadcrumbItems]="[{ label: 'Cuenta' }, { label: 'Registro de usuarios' }, { label: user.Uuid ? 'Editar Usuario' : 'Nuevo Usuario', active: true }]"></app-breadcrumbs>
+
+<div class="row g-3">
+    <div class="col-12" [class.col-xl-6]="user.Uuid">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <h5 class="card-title mb-0 flex-grow-1">{{ user.Uuid ? 'Editar' : 'Nuevo' }} Usuario</h5>
+                @if (user.Uuid) {
+                <span class="badge ms-2" [class]="user.IsActive ? 'bg-success' : 'bg-secondary'">{{ user.IsActive ? 'Activo' : 'Inactivo' }}</span>
+                }
+            </div>
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="back()" />
+
+                <form novalidate>
+                    <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-user-line align-middle me-1"></i> Datos Personales</h6>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="FullName">Nombre Completo <span class="text-danger">*</span></label>
+                            <input type="text" id="FullName" name="FullName" class="form-control form-control-sm" [class.is-invalid]="submitted && fullNameInvalid" placeholder="Nombre Completo" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="user.FullName">
+                            <small class="invalid-feedback">Debe ingresar el nombre completo.</small>
+                        </div>
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="UserName">Nombre de Usuario <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="ri-at-line"></i></span>
+                                <input type="text" id="UserName" name="UserName" class="form-control" placeholder="nombre.usuario" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="user.UserName">
+                            </div>
+                            <small class="text-muted"><i class="ri-information-line me-1"></i>Debe ser único. Si se deja vacío, se usará el correo.</small>
+                        </div>
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="Email">Correo Electrónico <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm has-validation">
+                                <span class="input-group-text"><i class="ri-mail-line"></i></span>
+                                <input type="email" id="Email" name="Email" class="form-control" [class.is-invalid]="submitted && (emailRequired || emailFormat)" placeholder="usuario@ejemplo.com" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="user.Email">
+                                @if (submitted && emailRequired) {
+                                <div class="invalid-feedback">Debe ingresar el correo electrónico.</div>
+                                } @else if (submitted && emailFormat) {
+                                <div class="invalid-feedback">Formato de correo inválido.</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted border-bottom pb-2 mb-3 mt-2"><i class="ri-shield-line align-middle me-1"></i> Seguridad</h6>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="Password">Contraseña @if (!user.Uuid) {<span class="text-danger">*</span>}</label>
+                            <div class="input-group input-group-sm has-validation">
+                                <span class="input-group-text"><i class="ri-lock-line"></i></span>
+                                <input [type]="showPassword ? 'text' : 'password'" id="Password" name="Password" class="form-control" [class.is-invalid]="submitted && passwordRequired" placeholder="Contraseña" [disabled]="isSaved()" autocomplete="new-password" [(ngModel)]="user.Password">
+                                <button type="button" class="btn btn-outline-secondary" tabindex="-1" [title]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" (click)="showPassword = !showPassword"><i [class]="showPassword ? 'ri-eye-off-line' : 'ri-eye-line'"></i></button>
+                                <div class="invalid-feedback">La contraseña es requerida para nuevos usuarios.</div>
+                            </div>
+                            @if (user.Uuid) {
+                            <small class="text-muted"><i class="ri-information-line me-1"></i>Dejar en blanco para mantener la actual.</small>
+                            }
+                        </div>
+                        <div class="col-12 col-sm-6 mb-3 d-flex flex-column gap-3 justify-content-center">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" id="IsActive" name="IsActive" role="switch" [disabled]="isSaved()" [(ngModel)]="user.IsActive">
+                                <label class="form-check-label" for="IsActive">Usuario activo</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" id="ChangePassword" name="ChangePassword" role="switch" [disabled]="isSaved()" [(ngModel)]="user.ChangePassword">
+                                <label class="form-check-label" for="ChangePassword">Forzar cambio de contraseña en el próximo inicio de sesión</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel 2: Asignación de Roles (solo en modo edición) -->
+    @if (user.Uuid) {
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Asignación de Roles</h5></div>
+            <div class="card-body">
+                <div class="row align-items-center mb-3">
+                    <div class="col-8">
+                        <div class="d-none d-md-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-primary" (click)="saveRoles()"><i class="ri-save-line align-middle me-1"></i>Guardar Roles</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="toggleAllRoles()"><i class="ri-checkbox-multiple-line align-middle me-1"></i>{{ allRolesSelected() ? 'Deseleccionar todo' : 'Seleccionar todo' }}</button>
+                        </div>
+                        <div class="d-md-none" ngbDropdown>
+                            <button type="button" class="btn btn-primary dropdown-toggle" ngbDropdownToggle>Opciones</button>
+                            <div ngbDropdownMenu>
+                                <button type="button" ngbDropdownItem (click)="saveRoles()"><i class="ri-save-line align-middle me-1"></i>Guardar Roles</button>
+                                <button type="button" ngbDropdownItem (click)="toggleAllRoles()"><i class="ri-checkbox-multiple-line align-middle me-1"></i>{{ allRolesSelected() ? 'Deseleccionar todo' : 'Seleccionar todo' }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4 text-end">
+                        <small class="text-muted"><strong>{{ selectedRoleIds().length }}</strong> / {{ allRoles().length }} seleccionados</small>
+                    </div>
+                </div>
+
+                @if (allRoles().length === 0) {
+                <div class="text-center py-4">
+                    <i class="ri-loader-4-line fs-2 text-muted d-block mb-2"></i>
+                    <small class="text-muted">Cargando roles...</small>
+                </div>
+                }
+                <div class="row g-2">
+                    @for (role of allRoles(); track role.Id) {
+                    <div class="col-12 col-sm-6">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" [id]="'role-' + role.Id" [checked]="isRoleSelected(role.Id)" (change)="toggleRole(role.Id, $any($event.target).checked)">
+                            <label class="form-check-label" [for]="'role-' + role.Id">
+                                {{ role.NameRol }}
+                                @if (role.Description) {<small class="text-muted d-block">{{ role.Description }}</small>}
+                            </label>
+                        </div>
+                    </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel: Sucursales habilitadas (solo en modo edición) -->
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Sucursales habilitadas</h5></div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    @if (canUpdateUsers()) {
+                    <button type="button" class="btn btn-sm btn-primary" (click)="saveBranches()"><i class="ri-save-line align-middle me-1"></i>Guardar Sucursales</button>
+                    }
+                    <small class="text-muted ms-auto"><strong>{{ enabledBranchIds().length }}</strong> / {{ userBranches().length }} habilitadas</small>
+                </div>
+
+                @if (userBranches().length === 0) {
+                <div class="text-center py-3"><small class="text-muted">No hay sucursales activas.</small></div>
+                } @else {
+                <table class="table table-sm align-middle mb-2">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Sucursal</th>
+                            <th class="text-center">Habilitada</th>
+                            <th class="text-center">Predeterminada</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (branch of userBranches(); track branch.BranchId) {
+                        <tr>
+                            <td><label class="mb-0" [for]="'branch-' + branch.BranchId">{{ branch.Name }}</label></td>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input" [id]="'branch-' + branch.BranchId" [checked]="isBranchEnabled(branch.BranchId)" [disabled]="!canUpdateUsers()" (change)="toggleBranch(branch.BranchId, $any($event.target).checked)">
+                            </td>
+                            <td class="text-center">
+                                <input type="radio" class="form-check-input" name="defaultBranch" [checked]="defaultBranchId() === branch.BranchId" [disabled]="!canUpdateUsers() || !isBranchEnabled(branch.BranchId)" (change)="defaultBranchId.set(branch.BranchId)">
+                            </td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+                }
+                <small class="text-muted"><i class="ri-information-line me-1"></i>Al iniciar sesión entra a la predeterminada; puede cambiar a cualquier otra habilitada desde la barra superior.</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel 3: Sesiones Activas (solo en modo edición, con permiso) -->
+    @if (canReadSessions()) {
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Sesiones Activas</h5></div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    @if (sessions().length > 0) {
+                    <small class="text-muted"><strong>{{ sessions().length }}</strong> sesión(es) activa(s)</small>
+                    }
+                    @if (canDeleteSessions() && sessions().length > 0) {
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-auto" (click)="closeAllSessions()"><i class="ri-logout-box-r-line align-middle me-1"></i>Cerrar todas las sesiones</button>
+                    }
+                </div>
+
+                @if (sessions().length === 0) {
+                <div class="text-center py-3"><small class="text-muted">Este usuario no tiene sesiones activas.</small></div>
+                } @else {
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Dispositivo</th>
+                                <th class="text-center">Origen</th>
+                                <th class="text-center">Conectado desde</th>
+                                <th class="text-center">Duración</th>
+                                <th class="text-center">Vence</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (session of sessions(); track session.Id) {
+                            <tr>
+                                <td><small class="text-muted">{{ session.Device || '—' }}</small></td>
+                                <td class="text-center"><span class="badge bg-secondary">{{ session.LoginFrom }}</span></td>
+                                <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.CreatedAt) }}</small></td>
+                                <td class="text-center">
+                                    @if (isLongSession(session)) {
+                                    <span class="badge bg-info" title="El usuario pidió mantener la sesión 30 días">30 días</span>
+                                    } @else {
+                                    <span class="badge bg-secondary" title="Termina al cerrar el navegador">Sesión</span>
+                                    }
+                                </td>
+                                <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.ExpiresAt) }}</small></td>
+                                <td class="text-center">
+                                    @if (canDeleteSessions()) {
+                                    <button type="button" class="btn btn-soft-danger btn-sm" title="Cerrar esta sesión" (click)="closeOneSession(session.Id)"><i class="ri-logout-box-r-line"></i></button>
+                                    }
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+    }
+    }
+</div>

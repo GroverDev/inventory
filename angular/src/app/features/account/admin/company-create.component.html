@@ -1,0 +1,94 @@
+<app-breadcrumbs title="Alta de Empresa" [breadcrumbItems]="[{ label: 'Administración' }, { label: 'Nueva Empresa', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Alta de Empresa</h5></div>
+            <div class="card-body">
+                <!-- Barra de acciones -->
+                @if (!created()) {
+                <app-form-actions [actions]="actions" (back)="back()" />
+                } @else {
+                <div class="d-flex justify-content-between mb-3">
+                    <button type="button" class="btn btn-sm btn-primary" (click)="another()"><i class="ri-add-line align-middle me-1"></i>Crear otra</button>
+                    <button type="button" class="btn btn-danger btn-sm" (click)="back()"><i class="ri-arrow-left-line align-middle me-1"></i>Volver</button>
+                </div>
+                }
+
+                <!--
+                  El resultado reemplaza al formulario en vez de ser un aviso: el
+                  identificador y el correo del administrador hay que anotarlos o
+                  comunicarlos, así que no pueden desaparecer con un clic.
+                -->
+                @if (created(); as c) {
+                <div class="text-center py-4">
+                    <i class="ri-checkbox-circle-line display-5 text-success d-block mb-3"></i>
+                    <h5 class="mb-3">Farmacia «{{ c.Name }}» creada</h5>
+                    <div class="d-inline-block text-start border rounded p-3 mb-3">
+                        <div class="mb-1"><span class="text-muted">Identificador:</span> <code>{{ c.Slug }}</code></div>
+                        <div class="mb-1"><span class="text-muted">Administrador:</span> <strong>{{ c.AdminEmail }}</strong></div>
+                        <div><span class="text-muted">Nº de empresa:</span> {{ c.TenantId }}</div>
+                    </div>
+                    <p class="text-muted small mb-0">El administrador entra con ese correo y la contraseña que definiste. El sistema le exigirá cambiarla en su primer ingreso.</p>
+                </div>
+                } @else {
+                <form novalidate autocomplete="off">
+                    <div class="alert alert-info py-2">
+                        <i class="ri-information-line me-1"></i>
+                        Crea una farmacia nueva, aislada del resto, con su propio administrador y sus datos iniciales. Es una operación de plataforma: si tu usuario no la tiene habilitada, el servidor la rechazará.
+                    </div>
+
+                    <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-store-2-line align-middle me-1"></i> La farmacia</h6>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="Name">Nombre comercial <span class="text-danger">*</span></label>
+                            <input type="text" id="Name" name="Name" class="form-control form-control-sm" [class.is-invalid]="submitted && nameInvalid" placeholder="Ej: Farmacia San José" maxlength="150" [disabled]="saving()" [(ngModel)]="form.Name" (input)="onName()">
+                            <small class="invalid-feedback">Debe ingresar el nombre de la farmacia.</small>
+                        </div>
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="Slug">Identificador <span class="text-danger">*</span></label>
+                            <input type="text" id="Slug" name="Slug" class="form-control form-control-sm" [class.is-invalid]="submitted && (slugRequired || slugFormat)" placeholder="farmacia-san-jose" maxlength="60" [disabled]="saving()" [(ngModel)]="form.Slug" (input)="onSlugInput()">
+                            @if (submitted && slugRequired) {
+                            <small class="invalid-feedback">Debe ingresar el identificador.</small>
+                            } @else if (submitted && slugFormat) {
+                            <small class="invalid-feedback">Solo minúsculas, números y guiones (ej: farmacia-central).</small>
+                            } @else {
+                            <small class="text-muted">Se usa en URL o subdominio. Se propone a partir del nombre.</small>
+                            }
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted border-bottom pb-2 mb-3 mt-2"><i class="ri-shield-user-line align-middle me-1"></i> Su administrador</h6>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="AdminFullName">Nombre completo <span class="text-danger">*</span></label>
+                            <input type="text" id="AdminFullName" name="AdminFullName" class="form-control form-control-sm" [class.is-invalid]="submitted && fullNameInvalid" maxlength="100" [disabled]="saving()" [(ngModel)]="form.AdminFullName">
+                            <small class="invalid-feedback">Debe ingresar el nombre del administrador.</small>
+                        </div>
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="AdminEmail">Correo <span class="text-danger">*</span></label>
+                            <input type="email" id="AdminEmail" name="AdminEmail" class="form-control form-control-sm" [class.is-invalid]="submitted && (emailRequired || emailFormat)" maxlength="150" [disabled]="saving()" [(ngModel)]="form.AdminEmail">
+                            @if (submitted && emailRequired) {
+                            <small class="invalid-feedback">Debe ingresar el correo.</small>
+                            } @else if (submitted && emailFormat) {
+                            <small class="invalid-feedback">El formato del correo no es válido.</small>
+                            } @else {
+                            <small class="text-muted">Es también su nombre de usuario.</small>
+                            }
+                        </div>
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="AdminPassword">Contraseña inicial <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm has-validation">
+                                <input [type]="showPassword() ? 'text' : 'password'" id="AdminPassword" name="AdminPassword" class="form-control form-control-sm" [class.is-invalid]="submitted && passwordInvalid" maxlength="50" autocomplete="new-password" [disabled]="saving()" [(ngModel)]="form.AdminPassword">
+                                <button class="btn btn-outline-secondary" type="button" [title]="showPassword() ? 'Ocultar' : 'Mostrar'" (click)="showPassword.set(!showPassword())"><i [class]="showPassword() ? 'ri-eye-off-line' : 'ri-eye-line'"></i></button>
+                                <div class="invalid-feedback">La contraseña debe tener al menos 8 caracteres.</div>
+                            </div>
+                            <small class="text-muted">Se le exigirá cambiarla al primer ingreso.</small>
+                        </div>
+                    </div>
+                </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>

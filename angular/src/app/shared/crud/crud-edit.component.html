@@ -1,0 +1,55 @@
+<app-breadcrumbs [title]="isNew ? cfg.newTitle : cfg.editTitle" [breadcrumbItems]="[{ label: cfg.module }, { label: cfg.listTitle }, { label: isNew ? cfg.newTitle : cfg.editTitle, active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{{ isNew ? cfg.newTitle : cfg.editTitle }}</h5>
+            </div>
+
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="back()" />
+                <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+                    @for (section of cfg.sections; track section.title; let first = $first) {
+                    <h6 class="text-muted border-bottom pb-2 mb-3" [class.mt-2]="!first">
+                        <i class="{{ section.icon }} align-middle me-1"></i>{{ section.title }}
+                    </h6>
+                    <div class="row">
+                        @for (field of section.fields; track field.key) {
+                        <div class="mb-3" [class]="field.col ?? 'col-12 col-sm-6'">
+                            @if (field.type === 'switch') {
+                            <label class="form-label d-block" [for]="field.key">{{ field.label }}</label>
+                            <div class="form-check form-switch form-switch-md mt-1">
+                                <input class="form-check-input" type="checkbox" role="switch" [id]="field.key" [formControlName]="field.key">
+                                <label class="form-check-label" [for]="field.key">{{ form.controls[field.key].value ? 'Sí' : 'No' }}</label>
+                            </div>
+                            } @else {
+                            <label class="form-label" [for]="field.key">
+                                {{ field.label }}@if (field.required) { <span class="text-danger">*</span>}
+                            </label>
+                            <div [class.input-group]="field.icon">
+                                @if (field.icon) {<span class="input-group-text"><i class="{{ field.icon }}"></i></span>}
+                                <input
+                                    [id]="field.key"
+                                    [type]="field.type ?? 'text'"
+                                    class="form-control"
+                                    [class.text-end]="field.type === 'number'"
+                                    [class.is-invalid]="invalid(field)"
+                                    [attr.min]="field.min"
+                                    [placeholder]="field.placeholder ?? ''"
+                                    autocomplete="off"
+                                    [formControlName]="field.key">
+                                @if (invalid(field)) {
+                                <div class="invalid-feedback">{{ field.invalidMessage ?? 'Requerido.' }}</div>
+                                }
+                            </div>
+                            }
+                        </div>
+                        }
+                    </div>
+                    }
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,47 @@
+<app-breadcrumbs [title]="branch.Id ? 'Editar Sucursal' : 'Nueva Sucursal'" [breadcrumbItems]="[{ label: 'Administración' }, { label: 'Sucursales' }, { label: branch.Id ? 'Editar Sucursal' : 'Nueva Sucursal', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">{{ branch.Id ? 'Editar' : 'Nueva' }} Sucursal</h5></div>
+
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="back()" />
+
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-store-2-line align-middle me-1"></i> Datos de la Sucursal</h6>
+                <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="Name">Nombre <span class="text-danger">*</span></label>
+                        <input type="text" id="Name" name="Name" class="form-control" [class.is-invalid]="submitted && nameInvalid" placeholder="Ej.: Sucursal Centro" maxlength="150" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="branch.Name">
+                        <small class="invalid-feedback">Requerido, mínimo 2 caracteres.</small>
+                    </div>
+                    <div class="col-12 col-sm-3 mb-3">
+                        <label class="form-label" for="Code">Código</label>
+                        <input type="text" id="Code" name="Code" class="form-control" placeholder="Ej.: CENTRO" maxlength="20" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="branch.Code">
+                    </div>
+                    <div class="col-12 col-sm-3 mb-3">
+                        <label class="form-label d-block" for="IsActive">Activa</label>
+                        <div class="form-check form-switch form-switch-md mt-1">
+                            <input class="form-check-input" type="checkbox" role="switch" id="IsActive" name="IsActive" [disabled]="isSaved()" [(ngModel)]="branch.IsActive">
+                            <label class="form-check-label" for="IsActive">{{ branch.IsActive ? 'Sí' : 'No' }}</label>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-8 mb-3">
+                        <label class="form-label" for="Address">Dirección</label>
+                        <input type="text" id="Address" name="Address" class="form-control" placeholder="Dirección" maxlength="300" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="branch.Address">
+                    </div>
+                    <div class="col-12 col-sm-4 mb-3">
+                        <label class="form-label" for="Phone">Teléfono</label>
+                        <input type="text" id="Phone" name="Phone" class="form-control" placeholder="Teléfono" maxlength="50" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="branch.Phone">
+                    </div>
+                </div>
+
+                @if (!branch.Id) {
+                <p class="text-muted small mb-0">
+                    <i class="ri-information-line me-1"></i>Quedará habilitado en la sucursal nueva para poder entrar a ella. Al resto de los usuarios se los habilita desde su ficha en <strong>Usuarios</strong>.
+                </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

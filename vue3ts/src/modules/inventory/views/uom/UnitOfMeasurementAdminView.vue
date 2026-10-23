@@ -1,0 +1,186 @@
+<template>
+  <Layout>
+    <PageHeader title="Unidades de Medida" page-title="Inventario" />
+
+    <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Gestión de <span class="fw-light"><i>UNIDADES DE MEDIDA</i></span></h5>
+        </div>
+        <div class="pt-0 card-body">
+            <div class="mt-0 mb-4">
+              <button type="button" class="btn btn-sm btn-primary" @click="newUom">
+                <span class="ri-add-box-line me-1"></span>Nueva Unidad
+              </button>
+            </div>
+            <div class="row align-items-end g-2 mb-3">
+              <div class="col-12 col-md-7 col-lg-6">
+                <label class="form-label">Nombre de la unidad</label>
+                <div class="input-group rounded">
+                  <span class="input-group-text bg-transparent border-end-0 py-1 px-3">
+                    <i class="ri-search-line text-success"></i>
+                  </span>
+                  <input
+                    type="text"
+                    class="form-control border-start-0 bg-transparent ps-0"
+                    v-model.trim="filtro"
+                    placeholder="Ingrese el nombre de la unidad..."
+                    autocomplete="off"
+                    @keyup.enter="getUomsData"
+                  />
+                  <button class="btn btn-primary" type="button" @click="getUomsData">Buscar</button>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="uoms.length > 0" class="mb-2">
+              <small class="text-muted">
+                <span class="ri-list-check me-1"></span>
+                <strong>{{ uoms.length }}</strong> unidad(es) encontrada(s)
+              </small>
+            </div>
+
+            <div v-if="uoms.length === 0" class="text-center py-5">
+              <i class="ri-ruler-line ri-3x text-muted d-block mb-3"></i>
+              <p class="text-muted mb-2">Ingrese un nombre para buscar unidades de medida</p>
+              <button type="button" class="btn btn-sm btn-outline-primary" @click="newUom">
+                <span class="ri-add-line me-1"></span>Crear nueva unidad
+              </button>
+            </div>
+
+            <template v-else>
+              <!-- Tabla (desktop md+) -->
+              <div class="d-none d-md-block">
+                <table class="table table-hover table-sm align-middle mb-0">
+                  <thead class="">
+                    <tr>
+                      <th>Nombre</th>
+                      <th class="text-center">Proporción</th>
+                      <th class="text-center">Redondeo</th>
+                      <th class="text-center">Mayor que default</th>
+                      <th class="text-center">Default</th>
+                      <th class="text-center">Activo</th>
+                      <th class="text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(uom, index) in uoms" :key="index">
+                      <td class="fw-semibold">{{ uom.UnitName }}</td>
+                      <td class="text-center">{{ uom.Proportion }}</td>
+                      <td class="text-center">{{ uom.PrecisionRounding }}</td>
+                      <td class="text-center">
+                        <span :class="uom.IsLargeThanDefault ? 'badge bg-info' : 'badge bg-light text-secondary border'">
+                          {{ uom.IsLargeThanDefault ? 'Sí' : 'No' }}
+                        </span>
+                      </td>
+                      <td class="text-center">
+                        <span :class="uom.IsDefault ? 'badge bg-warning text-dark' : 'badge bg-light text-secondary border'">
+                          {{ uom.IsDefault ? 'Sí' : 'No' }}
+                        </span>
+                      </td>
+                      <td class="text-center">
+                        <span :class="uom.IsActive ? 'badge bg-success' : 'badge bg-secondary'">
+                          {{ uom.IsActive ? 'Sí' : 'No' }}
+                        </span>
+                      </td>
+                      <td class="text-center text-nowrap">
+                        <button
+                          type="button"
+                          class="btn btn-outline-primary btn-sm me-1"
+                          title="Editar"
+                          @click="editUom(uom)"
+                        >
+                          <span class="ri-edit-2-line"></span>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-outline-danger btn-sm"
+                          title="Eliminar"
+                          @click="removeUom(uom.Id)"
+                        >
+                          <span class="ri-delete-bin-line"></span>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Cards (móvil <md) -->
+              <div class="d-md-none">
+                <div class="row g-3">
+                  <div class="col-12 col-sm-6" v-for="(uom, index) in uoms" :key="index">
+                    <div class="card h-100 shadow rounded-3">
+                      <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <p class="fw-semibold mb-0 lh-sm">{{ uom.UnitName }}</p>
+                          <span class="badge rounded-pill" :class="uom.IsActive ? 'text-bg-success' : 'text-bg-secondary'">
+                            {{ uom.IsActive ? 'Activo' : 'Inactivo' }}
+                          </span>
+                        </div>
+                        <small class="text-muted">Proporción: {{ uom.Proportion }} | Redondeo: {{ uom.PrecisionRounding }}</small>
+                        <div class="d-flex gap-1">
+                          <span v-if="uom.IsDefault" class="badge bg-warning text-dark">Default</span>
+                          <span v-if="uom.IsLargeThanDefault" class="badge bg-info">Mayor</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto pt-1">
+                          <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" @click="editUom(uom)">
+                            <span class="ri-edit-2-line me-1"></span>Editar
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-danger" @click="removeUom(uom.Id)">
+                            <span class="ri-delete-bin-line"></span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+          </div>
+        
+      </div>
+    
+  </Layout>
+</template>
+
+<script setup lang="ts">
+import Layout from '@/layouts/main.vue'
+import PageHeader from '@/components/page-header.vue'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import useUnitOfMeasurement from '@/modules/inventory/composables/useUnitOfMeasurement';
+import type { UnitOfMeasurement } from '@/modules/inventory/models/unitOfMeasurement.model';
+import utils from '@/utils/msg';
+
+const uoms = ref<UnitOfMeasurement[]>([]);
+const filtro = ref('');
+const { getUnitsOfMeasurement, deleteUnitOfMeasurement } = useUnitOfMeasurement();
+const router = useRouter();
+
+const getUomsData = async () => {
+  const { Data } = await getUnitsOfMeasurement(filtro.value);
+  uoms.value = Data;
+};
+
+const newUom = () => {
+  router.push({ name: 'uom-edit', params: { id: '0' } });
+};
+
+const editUom = (uom: UnitOfMeasurement) => {
+  router.push({ name: 'uom-edit', params: { id: uom.Id } });
+};
+
+const removeUom = async (id: string) => {
+  const respuesta = await utils.showMessageQuestion('¿Desea eliminar la unidad de medida?');
+  if (respuesta) {
+    const { ok } = await deleteUnitOfMeasurement(id);
+    if (ok) {
+      await utils.showMessageModal({ Description: 'La unidad de medida se eliminó correctamente.', MessageType: 'success' });
+      await getUomsData();
+    }
+  }
+};
+</script>
+
+<style scoped></style>

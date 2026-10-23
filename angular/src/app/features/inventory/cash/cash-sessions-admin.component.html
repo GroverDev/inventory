@@ -1,0 +1,393 @@
+<app-breadcrumbs title="Turnos de Caja" [breadcrumbItems]="[{ label: 'Punto de Venta' }, { label: 'Turnos de Caja', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+
+                <!-- Filtros -->
+                <div class="mb-3">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <span class="text-muted small me-1">Ver:</span>
+                        @for (q of quickFilters; track q.key) {
+                        <button type="button" class="btn btn-sm" [class]="activeQuick() === q.key ? 'btn-primary' : 'btn-outline-secondary'" (click)="applyQuick(q.key)">
+                            <i [class]="q.icon + ' align-middle me-1'"></i>{{ q.label }}
+                        </button>
+                        }
+                    </div>
+                    <div class="row align-items-end g-2">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small text-muted mb-1" for="cs-from">Desde</label>
+                            <input id="cs-from" type="date" class="form-control" [(ngModel)]="filter.dateFrom" (change)="onDateChange()">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small text-muted mb-1" for="cs-to">Hasta</label>
+                            <input id="cs-to" type="date" class="form-control" [(ngModel)]="filter.dateTo" (change)="onDateChange()">
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <button class="btn btn-primary w-100" (click)="load()"><i class="ri-search-line align-middle me-1"></i>Buscar</button>
+                        </div>
+                    </div>
+                </div>
+
+                @if (sessions().length === 0) {
+                <div class="text-center py-5">
+                    <i class="ri-store-3-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-0">No se encontraron turnos de caja en el período seleccionado.</p>
+                </div>
+                } @else {
+                <!-- Tabla desktop -->
+                <div class="d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Cajero</th>
+                                <th>Apertura</th>
+                                <th>Cierre</th>
+                                <th class="text-end">Fondo</th>
+                                <th class="text-end">Ventas</th>
+                                <th class="text-end">Gastos</th>
+                                <th class="text-end">Esperado</th>
+                                <th class="text-end">Declarado</th>
+                                <th class="text-end">Diferencia</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center">Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (s of sessions(); track s.Id) {
+                            <tr>
+                                <td><i class="ri-user-line me-1 text-muted"></i><span class="fw-semibold">{{ s.UserFullName }}</span></td>
+                                <td><small>{{ formatDate(s.OpenedAt) }}</small></td>
+                                <td><small>{{ s.ClosedAt ? formatDate(s.ClosedAt) : '—' }}</small></td>
+                                <td class="text-end small">Bs. {{ formatNum(s.OpeningAmount) }}</td>
+                                <td class="text-end small text-success">
+                                    Bs. {{ formatNum(s.TotalSales) }}
+                                    <app-payment-breakdown [items]="s.ByPaymentMethod" variant="inline" />
+                                </td>
+                                <td class="text-end small text-danger">
+                                    Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}
+                                    @if (s.TotalReturns > 0) {<small class="text-muted d-block">devoluciones Bs. {{ formatNum(s.TotalReturns) }}</small>}
+                                </td>
+                                <td class="text-end small fw-semibold">Bs. {{ formatNum(expectedAmount(s)) }}</td>
+                                <td class="text-end small">{{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}</td>
+                                <td class="text-end small fw-semibold" [class]="s.Difference === null ? '' : s.Difference >= 0 ? 'text-success' : 'text-danger'">
+                                    {{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge" [class]="isStaleOpen(s) ? 'bg-warning text-dark' : s.IsOpen ? 'bg-success' : 'bg-secondary'">{{ s.IsOpen ? 'Abierta' : 'Cerrada' }}</span>
+                                    @if (isStaleOpen(s)) {
+                                    <small class="d-block text-warning mt-1"><i class="ri-error-warning-line me-1"></i>hace {{ daysOpen(s) }} día{{ daysOpen(s) === 1 ? '' : 's' }}</small>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" (click)="selectSession(s)"><i class="ri-eye-line"></i></button>
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+
+                <!-- Cards móvil -->
+                <div class="d-md-none">
+                    <div class="row g-3">
+                        @for (s of sessions(); track s.Id) {
+                        <div class="col-12">
+                            <div class="card shadow rounded-3 mb-0">
+                                <div class="card-body d-flex flex-column gap-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <p class="fw-semibold mb-0 lh-sm">{{ s.UserFullName }}</p>
+                                        <span class="badge rounded-pill" [class]="isStaleOpen(s) ? 'text-bg-warning' : s.IsOpen ? 'text-bg-success' : 'text-bg-secondary'">{{ s.IsOpen ? 'Abierta' : 'Cerrada' }}</span>
+                                    </div>
+                                    <small class="text-muted"><i class="ri-calendar-line me-1"></i>{{ formatDate(s.OpenedAt) }}</small>
+                                    @if (isStaleOpen(s)) {
+                                    <small class="text-warning"><i class="ri-error-warning-line me-1"></i>Abierta hace {{ daysOpen(s) }} día{{ daysOpen(s) === 1 ? '' : 's' }}</small>
+                                    }
+                                    <!-- Los mismos seis importes que las columnas de la tabla en escritorio, para que la tarjeta no cuente otra historia. -->
+                                    <div class="row g-1 text-center small">
+                                        <div class="col-4"><div class="text-muted">Fondo</div><div class="fw-semibold">Bs. {{ formatNum(s.OpeningAmount) }}</div></div>
+                                        <div class="col-4">
+                                            <div class="text-muted">Ventas</div>
+                                            <div class="text-success fw-semibold">Bs. {{ formatNum(s.TotalSales) }}</div>
+                                            <app-payment-breakdown [items]="s.ByPaymentMethod" variant="inline" />
+                                        </div>
+                                        <div class="col-4"><div class="text-muted">Gastos</div><div class="text-danger fw-semibold">Bs. {{ formatNum(s.TotalExpenses + s.TotalWithdrawals) }}</div></div>
+                                    </div>
+                                    <div class="row g-1 text-center small border-top pt-1">
+                                        <div class="col-4"><div class="text-muted">Esperado</div><div class="fw-semibold">Bs. {{ formatNum(expectedAmount(s)) }}</div></div>
+                                        <div class="col-4"><div class="text-muted">Declarado</div><div class="fw-semibold">{{ s.DeclaredAmount !== null ? 'Bs. ' + formatNum(s.DeclaredAmount) : '—' }}</div></div>
+                                        <div class="col-4">
+                                            <div class="text-muted">Diferencia</div>
+                                            <div [class]="s.Difference === null ? 'text-muted' : s.Difference >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'">{{ s.Difference !== null ? 'Bs. ' + formatNum(s.Difference) : '—' }}</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary w-100 mt-auto pt-1" (click)="selectSession(s)"><i class="ri-eye-line align-middle me-1"></i>Ver detalle</button>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ MODAL: Detalle de Sesión ══ -->
+@if (selectedSession(); as sel) {
+<div class="modal d-block" tabindex="-1" style="background: rgba(0, 0, 0, 0.5); z-index: 1080">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold">
+                    <i class="ri-store-3-line me-2"></i>Turno — {{ sel.UserFullName }}
+                    <small class="text-muted fw-normal ms-2">{{ formatDate(sel.OpenedAt) }}</small>
+                    @if (isStaleOpen(sel)) {
+                    <span class="badge bg-warning text-dark ms-2"><i class="ri-error-warning-line me-1"></i>Abierta hace {{ daysOpen(sel) }} día{{ daysOpen(sel) === 1 ? '' : 's' }}</span>
+                    }
+                </h6>
+                <button type="button" class="btn-close" aria-label="Cerrar" (click)="closeDetail()"></button>
+            </div>
+            <div class="modal-body" style="max-height: 80vh; overflow-y: auto">
+
+                <!--
+                  Resumen arqueo: se muestran los cuatro términos que componen el esperado, y no solo algunos;
+                  si falta uno la cuenta no cierra en pantalla y la diferencia parece salida de la nada.
+                -->
+                <div class="row g-2 mb-2">
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center"><small class="text-muted d-block">Fondo inicial</small><strong>Bs. {{ formatNum(sel.OpeningAmount) }}</strong></div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center">
+                            <small class="text-muted d-block">+ Ventas</small>
+                            <strong class="text-success">Bs. {{ formatNum(sel.TotalSales) }}</strong>
+                            @if (sel.TotalCashSales !== sel.TotalSales) {
+                            <small class="text-muted d-block">en efectivo Bs. {{ formatNum(sel.TotalCashSales) }} · el resto no entra al cajón</small>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center"><small class="text-muted d-block">+ Ingresos</small><strong class="text-success">Bs. {{ formatNum(sel.TotalIncome) }}</strong></div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center">
+                            <small class="text-muted d-block">− Gastos + Retiros</small>
+                            <strong class="text-danger">Bs. {{ formatNum(sel.TotalExpenses + sel.TotalWithdrawals) }}</strong>
+                            @if (sel.TotalReturns > 0) {<small class="text-muted d-block">+ devoluciones Bs. {{ formatNum(sel.TotalReturns) }}</small>}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Por medio de pago: el efectivo entra al esperado; QR y tarjeta no pasan por el cajón. -->
+                @if (sel.ByPaymentMethod.length) {
+                <div class="mb-2">
+                    <small class="text-muted fw-semibold d-block mb-1">Cobrado por medio de pago <span class="fw-normal">· QR y tarjeta se cuadran contra el banco o el datáfono</span></small>
+                    <app-payment-breakdown [items]="sel.ByPaymentMethod" />
+                </div>
+                }
+
+                <!-- Arqueo del cierre por medio: lo declarado a ciegas contra lo esperado -->
+                @if (sel.Counts.length) {
+                <div class="mb-3">
+                    <small class="text-muted fw-semibold d-block mb-1">
+                        Arqueo del cierre
+                        @if (sel.CloseAttempts > 0) {
+                        <span class="badge bg-warning text-dark ms-1" title="Cierres rechazados por diferencia sin observación antes del definitivo">{{ sel.CloseAttempts }} intento(s) rechazado(s)</span>
+                        }
+                        @if (sel.CloseAuthorizedBy) {
+                        <span class="badge bg-info-subtle text-info-emphasis ms-1" title="El cierre necesitó autorización por la diferencia o por los intentos"><i class="ri-shield-check-line me-1"></i>Autorizó {{ sel.CloseAuthorizedByName || 'un supervisor' }}</span>
+                        }
+                    </small>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr><th>Medio</th><th class="text-end">Esperado</th><th class="text-end">Declarado</th><th class="text-end">Diferencia</th></tr>
+                            </thead>
+                            <tbody>
+                                @for (c of sel.Counts; track c.PaymentMethodId) {
+                                <tr>
+                                    <td><i [class]="icon(c.IconCss) + ' me-1 text-muted'"></i>{{ c.Name }}</td>
+                                    <td class="text-end">Bs. {{ formatNum(c.Expected) }}</td>
+                                    <td class="text-end">Bs. {{ formatNum(c.Declared) }}</td>
+                                    <td class="text-end fw-semibold" [class]="c.Difference === 0 ? 'text-success' : c.Difference > 0 ? 'text-warning-emphasis' : 'text-danger'">{{ c.Difference > 0 ? '+' : '' }}Bs. {{ formatNum(c.Difference) }}</td>
+                                </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Conteo del efectivo por billete y moneda -->
+                    @if (sel.Denominations?.length) {
+                    <div class="small mt-2">
+                        <span class="text-muted me-1">Efectivo contado:</span>
+                        @for (d of sel.Denominations ?? []; track d.Value) {<span class="badge bg-body-secondary text-body me-1">{{ d.Quantity }} × {{ formatDenomination(d.Value) }}</span>}
+                    </div>
+                    }
+                </div>
+                }
+
+                <div class="row g-2 mb-3">
+                    <div class="col-4"><div class="border rounded p-2 text-center"><small class="text-muted d-block">Esperado en caja</small><strong>Bs. {{ formatNum(expectedAmount(sel)) }}</strong></div></div>
+                    <div class="col-4"><div class="border rounded p-2 text-center"><small class="text-muted d-block">Declarado</small><strong>{{ sel.DeclaredAmount !== null ? 'Bs. ' + formatNum(sel.DeclaredAmount) : '—' }}</strong></div></div>
+                    <div class="col-4">
+                        <div class="border rounded text-center p-2" [class]="sel.Difference === null ? '' : sel.Difference >= 0 ? 'border-success' : 'border-danger'">
+                            <small class="text-muted d-block">Diferencia</small>
+                            <!-- Mientras la caja siga abierta no hay arqueo: un "0.00" en verde se leería como que cuadra. -->
+                            @if (sel.Difference === null) {<strong class="text-muted">—</strong>} @else {<strong [class]="sel.Difference >= 0 ? 'text-success' : 'text-danger'">Bs. {{ formatNum(sel.Difference) }}</strong>}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <button type="button" class="nav-link" [class.active]="activeTab() === 'sales'" (click)="activeTab.set('sales')">
+                            <i class="ri-receipt-line me-1"></i>Ventas
+                            @if (sessionSales().length) {<span class="badge bg-primary ms-1">{{ sessionSales().length }}</span>}
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link" [class.active]="activeTab() === 'movements'" (click)="activeTab.set('movements')">
+                            <i class="ri-arrow-left-right-line me-1"></i>Movimientos
+                            @if (sel.Movements.length) {<span class="badge bg-secondary ms-1">{{ sel.Movements.length }}</span>}
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- TAB: Ventas -->
+                @if (activeTab() === 'sales') {
+                <div>
+                    @if (loadingSales()) {
+                    <div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Cargando ventas...</div>
+                    } @else if (sessionSales().length === 0) {
+                    <div class="text-center py-4 text-muted small">No hay ventas registradas en este turno.</div>
+                    } @else {
+                    <!-- Totales de ventas -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3"><div class="card border text-center py-2 mb-0"><small class="text-muted d-block">Transacciones</small><strong>{{ sessionSales().length }}</strong></div></div>
+                        <div class="col-6 col-md-3"><div class="card border text-center py-2 mb-0"><small class="text-muted d-block">Subtotal</small><strong>Bs. {{ formatNum(salesTotals().subtotal) }}</strong></div></div>
+                        <div class="col-6 col-md-3"><div class="card border text-center py-2 mb-0"><small class="text-muted d-block">Descuentos</small><strong class="text-danger">Bs. {{ formatNum(salesTotals().discounts) }}</strong></div></div>
+                        <div class="col-6 col-md-3">
+                            <!-- Lo cobrado, ya neto de devoluciones; si hubo alguna se aclara debajo el facturado. -->
+                            <div class="card border border-success text-center py-2 mb-0">
+                                <small class="text-muted d-block">Total cobrado</small>
+                                <strong class="text-success">Bs. {{ formatNum(salesTotals().net) }}</strong>
+                                @if (salesTotals().returned > 0) {<small class="text-warning">Facturado Bs. {{ formatNum(salesTotals().billed) }} · devuelto − Bs. {{ formatNum(salesTotals().returned) }}</small>}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de ventas con detalle expandible -->
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 28px"></th>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Cajero</th>
+                                    <th>Método pago</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (sale of sessionSales(); track sale.Id) {
+                                <tr style="cursor: pointer" (click)="toggleSale(sale.Id)">
+                                    <td class="text-center"><i [class]="expandedSales().has(sale.Id) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'"></i></td>
+                                    <td><small>{{ formatDate(sale.SaleDate) }}</small></td>
+                                    <td class="fw-semibold small">
+                                        {{ sale.CustomerName }}
+                                        @if (sale.SaleStatus === 'anulada') {<span class="badge bg-danger ms-1">Anulada</span>}
+                                    </td>
+                                    <td><small class="text-muted">{{ sale.SellerName }}</small></td>
+                                    <td>
+                                        @for (p of sale.Payments; track p.PaymentMethodName) {<small class="badge bg-secondary bg-opacity-10 text-secondary border me-1">{{ p.PaymentMethodName }}</small>}
+                                    </td>
+                                    <!-- Con devolución se muestra el neto y el facturado tachado: el importe que cuenta es lo que quedó cobrado. -->
+                                    <td class="text-end fw-semibold small" [class]="returnedOf(sale) > 0 ? 'text-warning' : 'text-success'">
+                                        @if (returnedOf(sale) > 0) {<span class="text-muted text-decoration-line-through me-1">Bs. {{ formatNum(sale.Total) }}</span>}Bs. {{ formatNum(netOf(sale)) }}
+                                    </td>
+                                </tr>
+                                <!-- Detalle de productos -->
+                                @if (expandedSales().has(sale.Id)) {
+                                <tr>
+                                    <td colspan="6" class="p-0">
+                                        <table class="table table-sm mb-0 bg-body-secondary">
+                                            <thead>
+                                                <tr class="text-muted small">
+                                                    <th class="ps-4">Producto</th>
+                                                    <th class="text-center">Cant.</th>
+                                                    <th class="text-end">P. Unit.</th>
+                                                    <th class="text-end">Descuento</th>
+                                                    <th class="text-end">Subtotal</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for (d of sale.Detail; track d.ProductName) {
+                                                <tr class="small">
+                                                    <td class="ps-4">{{ d.ProductName }}</td>
+                                                    <td class="text-center">{{ d.Quantity }}</td>
+                                                    <td class="text-end">Bs. {{ formatNum(d.UnitPrice) }}</td>
+                                                    <td class="text-end text-danger">{{ d.LineTotalDiscounts > 0 ? 'Bs. ' + formatNum(d.LineTotalDiscounts) : '—' }}</td>
+                                                    <td class="text-end fw-semibold">Bs. {{ formatNum(d.LineTotal) }}</td>
+                                                </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                        @if (sale.HeaderDiscountAmount > 0) {
+                                        <div class="small text-danger px-3 py-1 border-top"><i class="ri-price-tag-3-line me-1"></i>Descuento aplicado a toda la venta: Bs. {{ formatNum(sale.HeaderDiscountAmount) }}</div>
+                                        }
+                                    </td>
+                                </tr>
+                                }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    }
+                </div>
+                }
+
+                <!-- TAB: Movimientos -->
+                @if (activeTab() === 'movements') {
+                <div>
+                    @if (sel.Movements.length === 0) {
+                    <div class="text-center py-3 text-muted small">Sin movimientos en este turno.</div>
+                    } @else {
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>Tipo</th><th>Descripción</th><th class="text-end">Monto</th><th>Fecha</th><th>Registrado por</th></tr>
+                        </thead>
+                        <tbody>
+                            @for (m of sel.Movements; track m.Id) {
+                            <tr>
+                                <td><span class="badge" [class]="movementBadge(m.MovementType)">{{ movementLabel(m.MovementType) }}</span></td>
+                                <td><small>{{ m.Description }}</small></td>
+                                <td class="text-end small">Bs. {{ formatNum(m.Amount) }}</td>
+                                <td><small class="text-muted">{{ formatDate(m.Created) }}</small></td>
+                                <td><small class="text-muted">{{ m.CreatedByName || '—' }}</small></td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                    }
+                    @if (sel.Notes) {
+                    <div class="mt-3 alert alert-secondary py-2 small"><strong>Observaciones:</strong> {{ sel.Notes }}</div>
+                    }
+                </div>
+                }
+            </div>
+            <div class="modal-footer py-2 d-flex justify-content-between">
+                @if (activeTab() === 'sales' && sessionSales().length) {
+                <button class="btn btn-success btn-sm" (click)="exportSessionSales()"><i class="ri-file-excel-2-line align-middle me-1"></i>Exportar Excel</button>
+                } @else {
+                <span></span>
+                }
+                <button class="btn btn-outline-secondary btn-sm" (click)="closeDetail()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+}

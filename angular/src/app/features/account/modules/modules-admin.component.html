@@ -1,0 +1,85 @@
+<app-breadcrumbs title="Gestión de Módulos" [breadcrumbItems]="[{ label: 'Cuenta' }, { label: 'Módulos', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <button type="button" class="btn btn-primary btn-sm" (click)="create()"><i class="ri-add-line align-middle me-1"></i>Nuevo Módulo</button>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-end g-2 mb-3">
+                    <div class="col-12 col-md-7 col-lg-6">
+                        <label class="form-label" for="mod-filter">Nombre del módulo</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                            <input id="mod-filter" type="text" class="form-control" [(ngModel)]="filter" placeholder="Ingrese el nombre del módulo..." autocomplete="off" (keyup.enter)="search()">
+                            <button class="btn btn-primary" type="button" (click)="search()">Buscar</button>
+                        </div>
+                    </div>
+                </div>
+
+                @if (modules().length > 0) {
+                <p class="text-muted fs-13 mb-2"><i class="ri-list-check align-middle me-1"></i><strong>{{ modules().length }}</strong> módulo(s) encontrado(s)</p>
+                }
+
+                @if (modules().length === 0) {
+                <div class="text-center py-5">
+                    <i class="ri-apps-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-2">Ingrese un nombre para buscar módulos en el sistema</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="create()"><i class="ri-add-line align-middle me-1"></i>Crear nuevo módulo</button>
+                </div>
+                } @else {
+                <div class="d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nombre del Módulo</th>
+                                <th class="d-none d-lg-table-cell">Ruta</th>
+                                <th class="text-center">Ícono</th>
+                                <th class="text-center">Orden</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (m of modules(); track m.Id) {
+                            <tr>
+                                <td class="fw-semibold">{{ m.NameModule }}</td>
+                                <td class="d-none d-lg-table-cell"><small class="text-muted">{{ m.Route }}</small></td>
+                                <td class="text-center"><i [class]="icon(m.IconCss) + ' text-primary'" [title]="m.IconCss"></i></td>
+                                <td class="text-center"><span class="badge bg-light text-secondary border">{{ m.ShowOrder }}</span></td>
+                                <td class="text-center text-nowrap">
+                                    <button type="button" class="btn btn-soft-primary btn-sm me-1" title="Editar" (click)="edit(m)"><i class="ri-edit-2-line"></i></button>
+                                    <button type="button" class="btn btn-soft-danger btn-sm" title="Eliminar" (click)="remove(m.Id)"><i class="ri-delete-bin-line"></i></button>
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-md-none">
+                    <div class="row g-3">
+                        @for (m of modules(); track m.Id) {
+                        <div class="col-12 col-sm-6">
+                            <div class="card h-100 shadow rounded-3 mb-0">
+                                <div class="card-body d-flex flex-column gap-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <p class="fw-semibold mb-0 lh-sm">{{ m.NameModule }}</p>
+                                        <span class="badge bg-light text-secondary border">Orden {{ m.ShowOrder }}</span>
+                                    </div>
+                                    <small class="text-muted"><i [class]="icon(m.IconCss) + ' text-primary me-1'"></i>{{ m.Route }}</small>
+                                    <div class="d-flex gap-2 mt-auto pt-1">
+                                        <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" (click)="edit(m)"><i class="ri-edit-2-line align-middle me-1"></i>Editar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="remove(m.Id)"><i class="ri-delete-bin-line"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

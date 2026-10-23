@@ -1,0 +1,382 @@
+<template>
+  <Layout>
+    <PageHeader :title="purchase.Id ? 'Editar Compra' : 'Nueva Compra'" page-title="Registro de Compras" />
+
+
+    <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">{{ purchase.Id ? 'Editar' : 'Nueva' }} <span class="fw-light"><i>Compra</i></span></h5>
+        </div>
+        <!-- Acciones -->
+          <div class="pt-0 card-body">
+            <div class="row align-items-center">
+              <div class="col-8">
+                <div class="d-none d-md-flex gap-2">
+                  <button type="button" class="btn btn-sm btn-primary" :disabled="isSaved" @click="savePurchase">
+                    <span class="ri-save-line me-1"></span>Grabar
+                  </button>
+                  <button type="button" class="btn btn-warning btn-sm" @click="returnPage">
+                    <span class="ri-prohibited-line me-1"></span>Cancelar
+                  </button>
+                </div>
+                <div class="d-md-none">
+                  <div class="btn-group">
+                    <button type="button" class="btn btn-primary dropdown-toggle"
+                      data-bs-toggle="dropdown" data-bs-display="static">Opciones</button>
+                    <div class="dropdown-menu">
+                      <button type="button" class="dropdown-item" :disabled="isSaved" @click="savePurchase">
+                        <span class="ri-save-line me-1"></span>Grabar
+                      </button>
+                      <button type="button" class="dropdown-item" @click="returnPage">
+                        <span class="ri-prohibited-line me-1"></span>Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-4 text-end">
+                <button type="button" class="btn btn-danger btn-sm" @click="returnPage">
+                  <span class="ri-arrow-left-line me-1"></span>Volver
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Header de la compra -->
+          <div class="pt-0 card-body">
+            <h6 class="text-muted border-bottom pb-2 mb-3">
+              <i class="ri-file-text-line me-1"></i> Datos de la Orden
+            </h6>
+            <div class="row">
+              <!-- Proveedor con búsqueda -->
+              <div class="col-12 col-md-5 mb-3">
+                <label class="form-label">Proveedor <span class="text-danger">*</span></label>
+                <div class="input-group input-group-sm">
+                  <input
+                    v-if="!purchase.ProviderId"
+                    type="text"
+                    class="form-control"
+                    v-model="providerSearch"
+                    placeholder="Buscar proveedor..."
+                    autocomplete="off"
+                    @keyup.enter="searchProviders"
+                    :disabled="isSaved"
+                  />
+                  <input
+                    v-else
+                    type="text"
+                    class="form-control fw-semibold"
+                    :value="purchase.ProviderName"
+                    readonly
+                  />
+                  <button v-if="!purchase.ProviderId" class="btn btn-outline-secondary" type="button" @click="searchProviders">
+                    <i class="ri-search-line"></i>
+                  </button>
+                  <button v-else-if="!isSaved" class="btn btn-outline-danger" type="button" @click="clearProvider">
+                    <i class="ri-close-line"></i>
+                  </button>
+                </div>
+                <!-- Dropdown resultados proveedor -->
+                <div v-if="providerResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:min(350px, 100%)">
+                  <button
+                    v-for="p in providerResults" :key="p.Id"
+                    type="button"
+                    class="list-group-item list-group-item-action py-1 px-2"
+                    @click="selectProvider(p)"
+                  >
+                    {{ p.ProviderName }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="col-6 col-md-3 mb-3">
+                <label class="form-label">Fecha de Compra <span class="text-danger">*</span></label>
+                <input type="date" class="form-control form-control-sm" v-model="purchase.PurchaseDate" :disabled="isSaved" />
+              </div>
+              <div class="col-6 col-md-3 mb-3">
+                <label class="form-label">Entrega Estimada</label>
+                <input type="date" class="form-control form-control-sm" v-model="purchase.EstimatedDeliveryDate" :disabled="isSaved" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Agregar producto al detalle -->
+          <div class="pt-0 card-body" v-if="!isSaved">
+            <h6 class="text-muted border-bottom pb-2 mb-3">
+              <i class="ri-add-circle-line me-1"></i> Agregar Producto
+            </h6>
+            <div class="row align-items-end g-2 mb-2">
+              <div class="col-12 col-md-4">
+                <label class="form-label">Producto</label>
+                <div class="input-group input-group-sm touch-lg-group">
+                  <input
+                    v-if="!newLine.ProductId"
+                    type="text"
+                    class="form-control"
+                    v-model="productSearch"
+                    placeholder="Buscar producto..."
+                    autocomplete="off"
+                    @keyup.enter="searchProducts"
+                  />
+                  <input
+                    v-else
+                    type="text"
+                    class="form-control fw-semibold"
+                    :value="newLine.ProductName"
+                    readonly
+                  />
+                  <button v-if="!newLine.ProductId" class="btn btn-outline-secondary" type="button" @click="searchProducts">
+                    <i class="ri-search-line"></i>
+                  </button>
+                  <button v-else class="btn btn-outline-danger" type="button" @click="clearProduct">
+                    <i class="ri-close-line"></i>
+                  </button>
+                </div>
+                <!-- Dropdown resultados producto -->
+                <div v-if="productResults.length > 0" class="list-group mt-1 shadow-sm position-absolute" style="z-index:1000; width:min(350px, 100%)">
+                  <button
+                    v-for="prod in productResults" :key="prod.Id"
+                    type="button"
+                    class="list-group-item list-group-item-action py-1 px-2"
+                    @click="selectProduct(prod)"
+                  >
+                    {{ prod.ProductName }}
+                  </button>
+                </div>
+              </div>
+              <!-- En móvil: Cantidad y Precio lado a lado, Subtotal y Agregar a ancho completo -->
+              <div class="col-6 col-md-2">
+                <label class="form-label">Cantidad</label>
+                <input type="number" inputmode="numeric" class="form-control form-control-sm text-end touch-lg" min="1" v-model.number="newLine.OrderedQuantity" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label">Precio Unit.</label>
+                <input type="number" inputmode="decimal" class="form-control form-control-sm text-end touch-lg" min="0" step="0.01" v-model.number="newLine.OrderUnitPrice" />
+              </div>
+              <div class="col-12 col-md-2">
+                <label class="form-label">Subtotal</label>
+                <input type="number" class="form-control form-control-sm text-end touch-lg" readonly :value="lineSubtotal" />
+              </div>
+              <div class="col-12 col-md-2">
+                <button type="button" class="btn btn-success btn-sm w-100 touch-lg" @click="addLine" :disabled="!newLine.ProductId">
+                  <span class="ri-add-line me-1"></span>Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detalle de la compra -->
+          <div class="pt-0 card-body">
+            <h6 class="text-muted border-bottom pb-2 mb-3">
+              <i class="ri-list-check me-1"></i> Detalle de la Orden
+            </h6>
+
+            <div v-if="purchase.Detail.length === 0" class="text-center py-3">
+              <small class="text-muted">No hay productos en esta orden. Agregue productos usando el buscador de arriba.</small>
+            </div>
+
+            <template v-else>
+              <!-- table-responsive: con nombres largos la tabla desbordaba la página en móvil -->
+              <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="">
+                  <tr>
+                    <th>Producto</th>
+                    <th class="text-center">Cantidad</th>
+                    <th class="text-end">Precio Unit.</th>
+                    <th class="text-end">Subtotal</th>
+                    <th v-if="!isSaved" class="text-center">Quitar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(line, i) in purchase.Detail" :key="i">
+                    <td class="fw-semibold">{{ line.ProductName }}</td>
+                    <td class="text-center">{{ line.OrderedQuantity }}</td>
+                    <td class="text-end">{{ formatCurrency(line.OrderUnitPrice) }}</td>
+                    <td class="text-end">{{ formatCurrency(line.OrderFinalPrice) }}</td>
+                    <td v-if="!isSaved" class="text-center">
+                      <button type="button" class="btn btn-outline-danger btn-sm" @click="removeLine(i)">
+                        <span class="ri-close-line"></span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="fw-bold">
+                    <td colspan="3" class="text-end">TOTAL</td>
+                    <td class="text-end">{{ formatCurrency(purchase.Total) }}</td>
+                    <td v-if="!isSaved"></td>
+                  </tr>
+                </tfoot>
+              </table>
+              </div>
+            </template>
+          </div>
+
+        
+      </div>
+    
+  </Layout>
+</template>
+
+<script setup lang="ts">
+import Layout from '@/layouts/main.vue'
+import PageHeader from '@/components/page-header.vue'
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import utils from '@/utils/msg';
+import { Purchase, PurchaseDetail } from '@/modules/inventory/models/purchase.model';
+import usePurchase from '@/modules/inventory/composables/usePurchase';
+import useProvider from '@/modules/inventory/composables/useProvider';
+import useProduct from '@/modules/inventory/composables/useProduct';
+import type { Provider } from '@/modules/inventory/models/provider.model';
+import type { Product } from '@/modules/inventory/models/product.model';
+import { todayIso } from '@/utils/dateHelper';
+
+const router = useRouter();
+const route = useRoute();
+const { getPurchaseById, createPurchase, updatePurchase } = usePurchase();
+const { getProviders } = useProvider();
+const { getProductsByName } = useProduct();
+
+const purchase = ref(new Purchase());
+const isSaved = ref(false);
+
+// Provider search
+const providerSearch = ref('');
+const providerResults = ref<Provider[]>([]);
+
+// Product line search
+const productSearch = ref('');
+const productResults = ref<Product[]>([]);
+const newLine = ref(new PurchaseDetail());
+
+const lineSubtotal = computed(() =>
+  +(newLine.value.OrderedQuantity * newLine.value.OrderUnitPrice).toFixed(2)
+);
+
+const formatCurrency = (val: number): string =>
+  val?.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '0.00';
+
+onMounted(async () => {
+  const id = route.params.id as string;
+  // Local, no UTC: de noche una compra nueva quedaba fechada al día siguiente.
+  const today = todayIso();
+  purchase.value.PurchaseDate = today;
+  purchase.value.EstimatedDeliveryDate = today;
+  if (id && id !== '0') await loadPurchase(id);
+});
+
+const loadPurchase = async (id: string) => {
+  const { ok, Data } = await getPurchaseById(id);
+  if (ok) {
+    purchase.value = Data;
+    // Normalize dates to yyyy-MM-dd for the date inputs
+    if (Data.PurchaseDate) purchase.value.PurchaseDate = Data.PurchaseDate.toString().substring(0, 10);
+    if (Data.EstimatedDeliveryDate) purchase.value.EstimatedDeliveryDate = Data.EstimatedDeliveryDate.toString().substring(0, 10);
+  }
+};
+
+const searchProviders = async () => {
+  if (!providerSearch.value.trim()) return;
+  const { Data } = await getProviders(providerSearch.value);
+  providerResults.value = Data;
+};
+
+const selectProvider = (p: Provider) => {
+  purchase.value.ProviderId = p.Id;
+  purchase.value.ProviderName = p.ProviderName;
+  providerResults.value = [];
+  providerSearch.value = '';
+};
+
+const clearProvider = () => {
+  purchase.value.ProviderId = '';
+  purchase.value.ProviderName = '';
+};
+
+const searchProducts = async () => {
+  if (!productSearch.value.trim()) return;
+  const { Data } = await getProductsByName(productSearch.value);
+  productResults.value = Data;
+};
+
+const selectProduct = (prod: Product) => {
+  newLine.value.ProductId = prod.Id;
+  newLine.value.ProductName = prod.ProductName;
+  newLine.value.OrderUnitPrice = prod.SalePrice ?? 0;
+  productResults.value = [];
+  productSearch.value = '';
+};
+
+const clearProduct = () => {
+  newLine.value.ProductId = '';
+  newLine.value.ProductName = '';
+  newLine.value.OrderUnitPrice = 0;
+};
+
+const addLine = () => {
+  if (!newLine.value.ProductId) return;
+  const line = { ...newLine.value };
+  line.OrderFinalPrice = lineSubtotal.value;
+  purchase.value.Detail.push(line);
+  recalcTotal();
+  newLine.value = new PurchaseDetail();
+};
+
+const removeLine = (index: number) => {
+  purchase.value.Detail.splice(index, 1);
+  recalcTotal();
+};
+
+const recalcTotal = () => {
+  purchase.value.Total = +purchase.value.Detail.reduce((sum, d) => sum + d.OrderFinalPrice, 0).toFixed(2);
+};
+
+const returnPage = () => router.push({ name: 'purchases-admin' });
+
+const savePurchase = async () => {
+  if (!purchase.value.ProviderId) {
+    utils.showMessageModal({ Description: 'Seleccione un proveedor.', MessageType: 'warning' });
+    return;
+  }
+  if (!purchase.value.PurchaseDate) {
+    utils.showMessageModal({ Description: 'Ingrese la fecha de compra.', MessageType: 'warning' });
+    return;
+  }
+  if (purchase.value.Detail.length === 0) {
+    utils.showMessageModal({ Description: 'Agregue al menos un producto al detalle.', MessageType: 'warning' });
+    return;
+  }
+
+  const ok = await utils.showMessageQuestion('¿Desea guardar la compra?');
+  if (!ok) return;
+
+  if (!purchase.value.Id) {
+    const { ok: saved } = await createPurchase(purchase.value);
+    if (saved) {
+      isSaved.value = true;
+      await utils.showMessageModal({ Description: 'La compra se registró correctamente.', MessageType: 'success' });
+      returnPage();
+    }
+  } else {
+    const { ok: updated } = await updatePurchase(purchase.value);
+    if (updated) {
+      await utils.showMessageModal({ Description: 'La compra se actualizó correctamente.', MessageType: 'success' });
+      returnPage();
+    }
+  }
+};
+</script>
+
+<style scoped>
+/* Campos más altos en móvil: los "-sm" son difíciles de tocar con el dedo. */
+@media (max-width: 767.98px) {
+  .touch-lg,
+  .touch-lg-group :deep(.form-control),
+  .touch-lg-group :deep(.btn) {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+}
+</style>

@@ -1,0 +1,81 @@
+<app-breadcrumbs title="Configuración del Cierre de Caja" [breadcrumbItems]="[{ label: 'Caja' }, { label: 'Configuración de Cierre', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <ul class="small text-muted mb-3">
+                    <li>Al cerrar, el cajero declara lo que tiene <strong>sin ver lo esperado</strong> (conteo a ciegas). Recién al confirmar ve la diferencia.</li>
+                    <li>El efectivo se arquea siempre. Tarjeta y QR, si los marca: se declaran con el cierre de lote del datáfono y con lo recibido en la cuenta.</li>
+                    <li>Si en algún medio la diferencia supera el monto de abajo, el cierre exige una observación. Los intentos rechazados quedan registrados en el turno.</li>
+                    <li>Una diferencia mayor, o demasiados intentos, pueden exigir además la autorización de un supervisor.</li>
+                </ul>
+
+                <h6 class="text-muted border-bottom pb-2 mb-2">Medios que se arquean</h6>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm align-middle mb-0">
+                        <tbody>
+                            @for (m of methods(); track m.Id) {
+                            <tr>
+                                <td><i [class]="icon(m.IconCss) + ' me-2 text-muted'"></i>{{ m.Name }}</td>
+                                <td class="text-end">
+                                    <div class="form-check form-switch d-inline-block mb-0">
+                                        <input class="form-check-input" type="checkbox" [id]="'count-' + m.Id" [name]="'count-' + m.Id" [disabled]="m.AffectsCash || !canUpdate()" [(ngModel)]="m.RequiresCount">
+                                        <label class="form-check-label small" [for]="'count-' + m.Id">{{ m.AffectsCash ? 'Siempre (entra al cajón)' : m.RequiresCount ? 'Se arquea' : 'No se arquea' }}</label>
+                                    </div>
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-2">Observación obligatoria</h6>
+                <div class="row mb-3">
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <label class="form-label small" for="note-threshold">Si la diferencia de un medio supera</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Bs.</span>
+                            <input id="note-threshold" name="noteThreshold" type="number" min="0" step="0.01" class="form-control text-end" [disabled]="!canUpdate()" [(ngModel)]="noteThreshold">
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-2">Autorización de supervisor</h6>
+                <p class="small text-muted mb-2">Un cajero no puede cerrar solo: tiene que ingresar un supervisor en su punto de venta. Quien no es cajero se autoriza a sí mismo. Vacío = no se exige.</p>
+                <div class="row mb-3 g-2">
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <label class="form-label small" for="sup-threshold">Si la diferencia de un medio supera</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Bs.</span>
+                            <input id="sup-threshold" name="supervisorThreshold" type="number" min="0" step="0.01" class="form-control text-end" placeholder="Sin tope" [disabled]="!canUpdate()" [(ngModel)]="supervisorThreshold">
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <label class="form-label small" for="max-attempts">Después de estos intentos rechazados</label>
+                        <input id="max-attempts" name="maxAttempts" type="number" min="1" step="1" class="form-control text-end" placeholder="Sin límite" [disabled]="!canUpdate()" [(ngModel)]="maxAttempts">
+                    </div>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-2">Conteo del efectivo</h6>
+                <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="require-denominations" name="requireDenominations" [disabled]="!canUpdate()" [(ngModel)]="requireDenominations">
+                    <label class="form-check-label small" for="require-denominations">Contar por billetes y monedas (obligatorio)</label>
+                </div>
+                <p class="small text-muted mb-3">Si no es obligatorio, el cajero puede usarlo igual desde el botón junto al efectivo.</p>
+
+                @if (showMobileNotice) {
+                <div class="alert alert-warning py-2 small">
+                    <i class="ri-smartphone-line me-1"></i>La app móvil todavía no pide supervisor ni billetes: cuando el cierre los necesite, esa caja se cierra desde la web.
+                </div>
+                }
+
+                @if (canUpdate()) {
+                <button type="button" class="btn btn-primary btn-sm" [disabled]="saving()" (click)="save()">
+                    <i class="ri-save-line align-middle me-1"></i>Guardar
+                </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>

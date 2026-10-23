@@ -1,0 +1,623 @@
+<template>
+  <Layout>
+    <PageHeader :title="user.Uuid ? 'Editar Usuario' : 'Nuevo Usuario'" page-title="Registro de usuarios" />
+
+
+    <div class="row g-3">
+        <div class="col-12" :class="user.Uuid ? 'col-xl-6' : ''">
+          <div id="panel-1" class="card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">
+                {{ user.Uuid ? 'Editar' : 'Nuevo' }}
+                <span class="fw-light"><i> Usuario</i></span>
+              </h5>
+              <span
+                v-if="user.Uuid"
+                class="badge ms-2"
+                :class="user.IsActive ? 'bg-success' : 'bg-secondary'"
+              >
+                {{ user.IsActive ? 'Activo' : 'Inactivo' }}
+              </span>
+            </div>
+            <!-- Barra de acciones -->
+              <div class="pt-0 card-body">
+                <div class="row align-items-center">
+                  <div class="col-8 col-md-8">
+                    <div class="d-md-none">
+                      <div class="btn-group">
+                        <button type="button" class="btn btn-primary dropdown-toggle"
+                          data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                          Opciones
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-lg-right">
+                          <button type="button" class="dropdown-item border-bottom border-1"
+                            :disabled="isSaved" @click="saveUser">
+                            <span class="ri-save-line me-1"></span>Grabar
+                          </button>
+                          <button type="button" class="dropdown-item border-bottom border-1"
+                            @click="returnPage">
+                            <span class="ri-prohibited-line me-1"></span>Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-none d-md-flex gap-2">
+                      <button type="button" class="btn btn-sm btn-primary"
+                        :disabled="isSaved" @click="saveUser">
+                        <span class="ri-save-line me-1"></span>Grabar
+                      </button>
+                      <button type="button" class="btn btn-warning btn-sm" @click="returnPage">
+                        <span class="ri-prohibited-line me-1"></span>Cancelar
+                      </button>
+                    </div>
+                  </div>
+                  <div class="col-4 col-md-4 text-md-end">
+                    <button type="button" class="btn btn-danger btn-sm" @click="returnPage">
+                      <span class="ri-arrow-left-line me-1"></span>Volver
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Formulario -->
+              <div class="pt-0 card-body">
+                <form novalidate>
+
+                  <!-- Sección 1: Datos Personales -->
+                  <h6 class="text-muted border-bottom pb-2 mb-3">
+                    <i class="ri-user-line me-1"></i> Datos Personales
+                  </h6>
+                  <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                      <label class="form-label d-block" for="FullName">
+                        Nombre Completo <span class="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="FullName"
+                        name="FullName"
+                        class="form-control form-control-sm"
+                        :class="{ 'is-invalid': v$.FullName.$dirty && v$.FullName.$invalid }"
+                        placeholder="Nombre Completo"
+                        :disabled="isSaved"
+                        autocomplete="off"
+                        v-model.trim="v$.FullName.$model"
+                      />
+                      <small class="invalid-feedback">Debe ingresar el nombre completo.</small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                      <label class="form-label d-block" for="UserName">
+                        Nombre de Usuario <span class="text-danger">*</span>
+                      </label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-transparent">
+                          <i class="ri-at-line"></i>
+                        </span>
+                        <input
+                          type="text"
+                          id="UserName"
+                          name="UserName"
+                          class="form-control"
+                          placeholder="nombre.usuario"
+                          :disabled="isSaved"
+                          autocomplete="off"
+                          v-model.trim="user.UserName"
+                        />
+                      </div>
+                      <small class="text-muted"><i class="ri-information-line me-1"></i>Debe ser único. Si se deja vacío, se usará el correo.</small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                      <label class="form-label d-block" for="Email">
+                        Correo Electrónico <span class="text-danger">*</span>
+                      </label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-transparent">
+                          <i class="ri-mail-line"></i>
+                        </span>
+                        <input
+                          type="email"
+                          id="Email"
+                          name="Email"
+                          class="form-control"
+                          :class="{ 'is-invalid': v$.Email.$dirty && v$.Email.$invalid }"
+                          placeholder="usuario@ejemplo.com"
+                          :disabled="isSaved"
+                          autocomplete="off"
+                          v-model.trim="v$.Email.$model"
+                        />
+                        <div class="invalid-feedback" v-if="v$.Email.$dirty && v$.Email.required.$invalid">
+                          Debe ingresar el correo electrónico.
+                        </div>
+                        <div class="invalid-feedback" v-else-if="v$.Email.$dirty && v$.Email.email.$invalid">
+                          Formato de correo inválido.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Sección 2: Seguridad -->
+                  <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                    <i class="ri-shield-line me-1"></i> Seguridad
+                  </h6>
+                  <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                      <label class="form-label d-block" for="Password">
+                        Contraseña
+                        <span v-if="!user.Uuid" class="text-danger">*</span>
+                      </label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-transparent">
+                          <i class="ri-lock-line"></i>
+                        </span>
+                        <input
+                          :type="showPassword ? 'text' : 'password'"
+                          id="Password"
+                          name="Password"
+                          class="form-control"
+                          :class="{ 'is-invalid': v$.Password.$dirty && v$.Password.$invalid }"
+                          placeholder="Contraseña"
+                          :disabled="isSaved"
+                          autocomplete="new-password"
+                          v-model.trim="v$.Password.$model"
+                        />
+                        <button
+                          type="button"
+                          class="btn btn-outline-secondary"
+                          tabindex="-1"
+                          :title="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                          @click="showPassword = !showPassword"
+                        >
+                          <i :class="showPassword ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
+                        </button>
+                        <div class="invalid-feedback" v-if="v$.Password.$dirty && v$.Password.required.$invalid">
+                          La contraseña es requerida para nuevos usuarios.
+                        </div>
+                      </div>
+                      <small class="text-muted" v-if="user.Uuid">
+                        <i class="ri-information-line me-1"></i>Dejar en blanco para mantener la actual.
+                      </small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3 d-flex flex-column gap-3 justify-content-center">
+                      <div class="form-check form-switch">
+                        <input
+                          type="checkbox"
+                          class="form-check-input"
+                          id="IsActive"
+                          role="switch"
+                          :disabled="isSaved"
+                          v-model="user.IsActive"
+                        />
+                        <label class="form-check-label" for="IsActive">Usuario activo</label>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input
+                          type="checkbox"
+                          class="form-check-input"
+                          id="ChangePassword"
+                          role="switch"
+                          :disabled="isSaved"
+                          v-model="user.ChangePassword"
+                        />
+                        <label class="form-check-label" for="ChangePassword">
+                          Forzar cambio de contraseña en el próximo inicio de sesión
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                </form>
+              </div>
+
+            
+          </div>
+        </div>
+
+        <!-- Panel 2: Asignación de Roles (solo en modo edición) -->
+        <div v-if="user.Uuid" class="col-12 col-xl-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">Asignación de <span class="fw-light"><i>Roles</i></span></h5>
+            </div>
+            <!-- Barra de acciones -->
+              <div class="pt-0 card-body">
+                <div class="row align-items-center">
+                  <div class="col-8">
+                    <div class="d-none d-md-flex gap-2">
+                      <button type="button" class="btn btn-sm btn-primary" @click="saveRoles">
+                        <span class="ri-save-line me-1"></span>Guardar Roles
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleAllRoles">
+                        <span class="ri-checkbox-line me-1"></span>
+                        {{ allRolesSelected ? 'Deseleccionar todo' : 'Seleccionar todo' }}
+                      </button>
+                    </div>
+                    <div class="d-md-none">
+                      <div class="btn-group">
+                        <button type="button" class="btn btn-primary dropdown-toggle"
+                          data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                          Opciones
+                        </button>
+                        <div class="dropdown-menu">
+                          <button type="button" class="dropdown-item border-bottom border-1" @click="saveRoles">
+                            <span class="ri-save-line me-1"></span>Guardar Roles
+                          </button>
+                          <button type="button" class="dropdown-item" @click="toggleAllRoles">
+                            <span class="ri-checkbox-line me-1"></span>
+                            {{ allRolesSelected ? 'Deseleccionar todo' : 'Seleccionar todo' }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-4 text-end">
+                    <small class="text-muted">
+                      <strong>{{ selectedRoleIds.length }}</strong> / {{ allRoles.length }} seleccionados
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Checklist de roles -->
+              <div class="pt-0 card-body">
+                <div v-if="allRoles.length === 0" class="text-center py-4">
+                  <i class="ri-loader-4-line ri-spin ri-2x text-muted d-block mb-2"></i>
+                  <small class="text-muted">Cargando roles...</small>
+                </div>
+                <div class="row g-2">
+                  <div
+                    v-for="role in allRoles"
+                    :key="role.Id"
+                    class="col-12 col-sm-6"
+                  >
+                    <div class="form-check">
+                      <input
+                        type="checkbox"
+                        class="form-check-input"
+                        :id="`role-${role.Id}`"
+                        :value="role.Id"
+                        v-model="selectedRoleIds"
+                      />
+                      <label class="form-check-label" :for="`role-${role.Id}`">
+                        {{ role.NameRol }}
+                        <small v-if="role.Description" class="text-muted d-block">{{ role.Description }}</small>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            
+          </div>
+        </div>
+
+        <!-- Panel: Sucursales habilitadas (solo en modo edición) -->
+        <div v-if="user.Uuid" class="col-12 col-xl-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">Sucursales <span class="fw-light"><i>habilitadas</i></span></h5>
+            </div>
+            <div class="pt-0 card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <button v-if="canUpdateUsers" type="button" class="btn btn-sm btn-primary" @click="saveBranches">
+                    <span class="ri-save-line me-1"></span>Guardar Sucursales
+                  </button>
+                  <small class="text-muted ms-auto">
+                    <strong>{{ enabledBranchIds.length }}</strong> / {{ userBranches.length }} habilitadas
+                  </small>
+                </div>
+
+                <div v-if="userBranches.length === 0" class="text-center py-3">
+                  <small class="text-muted">No hay sucursales activas.</small>
+                </div>
+                <table v-else class="table table-sm align-middle mb-2">
+                  <thead>
+                    <tr>
+                      <th>Sucursal</th>
+                      <th class="text-center">Habilitada</th>
+                      <th class="text-center">Predeterminada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="branch in userBranches" :key="branch.BranchId">
+                      <td>
+                        <label class="mb-0" :for="`branch-${branch.BranchId}`">{{ branch.Name }}</label>
+                      </td>
+                      <td class="text-center">
+                        <input type="checkbox" class="form-check-input" :id="`branch-${branch.BranchId}`"
+                          :value="branch.BranchId" v-model="enabledBranchIds" :disabled="!canUpdateUsers"
+                          @change="keepDefaultConsistent" />
+                      </td>
+                      <td class="text-center">
+                        <input type="radio" class="form-check-input" name="defaultBranch"
+                          :value="branch.BranchId" v-model="defaultBranchId"
+                          :disabled="!canUpdateUsers || !enabledBranchIds.includes(branch.BranchId)" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <small class="text-muted">
+                  <i class="ri-information-line me-1"></i>
+                  Al iniciar sesión entra a la predeterminada; puede cambiar a cualquier otra habilitada desde la barra superior.
+                </small>
+              </div>
+            
+          </div>
+        </div>
+
+        <!-- Panel 3: Sesiones Activas (solo en modo edición, con permiso) -->
+        <div v-if="user.Uuid && canReadSessions" class="col-12">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">Sesiones <span class="fw-light"><i>Activas</i></span></h5>
+            </div>
+            <div class="pt-0 card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <small v-if="sessions.length > 0" class="text-muted">
+                    <strong>{{ sessions.length }}</strong> sesión(es) activa(s)
+                  </small>
+                  <button
+                    v-if="canDeleteSessions && sessions.length > 0"
+                    type="button"
+                    class="btn btn-sm btn-outline-danger ms-auto"
+                    @click="closeAllSessions"
+                  >
+                    <span class="ri-logout-box-r-line me-1"></span>Cerrar todas las sesiones
+                  </button>
+                </div>
+
+                <div v-if="sessions.length === 0" class="text-center py-3">
+                  <small class="text-muted">Este usuario no tiene sesiones activas.</small>
+                </div>
+
+                <div v-else class="table-responsive">
+                  <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Dispositivo</th>
+                        <th class="text-center">Origen</th>
+                        <th class="text-center">Conectado desde</th>
+                        <th class="text-center">Duración</th>
+                        <th class="text-center">Vence</th>
+                        <th class="text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="session in sessions" :key="session.Id">
+                        <td><small class="text-muted">{{ session.Device || '—' }}</small></td>
+                        <td class="text-center"><span class="badge bg-secondary">{{ session.LoginFrom }}</span></td>
+                        <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.CreatedAt) }}</small></td>
+                        <td class="text-center">
+                          <span v-if="isLongSession(session)" class="badge bg-info" title="El usuario pidió mantener la sesión 30 días">30 días</span>
+                          <span v-else class="badge bg-secondary" title="Termina al cerrar el navegador">Sesión</span>
+                        </td>
+                        <td class="text-center"><small class="text-muted">{{ formatSessionDate(session.ExpiresAt) }}</small></td>
+                        <td class="text-center">
+                          <button
+                            v-if="canDeleteSessions"
+                            type="button"
+                            class="btn btn-outline-danger btn-sm"
+                            title="Cerrar esta sesión"
+                            @click="closeOneSession(session.Id)"
+                          >
+                            <span class="ri-logout-box-r-line"></span>
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+
+      </div>
+    
+  </Layout>
+</template>
+
+<script setup lang="ts">
+import Layout from '@/layouts/main.vue'
+import PageHeader from '@/components/page-header.vue'
+import { onMounted, ref, computed } from 'vue';
+import { useRouter, useRoute } from "vue-router";
+import useVuelidate from '@vuelidate/core';
+import { required, email, requiredIf } from '@vuelidate/validators';
+import utils from '@/utils/msg';
+
+import { User } from '@/modules/user-account/models/users.model';
+import { Role } from '@/modules/user-account/models/role.model';
+import type { UserBranch } from '@/modules/user-account/models/branch.model';
+import { Session, isLongSession } from '@/modules/user-account/models/session.model';
+import useUser from '@/modules/user-account/composables/useUser';
+import useRole from '@/modules/user-account/composables/useRole';
+import useSessions from '@/modules/user-account/composables/useSessions';
+import usePermissions from '@/composables/usePermissions';
+
+const router = useRouter();
+const route = useRoute();
+
+const { getUserById, createUser, updateUser, getUserRoles, assignRolesToUser, getUserBranches, assignBranchesToUser } = useUser();
+const { getRoles } = useRole();
+const { getUserSessions, closeSession, closeAllUserSessions } = useSessions();
+const { can } = usePermissions();
+const canReadSessions = computed(() => can('active-sessions', 'read'));
+const canDeleteSessions = computed(() => can('active-sessions', 'delete'));
+const canUpdateUsers = computed(() => can('users-admin', 'update'));
+
+const user = ref(new User());
+const isSaved = ref(false);
+const showPassword = ref(false);
+const allRoles = ref<Role[]>([]);
+const selectedRoleIds = ref<number[]>([]);
+const sessions = ref<Session[]>([]);
+const userBranches = ref<UserBranch[]>([]);
+const enabledBranchIds = ref<string[]>([]);
+const defaultBranchId = ref('');
+
+const allRolesSelected = computed(() =>
+  selectedRoleIds.value.length === allRoles.value.length && allRoles.value.length > 0
+);
+
+const toggleAllRoles = () => {
+  if (allRolesSelected.value) {
+    selectedRoleIds.value = [];
+  } else {
+    selectedRoleIds.value = allRoles.value.map(r => r.Id);
+  }
+};
+
+const rules = computed(() => ({
+  FullName: { required },
+  Email: { required, email },
+  Password: {
+    required: requiredIf(() => !user.value.Uuid || user.value.Uuid === ''),
+  },
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const v$ = useVuelidate(rules, user as any);
+
+onMounted(async () => {
+  const userId = route.params.id as string;
+  await loadAllRoles();
+  if (userId && userId !== '0') {
+    await getUser(userId);
+    await loadUserRoles(userId);
+    await loadUserBranches(userId);
+    if (canReadSessions.value) await loadSessions(userId);
+  } else {
+    user.value.Uuid = '';
+  }
+});
+
+const getUser = async (userId: string) => {
+  const { ok, Data: userResp } = await getUserById(userId);
+  if (ok) {
+    user.value = userResp;
+    user.value.Password = '';
+  }
+};
+
+const loadAllRoles = async () => {
+  const { ok, Data } = await getRoles('', '');
+  if (ok) allRoles.value = Data;
+};
+
+const loadUserRoles = async (uuid: string) => {
+  const { ok, Data } = await getUserRoles(uuid);
+  if (ok) selectedRoleIds.value = Data.map((r: Role) => r.Id);
+};
+
+const saveRoles = async () => {
+  const confirmed = await utils.showMessageQuestion('¿Desea guardar la asignación de roles?');
+  if (!confirmed) return;
+
+  const { ok } = await assignRolesToUser(user.value.Uuid, selectedRoleIds.value);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'Los roles se asignaron correctamente.', MessageType: 'success' });
+  }
+};
+
+const loadUserBranches = async (uuid: string) => {
+  const { ok, Data } = await getUserBranches(uuid);
+  if (!ok) return;
+  userBranches.value = Data;
+  enabledBranchIds.value = Data.filter(b => b.Enabled).map(b => b.BranchId);
+  defaultBranchId.value = Data.find(b => b.IsDefault)?.BranchId ?? '';
+};
+
+/// Una sucursal deshabilitada no puede ser la predeterminada, y con una sola
+/// habilitada no hay nada que elegir.
+const keepDefaultConsistent = () => {
+  if (!enabledBranchIds.value.includes(defaultBranchId.value)) defaultBranchId.value = '';
+  if (!defaultBranchId.value && enabledBranchIds.value.length === 1) defaultBranchId.value = enabledBranchIds.value[0]!;
+};
+
+const saveBranches = async () => {
+  if (enabledBranchIds.value.length === 0) {
+    await utils.showMessageModal({ Description: 'Habilite al menos una sucursal: sin ninguna, el usuario no podrá iniciar sesión.', MessageType: 'warning' });
+    return;
+  }
+  if (!defaultBranchId.value) {
+    await utils.showMessageModal({ Description: 'Elija la sucursal predeterminada.', MessageType: 'warning' });
+    return;
+  }
+  const confirmed = await utils.showMessageQuestion('¿Desea guardar las sucursales del usuario?');
+  if (!confirmed) return;
+
+  const { ok } = await assignBranchesToUser(user.value.Uuid, enabledBranchIds.value, defaultBranchId.value);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'Las sucursales se guardaron. El cambio se aplica al usuario en su próxima renovación de sesión.', MessageType: 'success' });
+    await loadUserBranches(user.value.Uuid);
+  }
+};
+
+const returnPage = () => {
+  router.push({ name: 'users-admin' });
+};
+
+const formatSessionDate = (date: string): string => {
+  if (!date) return '—';
+  return new Date(date).toLocaleString('es-BO', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+};
+
+const loadSessions = async (uuid: string) => {
+  const { ok, Data } = await getUserSessions(uuid);
+  if (ok) sessions.value = Data;
+};
+
+const closeOneSession = async (id: number) => {
+  const confirmed = await utils.showMessageQuestion('¿Cerrar esta sesión? El usuario deberá iniciar sesión de nuevo en ese dispositivo.');
+  if (!confirmed) return;
+
+  const { ok } = await closeSession(id);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'La sesión se cerró correctamente.', MessageType: 'success' });
+    await loadSessions(user.value.Uuid);
+  }
+};
+
+const closeAllSessions = async () => {
+  const confirmed = await utils.showMessageQuestion(
+    `¿Cerrar todas las sesiones de ${user.value.FullName}? Deberá iniciar sesión de nuevo en todos sus dispositivos.`
+  );
+  if (!confirmed) return;
+
+  const { ok } = await closeAllUserSessions(user.value.Uuid);
+  if (ok) {
+    await utils.showMessageModal({ Description: 'Se cerraron todas las sesiones del usuario.', MessageType: 'success' });
+    await loadSessions(user.value.Uuid);
+  }
+};
+
+const saveUser = async () => {
+  const isFormCorrect = await v$.value.$validate();
+  if (!isFormCorrect) return;
+
+  const respuesta = await utils.showMessageQuestion('¿Desea guardar el usuario?');
+
+  if (respuesta) {
+    if (!user.value.Uuid || user.value.Uuid === '0') {
+      const { ok, Data: newUuid } = await createUser(user.value);
+      if (ok && newUuid) {
+        isSaved.value = true;
+        user.value.Uuid = newUuid;
+        await loadUserRoles(newUuid);
+        await loadUserBranches(newUuid);
+        await utils.showMessageModal({ Description: 'El usuario se creó correctamente. Ahora asigne sus roles y presione «Guardar Roles».', MessageType: 'success' });
+      }
+    } else {
+      const { ok, Data: okResp } = await updateUser(user.value);
+      if (ok && okResp) {
+        await utils.showMessageModal({ Description: 'El usuario se actualizó correctamente.', MessageType: 'success' });
+        returnPage();
+      }
+    }
+  }
+};
+</script>
+
+<style scoped></style>

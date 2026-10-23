@@ -1,0 +1,239 @@
+<app-breadcrumbs title="Recepcionar Orden de Compra" [breadcrumbItems]="[{ label: 'Inventario' }, { label: 'Registro de Compras' }, { label: 'Recepcionar Orden', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recepcionar Orden de Compra</h5>
+            </div>
+
+            @if (loaded()) {
+            <div class="card-body">
+                <app-form-actions [actions]="actions" toggleClass="btn-success" (back)="back()" />
+                <!-- Información de la orden -->
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-file-list-3-line align-middle me-1"></i> Información de la Orden</h6>
+                <div class="row mb-3">
+                    <div class="col-12 col-md-4 mb-2">
+                        <small class="text-muted d-block">Proveedor</small>
+                        <strong>{{ purchase.ProviderName }}</strong>
+                    </div>
+                    <div class="col-6 col-md-2 mb-2">
+                        <small class="text-muted d-block">Fecha de Compra</small>
+                        <strong>{{ formatDateOnly(purchase.PurchaseDate) }}</strong>
+                    </div>
+                    <div class="col-6 col-md-3 mb-2">
+                        <small class="text-muted d-block">Estado actual</small>
+                        <span [class]="statusBadge(purchase.PurchaseStatusId)">{{ purchase.PurchaseStatusName || statusLabel(purchase.PurchaseStatusId) }}</span>
+                    </div>
+                    <div class="col-12 col-md-3 mb-2">
+                        <label class="form-label mb-1" for="DeliveryDate">Fecha de Recepción <span class="text-danger">*</span></label>
+                        <input id="DeliveryDate" type="date" class="form-control" [(ngModel)]="delivery.DeliveryDate" [max]="today" [disabled]="isSaved()">
+                    </div>
+                </div>
+
+                @if (!hasPending) {
+                <div class="alert alert-info py-2"><i class="ri-information-line me-1"></i>Esta orden no tiene saldo pendiente de recepción.</div>
+                }
+
+                <!-- Detalle de recepción -->
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-stack-line align-middle me-1"></i> Cantidades a Recibir</h6>
+                <!-- Escritorio: tabla. En móvil (<md) se usan las tarjetas de abajo. -->
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-center">Ordenado</th>
+                                <th class="text-center">Recibido</th>
+                                <th class="text-center">Pendiente</th>
+                                <th class="text-center" style="min-width: 110px; width: 150px">A Recibir</th>
+                                <th class="text-end" style="min-width: 110px; width: 150px">Precio Unit.</th>
+                                <th class="text-end" style="width: 130px">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (line of delivery.Detail; track line.ProductId; let i = $index) {
+                            <tr [class.opacity-50]="line.PendingQuantity === 0">
+                                <td class="fw-semibold">
+                                    {{ line.ProductName }}
+                                    @if (usesLot(line)) {
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1"><i class="ri-stack-line me-1"></i>Lote</span>
+                                    } @else if (usesSerial(line)) {
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1"><i class="ri-barcode-line me-1"></i>Series</span>
+                                    }
+                                </td>
+                                <td class="text-center">{{ line.OrderedQuantity }}</td>
+                                <td class="text-center">{{ line.ReceivedQuantity }}</td>
+                                <td class="text-center">
+                                    <span class="badge" [class]="line.PendingQuantity > 0 ? 'bg-warning text-dark' : 'bg-success'">{{ line.PendingQuantity }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" inputmode="numeric" class="form-control text-center" [class.is-invalid]="lineErrors[i]" min="0" [max]="line.PendingQuantity"
+                                        [(ngModel)]="line.DeliveryQuantity" [disabled]="isSaved() || line.PendingQuantity === 0" (input)="clampLine(i)">
+                                </td>
+                                <td class="text-end">
+                                    <input type="number" inputmode="decimal" class="form-control text-end" min="0" step="0.01"
+                                        [(ngModel)]="line.UnitPrice" [disabled]="isSaved() || line.PendingQuantity === 0">
+                                </td>
+                                <td class="text-end fw-semibold">{{ formatCurrency(line.DeliveryQuantity * line.UnitPrice) }}</td>
+                            </tr>
+
+                            <!--
+                              Los campos del lote o de las series van en una sub-fila y no en columnas
+                              propias: solo los necesita una minoría de productos.
+                            -->
+                            @if (usesSerial(line) && line.PendingQuantity > 0) {
+                            <tr>
+                                <td class="border-0"></td>
+                                <td colspan="6" class="border-0 pt-0">
+                                    <div class="row g-2">
+                                        <div class="col-12 col-md-5">
+                                            <!--
+                                              Series: una por unidad. Va en un textarea y no en N campos porque estos
+                                              códigos se leen con lector, que emite Enter al final de cada lectura.
+                                            -->
+                                            <label class="form-label small text-muted mb-1">
+                                                Números de serie <span class="text-danger">*</span>
+                                                <span [class]="serialCountClass(line)">{{ line.SerialNumbers.length }} de {{ line.DeliveryQuantity }}</span>
+                                            </label>
+                                            <textarea class="form-control font-monospace" [class.is-invalid]="serialErrors[i]" rows="3" placeholder="Uno por línea, o léalos con el lector"
+                                                [value]="line.SerialNumbers.join('\n')" [disabled]="isSaved()" (input)="onSerialsInput(line, i, $any($event.target).value)"></textarea>
+                                        </div>
+                                        <div class="col-12 col-md-3">
+                                            <label class="form-label small text-muted mb-1">Vencimiento</label>
+                                            <input type="date" class="form-control" [(ngModel)]="line.ExpiryDate" [disabled]="isSaved()">
+                                            @if (isExpired(line)) {<small class="text-danger"><i class="ri-error-warning-line me-1"></i>Ya vencido</small>}
+                                        </div>
+                                        <div class="col-12 col-md-4 d-flex align-items-end">
+                                            <small class="text-muted"><i class="ri-information-line me-1"></i>Un número por unidad. Si la cantidad cambia, la lista tiene que acompañarla.</small>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            }
+
+                            @if (usesLot(line) && line.PendingQuantity > 0) {
+                            <tr>
+                                <td class="border-0"></td>
+                                <td colspan="6" class="border-0 pt-0">
+                                    <div class="row g-2">
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label small text-muted mb-1">Lote recibido <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" [class.is-invalid]="lotErrors[i]" maxlength="50" placeholder="Código impreso en la caja"
+                                                [(ngModel)]="line.LotCode" [disabled]="isSaved()" (input)="lotErrors[i] = false">
+                                        </div>
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label small text-muted mb-1">Vencimiento</label>
+                                            <input type="date" class="form-control" [(ngModel)]="line.ExpiryDate" [disabled]="isSaved()">
+                                            @if (isExpired(line)) {<small class="text-danger"><i class="ri-error-warning-line me-1"></i>Ya vencido</small>}
+                                        </div>
+                                        <div class="col-12 col-md-4 d-flex align-items-end">
+                                            <small class="text-muted"><i class="ri-information-line me-1"></i>Un lote por recepción. Si llegaron varios, registre este y repita la recepción con el saldo.</small>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            }
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="6" class="text-end">Total de esta recepción</th>
+                                <th class="text-end">{{ formatCurrency(deliveryTotal) }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!--
+                  Móvil: una tarjeta por producto. Comparte datos, validaciones y errores por fila con la tabla de
+                  escritorio (mismo delivery.Detail); solo cambia la presentación, porque siete columnas no caben
+                  en un teléfono y obligaban a deslizar de lado para ver precio y subtotal.
+                -->
+                <div class="d-md-none">
+                    @for (line of delivery.Detail; track line.ProductId; let i = $index) {
+                    <div class="card mb-2" [class.opacity-50]="line.PendingQuantity === 0">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <div class="fw-semibold lh-sm">{{ line.ProductName }}</div>
+                                @if (usesLot(line)) {
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle flex-shrink-0"><i class="ri-stack-line me-1"></i>Lote</span>
+                                } @else if (usesSerial(line)) {
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle flex-shrink-0"><i class="ri-barcode-line me-1"></i>Series</span>
+                                }
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center small text-muted mb-3">
+                                <span>Ordenado: <strong class="text-body">{{ line.OrderedQuantity }}</strong></span>
+                                <span>Recibido: <strong class="text-body">{{ line.ReceivedQuantity }}</strong></span>
+                                <span class="badge" [class]="line.PendingQuantity > 0 ? 'bg-warning text-dark' : 'bg-success'">Pendiente: {{ line.PendingQuantity }}</span>
+                            </div>
+
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small text-muted mb-1">A recibir</label>
+                                    <input type="number" inputmode="numeric" class="form-control text-center" [name]="'mqty' + i" [class.is-invalid]="lineErrors[i]" min="0" [max]="line.PendingQuantity"
+                                        [(ngModel)]="line.DeliveryQuantity" [disabled]="isSaved() || line.PendingQuantity === 0" (input)="clampLine(i)">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small text-muted mb-1">Precio unit.</label>
+                                    <input type="number" inputmode="decimal" class="form-control text-end" [name]="'mprice' + i" min="0" step="0.01"
+                                        [(ngModel)]="line.UnitPrice" [disabled]="isSaved() || line.PendingQuantity === 0">
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="small text-muted">Subtotal</span>
+                                <strong>{{ formatCurrency(line.DeliveryQuantity * line.UnitPrice) }}</strong>
+                            </div>
+
+                            <!-- Series: una por unidad, mismo criterio que en escritorio -->
+                            @if (usesSerial(line) && line.PendingQuantity > 0) {
+                            <div class="mt-3 pt-3 border-top">
+                                <label class="form-label small text-muted mb-1">
+                                    Números de serie <span class="text-danger">*</span>
+                                    <span [class]="serialCountClass(line)">{{ line.SerialNumbers.length }} de {{ line.DeliveryQuantity }}</span>
+                                </label>
+                                <textarea class="form-control font-monospace" [class.is-invalid]="serialErrors[i]" rows="4" placeholder="Uno por línea, o léalos con el lector"
+                                    [value]="line.SerialNumbers.join('\n')" [disabled]="isSaved()" (input)="onSerialsInput(line, i, $any($event.target).value)"></textarea>
+                                <small class="text-muted d-block mt-1">Un número por unidad. Si la cantidad cambia, la lista tiene que acompañarla.</small>
+                                <label class="form-label small text-muted mb-1 mt-2">Vencimiento</label>
+                                <input type="date" class="form-control" [name]="'mexps' + i" [(ngModel)]="line.ExpiryDate" [disabled]="isSaved()">
+                                @if (isExpired(line)) {<small class="text-danger"><i class="ri-error-warning-line me-1"></i>Ya vencido</small>}
+                            </div>
+                            }
+
+                            <!-- Lote: mismo criterio que en escritorio -->
+                            @if (usesLot(line) && line.PendingQuantity > 0) {
+                            <div class="mt-3 pt-3 border-top">
+                                <label class="form-label small text-muted mb-1">Lote recibido <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" [name]="'mlot' + i" [class.is-invalid]="lotErrors[i]" maxlength="50" placeholder="Código impreso en la caja"
+                                    [(ngModel)]="line.LotCode" [disabled]="isSaved()" (input)="lotErrors[i] = false">
+                                <label class="form-label small text-muted mb-1 mt-2">Vencimiento</label>
+                                <input type="date" class="form-control" [name]="'mexpl' + i" [(ngModel)]="line.ExpiryDate" [disabled]="isSaved()">
+                                @if (isExpired(line)) {<small class="text-danger"><i class="ri-error-warning-line me-1"></i>Ya vencido</small>}
+                                <small class="text-muted d-block mt-1">Un lote por recepción. Si llegaron varios, registre este y repita la recepción con el saldo.</small>
+                            </div>
+                            }
+                        </div>
+                    </div>
+                    }
+
+                    <!-- Barra fija: total y confirmar siempre a la vista -->
+                    <div class="receive-bar d-flex justify-content-between align-items-center gap-3">
+                        <div>
+                            <small class="text-muted d-block">Total de esta recepción</small>
+                            <strong>{{ formatCurrency(deliveryTotal) }}</strong>
+                        </div>
+                        <button type="button" class="btn btn-success" [disabled]="isSaved() || !canSubmit" (click)="save()">
+                            <i class="ri-inbox-archive-line align-middle me-1"></i>Confirmar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            } @else {
+            <div class="card-body text-center py-5"><span class="spinner-border text-primary" role="status"></span></div>
+            }
+        </div>
+    </div>
+</div>

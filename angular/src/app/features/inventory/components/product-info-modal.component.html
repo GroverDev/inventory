@@ -1,0 +1,175 @@
+@if (visible()) {
+<div class="modal fade show d-block" tabindex="-1" (click)="$event.target === $event.currentTarget && cerrar.emit()">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+
+            <div class="modal-header py-2">
+                <div>
+                    <h6 class="modal-title mb-0">{{ producto()?.ProductName }}</h6>
+                    <small class="text-muted">
+                        {{ producto()?.LaboratoryName || 'Sin laboratorio' }}
+                        @if (ficha().Presentation) {<span> · {{ ficha().Presentation }}</span>}
+                    </small>
+                </div>
+                <button type="button" class="btn-close" aria-label="Cerrar" (click)="cerrar.emit()"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <!--
+                  Precio y stock de este momento: la grilla del POS los trae de cuando se abrió la pantalla y
+                  pudieron cambiar. Arranca con los de la tarjeta y se reemplaza al llegar los actuales.
+                -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="border rounded-3 px-3 py-2 h-100">
+                            <small class="text-muted d-block">Precio</small>
+                            <span class="fw-bold fs-4 text-primary text-nowrap">Bs. {{ formatNum(precio()) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="rounded-3 px-3 py-2 h-100" [class]="stockClase()">
+                            <small class="d-block opacity-75">Stock disponible</small>
+                            <span class="fw-bold fs-4 text-nowrap">{{ stock() > 0 ? stock() : 'Agotado' }}</span>
+                            @if (stock() > 0 && producto()?.UnitName) {<small class="ms-1 opacity-75">{{ producto()?.UnitName }}</small>}
+                        </div>
+                    </div>
+                    @if (actualizando()) {
+                    <div class="col-12"><small class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Actualizando…</small></div>
+                    }
+                </div>
+
+                <!-- Lo que cambia la venta va primero y no se puede pasar por alto. -->
+                @if (producto()?.RequiresAuthorization) {
+                <div class="alert alert-warning py-2">
+                    <i class="ri-file-text-line me-1"></i><strong>Requiere respaldo para la venta</strong> — receta médica o autorización.
+                </div>
+                }
+
+                <!-- Foto entera del producto (800 px, sin recortar): confirmar el empaque es para lo que se abre esta ficha. -->
+                @if (imagenUrl() && !imagenFallo()) {
+                <div class="ficha-imagen text-center float-md-end ms-md-3 mb-3">
+                    <img [src]="imagenUrl()" [alt]="producto()?.ProductName" class="rounded border" role="button" title="Clic para ampliar" (click)="ampliada.set(true)" (error)="imagenFallo.set(true)">
+                    <small class="text-muted d-block"><i class="ri-zoom-in-line me-1"></i>Clic para ampliar</small>
+                </div>
+                }
+
+                @if (cargando()) {
+                <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                } @else {
+                <!-- Composición: lo primero que se pregunta en el mostrador. -->
+                @if (principiosActivos().length > 0) {
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-1">Composición</small>
+                    <div class="d-flex flex-wrap gap-1">
+                        @for (c of principiosActivos(); track c.SubstanceId || c.SubstanceName) {
+                        <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                            {{ c.SubstanceName }}@if (c.ConcentrationValue) {<span> {{ c.ConcentrationValue }} {{ c.ConcentrationUnit }}</span>}
+                        </span>
+                        }
+                    </div>
+                    <!-- Los excipientes responden otra pregunta: no "¿qué es?" sino "¿puedo tomarlo?" — gluten, lactosa, azúcar. -->
+                    @if (excipientes().length > 0) {
+                    <div class="mt-1"><small class="text-muted">Excipientes: {{ excipienteNombres() }}</small></div>
+                    }
+                </div>
+                }
+
+                @if (ficha().FormName || ficha().RouteName || ficha().DosageReference) {
+                <div class="mb-3">
+                    <div class="row g-2">
+                        @if (ficha().FormName) {<div class="col-auto"><small class="text-muted d-block">Forma</small>{{ ficha().FormName }}</div>}
+                        @if (ficha().RouteName) {<div class="col-auto ms-3"><small class="text-muted d-block">Vía</small>{{ ficha().RouteName }}</div>}
+                    </div>
+                    @if (ficha().DosageReference) {
+                    <div class="mt-2">
+                        <small class="text-muted d-block">Posología de referencia</small>
+                        {{ ficha().DosageReference }}
+                        <small class="text-muted d-block">Según prospecto. La dosis la indica quien receta.</small>
+                    </div>
+                    }
+                </div>
+                }
+
+                <!--
+                  Alternativas: SIEMPRE, no solo cuando falta stock (el motivo más común es el precio). En dos listas:
+                  las de arriba tienen la misma composición; las de abajo las definió la farmacia y pueden tener otro principio activo.
+                -->
+                @if (automaticas().length > 0) {
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-1">Misma composición ({{ automaticas().length }})</small>
+                    @for (e of automaticas(); track e.ProductId) {
+                    <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1">
+                        <div class="me-2">
+                            <div class="fw-semibold small">{{ e.ProductName }}</div>
+                            <small class="text-muted">
+                                @if (e.ProductType) {<span>{{ etiquetaTipo(e.ProductType) }}</span>}
+                                @if (e.Presentation) {<span> · {{ e.Presentation }}</span>}
+                                · stock {{ e.CurrentStock }}
+                            </small>
+                        </div>
+                        <div class="text-end text-nowrap">
+                            <div class="fw-bold">Bs. {{ formatNum(e.SalePrice) }}</div>
+                            <!-- La diferencia es el dato accionable, más que el precio. -->
+                            @if (diferencia(e) < 0) {<small class="text-success">{{ formatNum(abs(diferencia(e))) }} menos</small>}
+                            @else if (diferencia(e) > 0) {<small class="text-muted">{{ formatNum(diferencia(e)) }} más</small>}
+                            <button type="button" class="btn btn-sm btn-outline-primary d-block mt-1" [disabled]="e.CurrentStock <= 0" (click)="agregar.emit(e.ProductId)">{{ e.CurrentStock > 0 ? 'Agregar' : 'Sin stock' }}</button>
+                        </div>
+                    </div>
+                    }
+                </div>
+                }
+
+                @if (manuales().length > 0) {
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-1">Otras opciones sugeridas ({{ manuales().length }})</small>
+                    @for (e of manuales(); track e.ProductId) {
+                    <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1 border-warning-subtle">
+                        <div class="me-2">
+                            <div class="fw-semibold small">{{ e.ProductName }}</div>
+                            <small class="text-muted">@if (e.Reason) {<span>{{ e.Reason }} · </span>}stock {{ e.CurrentStock }}</small>
+                            <!-- Aviso explícito: la composición puede ser distinta, y sin esto un cajero podría entregarla como si fuera lo mismo. -->
+                            <small class="d-block text-warning-emphasis" style="font-size: 0.7rem">Sugerencia de la farmacia, puede tener otra composición.</small>
+                        </div>
+                        <div class="text-end text-nowrap">
+                            <div class="fw-bold">Bs. {{ formatNum(e.SalePrice) }}</div>
+                            @if (diferencia(e) < 0) {<small class="text-success">{{ formatNum(abs(diferencia(e))) }} menos</small>}
+                            <button type="button" class="btn btn-sm btn-outline-primary d-block mt-1" [disabled]="e.CurrentStock <= 0" (click)="agregar.emit(e.ProductId)">{{ e.CurrentStock > 0 ? 'Agregar' : 'Sin stock' }}</button>
+                        </div>
+                    </div>
+                    }
+                </div>
+                }
+
+                <!-- Prospecto: se pide al abrir, no está en la lista de productos. -->
+                @if (prospecto()) {
+                <div>
+                    <small class="text-muted d-block mb-1">Prospecto</small>
+                    <div class="border rounded p-2 prospecto" [innerHTML]="prospectoHtml()"></div>
+                    <small class="text-muted d-block mt-1">Información del prospecto del fabricante.</small>
+                </div>
+                }
+
+                @if (!hayDatos()) {
+                <div class="text-center text-muted py-3">
+                    <i class="ri-information-line fs-2 d-block mb-2"></i>Este producto no tiene datos farmacéuticos cargados.
+                </div>
+                }
+                }
+            </div>
+
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" (click)="cerrar.emit()">Cerrar</button>
+                @if (producto(); as p) {
+                @if (stock() > 0) {
+                <button type="button" class="btn btn-sm btn-primary" (click)="agregar.emit(p.Id)"><i class="ri-add-line align-middle me-1"></i>Agregar al carrito</button>
+                }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show" style="z-index: 1075"></div>
+}
+
+<app-image-lightbox [open]="ampliada()" [src]="imagenUrl()" [placeholder]="imagenMiniatura()" [caption]="producto()?.ProductName ?? ''" (close)="ampliada.set(false)" />

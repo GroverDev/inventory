@@ -1,0 +1,115 @@
+<app-breadcrumbs [title]="'Traspasos de ' + (auth.user()?.BranchName ?? '')" [breadcrumbItems]="[{ label: 'Inventarios' }, { label: 'Traspasos entre Sucursales', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+                @if (canCreate()) {
+                <button type="button" class="btn btn-primary btn-sm" (click)="open('0')">
+                    <i class="ri-add-line align-middle me-1"></i>Nuevo Traspaso
+                </button>
+                }
+                @if (pendingToReceive() > 0) {
+                <span class="badge bg-warning text-dark fs-6 ms-md-auto"><i class="ri-truck-line me-1"></i>{{ pendingToReceive() }} por recibir</span>
+                }
+            </div>
+
+            <div class="card-body">
+                <div class="row align-items-end g-2 mb-2">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label" for="tr-from">Desde</label>
+                        <input id="tr-from" type="date" class="form-control" [(ngModel)]="dateFrom">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label" for="tr-to">Hasta</label>
+                        <input id="tr-to" type="date" class="form-control" [(ngModel)]="dateTo">
+                    </div>
+                    <div class="col-8 col-md-3">
+                        <label class="form-label" for="tr-status">Estado</label>
+                        <select id="tr-status" class="form-select" [(ngModel)]="status">
+                            <option value="">Todos</option>
+                            @for (key of statuses; track key) {<option [value]="key">{{ statusLabel[key] }}</option>}
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-3">
+                        <button type="button" class="btn btn-primary w-100" (click)="load()">Buscar</button>
+                    </div>
+                </div>
+                <small class="text-muted d-block mb-3"><i class="ri-information-line me-1"></i>Los borradores y los traspasos en tránsito se muestran siempre, sin importar la fecha.</small>
+
+                @if (transfers().length === 0) {
+                <div class="text-center py-5">
+                    <i class="ri-arrow-left-right-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-0">No hay traspasos de esta sucursal en el período.</p>
+                </div>
+                } @else {
+                <div class="d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>N°</th>
+                                <th>Fecha</th>
+                                <th>Movimiento</th>
+                                <th class="text-center">Productos</th>
+                                <th class="text-center">Unidades</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (t of transfers(); track t.Id) {
+                            <tr>
+                                <td class="fw-semibold">{{ t.Number }}</td>
+                                <td><small>{{ formatDateTime(t.Created) }}</small></td>
+                                <td>
+                                    @if (t.Direction === 'salida') {
+                                    <span><i class="ri-arrow-right-line text-danger me-1"></i>Envía a <strong>{{ t.DestBranchName }}</strong></span>
+                                    } @else {
+                                    <span><i class="ri-arrow-left-line text-success me-1"></i>Llega de <strong>{{ t.OriginBranchName }}</strong></span>
+                                    }
+                                </td>
+                                <td class="text-center">{{ t.LinesCount }}</td>
+                                <td class="text-center">{{ t.TotalQuantity }}</td>
+                                <td class="text-center"><span class="badge" [class]="statusBadge[t.Status]">{{ statusLabel[t.Status] }}</span></td>
+                                <td class="text-center">
+                                    @let action = actionFor(t);
+                                    <button type="button" class="btn btn-sm" [class]="action.cls" (click)="open(t.Id)">
+                                        <i [class]="action.icon + ' align-middle me-1'"></i>{{ action.label }}
+                                    </button>
+                                </td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tarjetas (móvil <md) -->
+                <div class="d-md-none">
+                    <div class="row g-2">
+                        @for (t of transfers(); track t.Id) {
+                        <div class="col-12">
+                            <div class="card shadow-sm mb-0">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-semibold">Traspaso {{ t.Number }}</span>
+                                        <span class="badge" [class]="statusBadge[t.Status]">{{ statusLabel[t.Status] }}</span>
+                                    </div>
+                                    <small class="text-muted d-block">
+                                        {{ t.Direction === 'salida' ? 'Envía a ' + t.DestBranchName : 'Llega de ' + t.OriginBranchName }}
+                                        · {{ t.TotalQuantity }} u. · {{ formatDateTime(t.Created) }}
+                                    </small>
+                                    @let action = actionFor(t);
+                                    <button type="button" class="btn btn-sm w-100 mt-2" [class]="action.cls" (click)="open(t.Id)">
+                                        <i [class]="action.icon + ' align-middle me-1'"></i>{{ action.label }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

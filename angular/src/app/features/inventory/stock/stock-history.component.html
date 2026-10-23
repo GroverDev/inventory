@@ -1,0 +1,105 @@
+<app-breadcrumbs title="Historial de Movimientos" [breadcrumbItems]="[{ label: 'Inventarios' }, { label: 'Control de Stock' }, { label: 'Historial de Movimientos', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title mb-0">Historial de movimientos</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm" (click)="location.back()">
+                    <i class="ri-arrow-left-line align-middle me-1"></i>Volver
+                </button>
+            </div>
+
+            <div class="card-body">
+                <!-- Info del producto -->
+                <div class="alert alert-light border mb-3 py-2">
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <i class="ri-archive-line fs-2 text-primary"></i>
+                        <div>
+                            <div class="fw-semibold">{{ productName }}</div>
+                            <small class="text-muted font-monospace">{{ productCode }}</small>
+                        </div>
+                        @if (stockItemId()) {
+                        <div class="ms-auto text-end">
+                            <small class="text-muted d-block">Filtrado por lote</small>
+                            <code class="bg-body-secondary rounded px-2 py-1">{{ lot || '(sin lote)' }}</code>
+                            <a href="javascript:void(0)" class="d-block small mt-1" (click)="showAll()">Ver todos los movimientos del producto</a>
+                        </div>
+                        }
+                    </div>
+                </div>
+
+                @if (loading()) {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">Cargando movimientos...</p>
+                </div>
+                } @else if (movements().length === 0) {
+                <div class="text-center py-5">
+                    <i class="ri-history-line display-5 text-muted d-block mb-3"></i>
+                    <p class="text-muted">No se encontraron movimientos para este producto.</p>
+                </div>
+                } @else {
+                <p class="text-muted fs-13 mb-2"><i class="ri-list-check align-middle me-1"></i><strong>{{ movements().length }}</strong> movimiento(s)</p>
+
+                <div class="d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th class="text-center">Tipo</th>
+                                <th class="text-center">Cantidad</th>
+                                <th class="text-center d-none d-lg-table-cell">Antes</th>
+                                <th class="text-center d-none d-lg-table-cell">Después</th>
+                                <th class="d-none d-xl-table-cell">Motivo</th>
+                                <th class="d-none d-xl-table-cell">Observación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (mov of movements(); track mov.Id) {
+                            <tr>
+                                <td><small>{{ formatDate(mov.Created) }}</small></td>
+                                <td class="text-center"><span class="badge" [class]="typeBadge(mov.MovementType)">{{ typeLabel(mov.MovementType) }}</span></td>
+                                <td class="text-center fw-semibold" [class]="mov.Quantity >= 0 ? 'text-success' : 'text-danger'">{{ mov.Quantity >= 0 ? '+' : '' }}{{ mov.Quantity }}</td>
+                                <td class="text-center d-none d-lg-table-cell"><small class="text-muted">{{ mov.StockBefore }}</small></td>
+                                <td class="text-center d-none d-lg-table-cell"><small class="text-muted">{{ mov.StockAfter }}</small></td>
+                                <td class="d-none d-xl-table-cell"><small>{{ mov.Reason ?? '—' }}</small></td>
+                                <td class="d-none d-xl-table-cell"><small class="text-muted">{{ mov.Observation ?? '—' }}</small></td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tarjetas (móvil <md) -->
+                <div class="d-md-none">
+                    <div class="row g-2">
+                        @for (mov of movements(); track mov.Id) {
+                        <div class="col-12">
+                            <div class="card border-start border-3 mb-0" [class]="movCardBorder(mov.MovementType)">
+                                <div class="card-body py-2 px-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <small class="text-muted">{{ formatDate(mov.Created) }}</small>
+                                        <span class="badge" [class]="typeBadge(mov.MovementType)">{{ typeLabel(mov.MovementType) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-semibold" [class]="mov.Quantity >= 0 ? 'text-success' : 'text-danger'">{{ mov.Quantity >= 0 ? '+' : '' }}{{ mov.Quantity }} unidades</div>
+                                            <small class="text-muted">{{ mov.StockBefore }} → {{ mov.StockAfter }}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            @if (mov.Reason) {<small class="text-muted d-block">{{ mov.Reason }}</small>}
+                                            @if (mov.Observation) {<small class="text-muted">{{ mov.Observation }}</small>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,68 @@
+<app-breadcrumbs title="Ajuste de Stock" [breadcrumbItems]="[{ label: 'Inventarios' }, { label: 'Control de Stock' }, { label: 'Ajuste de Stock', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Ajuste de stock</h5>
+            </div>
+
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="location.back()" />
+                <!-- Info del producto -->
+                <div class="alert alert-light border mb-3 py-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="ri-archive-line fs-2 text-primary"></i>
+                        <div>
+                            <div class="fw-semibold">{{ productName }}</div>
+                            <small class="text-muted font-monospace">{{ productCode }}</small>
+                        </div>
+                        <div class="ms-auto text-end">
+                            <small class="text-muted d-block">Stock actual</small>
+                            <span class="badge fs-6" [class]="currentStock <= 0 ? 'bg-danger' : 'bg-info'">{{ currentStock }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-scales-3-line align-middle me-1"></i> Datos del Ajuste</h6>
+                <form (ngSubmit)="save()" novalidate>
+                    <div class="row">
+                        <div class="col-12 col-sm-4 mb-3">
+                            <label class="form-label" for="adj-type">Tipo <span class="text-danger">*</span></label>
+                            <select id="adj-type" name="adjustType" class="form-select" [(ngModel)]="adjustType" [disabled]="saved()">
+                                <option value="increase">Entrada (+)</option>
+                                <option value="decrease">Salida (-)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-sm-4 mb-3">
+                            <label class="form-label" for="adj-qty">Cantidad <span class="text-danger">*</span></label>
+                            <input id="adj-qty" name="quantity" type="number" class="form-control" [class.is-invalid]="submitted && !(quantity >= 1)" min="1" [(ngModel)]="quantity" [disabled]="saved()">
+                            <small class="invalid-feedback">Ingrese una cantidad mayor a 0.</small>
+                        </div>
+
+                        <div class="col-12 col-sm-4 mb-3">
+                            <label class="form-label" for="adj-after">Stock resultante</label>
+                            <input id="adj-after" name="after" type="number" class="form-control" [class]="stockAfterPreview < 0 ? 'text-danger border-danger' : ''" [value]="stockAfterPreview" disabled>
+                            @if (stockAfterPreview < 0) {<small class="text-danger">Stock insuficiente</small>}
+                        </div>
+
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="adj-reason">Motivo <span class="text-danger">*</span></label>
+                            <select id="adj-reason" name="reason" class="form-select" [class.is-invalid]="submitted && !reason" [(ngModel)]="reason" [disabled]="saved()">
+                                <option value="">-- Seleccione --</option>
+                                @for (m of motivos; track m) {<option [value]="m">{{ m }}</option>}
+                            </select>
+                            <small class="invalid-feedback">Seleccione un motivo.</small>
+                        </div>
+
+                        <div class="col-12 col-sm-6 mb-3">
+                            <label class="form-label" for="adj-obs">Observación</label>
+                            <input id="adj-obs" name="observation" type="text" class="form-control" placeholder="Observación opcional" [(ngModel)]="observation" [disabled]="saved()" autocomplete="off">
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,71 @@
+<app-breadcrumbs [title]="role.Id ? 'Editar Rol' : 'Nuevo Rol'" [breadcrumbItems]="[{ label: 'Seguridad' }, { label: 'Registro de Roles' }, { label: role.Id ? 'Editar Rol' : 'Nuevo Rol', active: true }]"></app-breadcrumbs>
+
+<div class="row g-3">
+    <!-- Panel 1: Datos del Rol -->
+    <div class="col-12" [class.col-xl-5]="role.Id">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <h5 class="card-title mb-0 flex-grow-1">{{ role.Id ? 'Editar' : 'Nuevo' }} Rol</h5>
+                @if (role.Id) {
+                <span class="badge" [class]="role.State ? 'bg-success' : 'bg-secondary'">{{ role.State ? 'Activo' : 'Inactivo' }}</span>
+                }
+            </div>
+            <div class="card-body">
+                <app-form-actions [actions]="actions" (back)="back()" />
+
+                <h6 class="text-muted border-bottom pb-2 mb-3"><i class="ri-profile-line align-middle me-1"></i> Identificación del Rol</h6>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label" for="NameRol">Nombre del Rol <span class="text-danger">*</span></label>
+                        <input type="text" id="NameRol" name="NameRol" class="form-control form-control-sm" [class.is-invalid]="submitted && !role.NameRol.trim()" placeholder="Nombre del rol" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="role.NameRol">
+                        <small class="invalid-feedback">El nombre del rol es requerido.</small>
+                    </div>
+                    <div class="col-12 mb-3">
+                        <label class="form-label" for="Description">Descripción</label>
+                        <input type="text" id="Description" name="Description" class="form-control form-control-sm" placeholder="Descripción del rol" [disabled]="isSaved()" autocomplete="off" [(ngModel)]="role.Description">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel 2: Asignación de Formularios (solo en modo edición) -->
+    @if (role.Id) {
+    <div class="col-12 col-xl-7">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Asignación de Formularios</h5></div>
+            <div class="card-body">
+                <div class="row align-items-center mb-3">
+                    <div class="col-8">
+                        <div class="d-none d-md-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-primary" (click)="saveForms()"><i class="ri-save-line align-middle me-1"></i>Guardar Asignación</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="toggleAll()"><i class="ri-checkbox-multiple-line align-middle me-1"></i>{{ allSelected() ? 'Deseleccionar todo' : 'Seleccionar todo' }}</button>
+                        </div>
+                        <div class="d-md-none" ngbDropdown>
+                            <button type="button" class="btn btn-primary dropdown-toggle" ngbDropdownToggle>Opciones</button>
+                            <div ngbDropdownMenu>
+                                <button type="button" ngbDropdownItem (click)="saveForms()"><i class="ri-save-line align-middle me-1"></i>Guardar Asignación</button>
+                                <button type="button" ngbDropdownItem (click)="toggleAll()"><i class="ri-checkbox-multiple-line align-middle me-1"></i>{{ allSelected() ? 'Deseleccionar todo' : 'Seleccionar todo' }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4 text-end">
+                        <small class="text-muted"><strong>{{ selectedFormIds().length }}</strong> / {{ allForms().length }} seleccionados</small>
+                    </div>
+                </div>
+
+                @if (allForms().length === 0) {
+                <div class="text-center py-4">
+                    <i class="ri-loader-4-line fs-2 text-muted d-block mb-2"></i>
+                    <small class="text-muted">Cargando formularios...</small>
+                </div>
+                }
+
+                @for (root of formsAsTree(); track root.form.Id) {
+                <app-form-tree-node class="d-block mb-1" [node]="root" [level]="0" [selectedIds]="selectedFormIds()" (selectedIdsChange)="onSelection($event)" />
+                }
+            </div>
+        </div>
+    </div>
+    }
+</div>

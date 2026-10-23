@@ -1,0 +1,450 @@
+<app-breadcrumbs [title]="isNew ? 'Nuevo Producto' : 'Editar Producto'" [breadcrumbItems]="[{ label: 'Inventarios' }, { label: 'Registro de productos' }, { label: isNew ? 'Nuevo Producto' : 'Editar Producto', active: true }]"></app-breadcrumbs>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+                <h5 class="card-title mb-0">{{ isNew ? 'Nuevo' : 'Editar' }} Producto</h5>
+                @if (!isNew) {
+                <span class="badge" [class]="product.IsActive ? 'bg-success' : 'bg-secondary'">{{ product.IsActive ? 'Activo' : 'Inactivo' }}</span>
+                }
+                @if (!canSave) {
+                <span class="badge bg-secondary"><i class="ri-lock-line me-1"></i>Solo lectura</span>
+                }
+            </div>
+
+            <div class="card-body">
+                @if (!canSave) {
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="text-muted small"><i class="ri-eye-line me-1"></i>Está viendo el producto en modo consulta. No tiene permiso para modificarlo.</div>
+                    <button type="button" class="btn btn-danger btn-sm" (click)="back()"><i class="ri-arrow-left-line align-middle me-1"></i>Volver</button>
+                </div>
+                } @else {
+                <app-form-actions [actions]="actions" (back)="back()" />
+                }
+                <!-- Imagen del producto -->
+                <h6 class="text-muted border-bottom pb-2 mb-3">
+                    <i class="ri-image-line align-middle me-1"></i> Imagen <small class="fw-normal ms-1">(opcional)</small>
+                </h6>
+                <div class="mb-4">
+                    <app-product-image-uploader
+                        [productId]="product.Id"
+                        [imagePath]="product.ImagePath"
+                        [readonly]="!canSave || (isSaved && product.Id === '0')"
+                        (uploaded)="product.ImagePath = $event"
+                        (removed)="product.ImagePath = null"
+                        (picked)="onImagePicked($event)" />
+                </div>
+
+                <!-- Sección 1: Identificación -->
+                <h6 class="text-muted border-bottom pb-2 mb-3">
+                    <i class="ri-profile-line align-middle me-1"></i> Identificación del Producto
+                </h6>
+                <div class="row">
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="ProductCode">Código del Producto <span class="text-danger">*</span></label>
+                        <input type="text" id="ProductCode" class="form-control" [class.is-invalid]="submitted && errors.ProductCode" placeholder="Ej: PROD-001" [disabled]="isReadOnly" autocomplete="off" [(ngModel)]="product.ProductCode">
+                        <small class="invalid-feedback">Debe ingresar el código del Producto.</small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="BarCode">Código de Barras <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="ri-barcode-line"></i></span>
+                            <input type="text" id="BarCode" class="form-control" [class.is-invalid]="submitted && errors.BarCode" placeholder="Código de barras" [disabled]="isReadOnly" autocomplete="off" [(ngModel)]="product.BarCode">
+                            <div class="invalid-feedback">Debe ingresar el código de barra.</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="ProductName">Nombre del Producto <span class="text-danger">*</span></label>
+                        <input type="text" id="ProductName" class="form-control" [class.is-invalid]="submitted && errors.ProductName" placeholder="Nombre del Producto" [disabled]="isReadOnly" autocomplete="off" [(ngModel)]="product.ProductName">
+                        <small class="invalid-feedback">Debe ingresar el nombre del Producto.</small>
+                    </div>
+                    <div class="col-12 col-sm-6 mb-3">
+                        <label class="form-label" for="Description">Descripción <span class="text-danger">*</span></label>
+                        <input type="text" id="Description" class="form-control" [class.is-invalid]="submitted && errors.Description" placeholder="Descripción del producto" [disabled]="isReadOnly" autocomplete="off" [(ngModel)]="product.Description">
+                        <small class="invalid-feedback">Debe ingresar la descripción del Producto.</small>
+                    </div>
+                </div>
+
+                <!-- Sección 2: Clasificación -->
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                    <i class="ri-price-tag-3-line align-middle me-1"></i> Clasificación
+                </h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="laboratories">Laboratorio / Proveedor</label>
+                        <select class="form-select" id="laboratories" [disabled]="isReadOnly" [(ngModel)]="product.LaboratoryId">
+                            <option value="">— Sin laboratorio —</option>
+                            @for (lab of laboratories; track lab.Id) {<option [value]="lab.Id">{{ lab.LaboratoryName }}</option>}
+                        </select>
+                        <small class="text-muted">Opcional: no toda la mercadería tiene laboratorio.</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="categories">Categoría</label>
+                        <select class="form-select" id="categories" [disabled]="isReadOnly" [(ngModel)]="product.CategoryId">
+                            <option value="">— Seleccione una categoría —</option>
+                            @for (cat of categories; track cat.Id) {<option [value]="cat.Id">{{ cat.CategoryName }}</option>}
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="units">Unidad de Medida <span class="text-danger">*</span></label>
+                        <select class="form-select" [class.is-invalid]="submitted && errors.UomId" id="units" [disabled]="isReadOnly" [(ngModel)]="product.UomId">
+                            <option value="">— Seleccione una unidad —</option>
+                            @for (unit of unitsOfMeasurement; track unit.Id) {<option [value]="unit.Id">{{ unit.UnitName }}</option>}
+                        </select>
+                        <small class="invalid-feedback">Debe seleccionar una unidad de medida.</small>
+                    </div>
+                </div>
+
+                <!-- Sección 3: Precio y Stock -->
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                    <i class="ri-money-dollar-circle-line align-middle me-1"></i> Precio y Stock
+                </h6>
+                <div class="row">
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <label class="form-label" for="precio">
+                            Precio de Venta <span class="text-danger">*</span>
+                            @if (!isNew) {<small class="text-muted fw-normal">(base)</small>}
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">Bs.</span>
+                            <input type="number" id="precio" class="form-control text-end" [class.is-invalid]="submitted && errors.SalePrice" placeholder="0.00" step="0.01" min="0" [disabled]="isReadOnly" [(ngModel)]="product.SalePrice">
+                            <div class="invalid-feedback">{{ product.SalePrice === null ? 'Debe ingresar el precio del Producto.' : 'El valor debe ser mayor a cero' }}</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <label class="form-label" for="cantidad">
+                            Stock Actual
+                            <i class="ri-lock-line ms-1 text-muted small" title="Solo lectura — se actualiza por movimientos de inventario"></i>
+                        </label>
+                        <input type="number" id="cantidad" class="form-control text-end" [class]="stockClass" placeholder="0" disabled [(ngModel)]="product.CurrentStock">
+                        @if (product.CurrentStock <= product.MinReorderQuantity && product.MinReorderQuantity > 0) {
+                        <small class="text-danger"><i class="ri-error-warning-line me-1"></i>Por debajo del stock mínimo</small>
+                        }
+                    </div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <label class="form-label" for="cantidadReposicion">
+                            Stock Mínimo de Reposición <span class="text-danger">*</span>
+                            @if (!isNew) {<small class="text-muted fw-normal">(base)</small>}
+                        </label>
+                        <input type="number" id="cantidadReposicion" class="form-control text-end" [class.is-invalid]="submitted && errors.MinReorderQuantity" placeholder="0" min="0" [disabled]="isReadOnly" [(ngModel)]="product.MinReorderQuantity">
+                        <small class="invalid-feedback">{{ product.MinReorderQuantity === null ? 'Debe ingresar la cantidad mínima de reposición.' : 'El valor debe ser mayor a cero' }}</small>
+                    </div>
+                </div>
+
+                <!-- Sección 4: Configuración -->
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                    <i class="ri-equalizer-line align-middle me-1"></i> Configuración
+                </h6>
+                <div class="row">
+                    <div class="col-sm-6 mb-3">
+                        <div class="form-check form-switch form-switch-md">
+                            <input type="checkbox" class="form-check-input" id="AvailableInPos" role="switch" [disabled]="isReadOnly" [(ngModel)]="product.AvailableInPos">
+                            <label class="form-check-label" for="AvailableInPos">Disponible en los puntos de venta</label>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <div class="form-check form-switch form-switch-md">
+                            <input type="checkbox" class="form-check-input" id="IsActive" role="switch" [disabled]="isReadOnly" [(ngModel)]="product.IsActive">
+                            <label class="form-check-label" for="IsActive">Producto activo</label>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <div class="form-check form-switch form-switch-md">
+                            <input type="checkbox" class="form-check-input" id="RequiresAuthorization" role="switch" [disabled]="isReadOnly" [(ngModel)]="product.RequiresAuthorization">
+                            <label class="form-check-label" for="RequiresAuthorization">La venta requiere respaldo</label>
+                        </div>
+                        <small class="text-muted">Receta médica, permiso u otra autorización. Se avisa al vender.</small>
+                    </div>
+                </div>
+
+                @if (!isNew) {
+                <!-- Excepciones por sucursal. Solo en edición: se cuelgan de un producto ya creado. -->
+                <app-product-branch-settings [productId]="product.Id" />
+
+                <!--
+                  Datos del rubro farmacia. En su propia sección porque es de un rubro (una
+                  ferretería no la usa) y solo en edición: necesita el producto ya creado.
+                -->
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                    <i class="ri-capsule-line align-middle me-1"></i> Datos Farmacéuticos <small class="fw-normal ms-1">(opcional)</small>
+                </h6>
+
+                <div class="row">
+                    <div class="col-12 col-md-4 mb-3">
+                        <label class="form-label" for="FormId">Forma farmacéutica</label>
+                        <select id="FormId" class="form-select" [disabled]="isReadOnly" [(ngModel)]="pharma.FormId">
+                            <option value="">— Sin especificar —</option>
+                            @for (f of formas; track f.Id) {<option [value]="f.Id">{{ f.Name }}</option>}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4 mb-3">
+                        <label class="form-label" for="RouteId">Vía de administración</label>
+                        <select id="RouteId" class="form-select" [disabled]="isReadOnly" [(ngModel)]="pharma.RouteId">
+                            <option value="">— Sin especificar —</option>
+                            @for (r of vias; track r.Id) {<option [value]="r.Id">{{ r.Name }}</option>}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4 mb-3">
+                        <label class="form-label" for="ProductType">Tipo</label>
+                        <select id="ProductType" class="form-select" [disabled]="isReadOnly" [(ngModel)]="pharma.ProductType">
+                            <option value="">— Sin especificar —</option>
+                            <option value="generico">Genérico</option>
+                            <option value="marca">Marca</option>
+                            <option value="similar">Similar</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label" for="Presentation">Presentación</label>
+                        <input id="Presentation" type="text" class="form-control" maxlength="150" placeholder="Ej: caja x 20 comprimidos" [disabled]="isReadOnly" [(ngModel)]="pharma.Presentation">
+                        <small class="text-muted">Distingue dos productos con el mismo principio activo y concentración.</small>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label" for="DosageReference">Posología de referencia</label>
+                        <input id="DosageReference" type="text" class="form-control" maxlength="300" placeholder="Ej: Adultos: 1 comprimido cada 8 horas" [disabled]="isReadOnly" [(ngModel)]="pharma.DosageReference">
+                        <small class="text-muted">Según prospecto. La dosis real depende del paciente y la indica quien receta.</small>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label" for="SanitaryRegistry">Registro sanitario</label>
+                        <input id="SanitaryRegistry" type="text" class="form-control" maxlength="60" placeholder="Nº de registro AGEMED" [disabled]="isReadOnly" [(ngModel)]="pharma.SanitaryRegistry">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label" for="SanitaryRegistryExpiry">Vigencia del registro</label>
+                        <input id="SanitaryRegistryExpiry" type="date" class="form-control" [disabled]="isReadOnly" [(ngModel)]="pharma.SanitaryRegistryExpiry">
+                        @if (registroVencido) {<small class="text-danger"><i class="ri-error-warning-line me-1"></i>El registro está vencido.</small>}
+                    </div>
+                </div>
+
+                <!--
+                  Composición: una lista, porque un producto puede tener varios principios
+                  activos, cada uno con su concentración. Es lo que permite encontrar equivalentes solo.
+                -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="form-label mb-0">Composición</label>
+                    @if (!isReadOnly) {
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="agregarComponente()">
+                        <i class="ri-add-line align-middle me-1"></i>Agregar componente
+                    </button>
+                    }
+                </div>
+
+                @if (pharma.Components.length === 0) {
+                <div class="text-muted small mb-3">
+                    Sin composición cargada. Al agregar los principios activos, el sistema podrá ofrecer equivalentes de este producto sin que cargues nada más.
+                </div>
+                }
+
+                @for (c of pharma.Components; track c; let ci = $index) {
+                <div class="row g-2 mb-2 align-items-end">
+                    <div class="col-12 col-md-5">
+                        @if (ci === 0) {<label class="form-label small text-muted mb-1">Sustancia</label>}
+                        <input type="text" class="form-control" list="lista-sustancias" maxlength="150" placeholder="Ej: Ibuprofeno" [disabled]="isReadOnly" [value]="c.SubstanceName" (input)="onSustancia(c, $any($event.target).value)">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        @if (ci === 0) {<label class="form-label small text-muted mb-1">Concentración</label>}
+                        <input type="number" step="0.0001" min="0" class="form-control text-end" [disabled]="isReadOnly" [(ngModel)]="c.ConcentrationValue">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        @if (ci === 0) {<label class="form-label small text-muted mb-1">Unidad</label>}
+                        <input type="text" class="form-control" list="lista-unidades" maxlength="20" placeholder="mg" [disabled]="isReadOnly" [(ngModel)]="c.ConcentrationUnit">
+                    </div>
+                    <div class="col-9 col-md-2">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" [id]="'activo-' + ci" [disabled]="isReadOnly" [(ngModel)]="c.IsActiveIngredient">
+                            <label class="form-check-label small" [for]="'activo-' + ci">{{ c.IsActiveIngredient ? 'Principio activo' : 'Excipiente' }}</label>
+                        </div>
+                    </div>
+                    <div class="col-3 col-md-1 text-end">
+                        @if (!isReadOnly) {
+                        <button type="button" class="btn btn-sm btn-outline-danger" title="Quitar" (click)="quitarComponente(ci)"><i class="ri-delete-bin-line"></i></button>
+                        }
+                    </div>
+                </div>
+                }
+
+                <datalist id="lista-sustancias">
+                    @for (s of sustancias; track s.Id) {<option [value]="s.SubstanceName"></option>}
+                </datalist>
+                <datalist id="lista-unidades">
+                    @for (u of UNIDADES_CONCENTRACION; track u) {<option [value]="u"></option>}
+                </datalist>
+
+                <small class="text-muted d-block mb-3">Si la sustancia no está en la lista, escribila igual: se da de alta al guardar.</small>
+
+                <!--
+                  Prospecto. Colapsado y cargado bajo demanda: son varios KB y la mayoría de
+                  los productos no lo tiene.
+                -->
+                <div class="border rounded p-2 mb-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" (click)="alternarProspecto()">
+                                <i class="align-middle me-1" [class]="prospectoAbierto ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'"></i>Prospecto
+                            </button>
+                            @if (!prospectoAbierto && prospectoCargado && !prospecto) {
+                            <span class="text-muted small ms-2">sin cargar</span>
+                            } @else if (!prospectoAbierto && prospecto) {
+                            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2">cargado</span>
+                            }
+                        </div>
+                        @if (prospectoAbierto) {
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn" [class]="verPrevia ? 'btn-outline-secondary' : 'btn-secondary'" (click)="verPrevia = false">Editar</button>
+                            <button type="button" class="btn" [class]="verPrevia ? 'btn-secondary' : 'btn-outline-secondary'" (click)="verPrevia = true">Vista previa</button>
+                        </div>
+                        }
+                    </div>
+
+                    @if (prospectoAbierto) {
+                    <div class="mt-2">
+                        @if (!verPrevia) {
+                        <textarea class="form-control font-monospace" rows="10" [disabled]="isReadOnly" placeholder="Pegá el prospecto acá. Se respetan los saltos de línea, y podés usar formato: ## Título, - viñeta, **negrita**." [(ngModel)]="prospecto"></textarea>
+                        } @else {
+                        <div class="border rounded p-3 bg-body-tertiary prospecto-previa">
+                            @if (prospecto) {<div [innerHTML]="prospectoHtml"></div>} @else {<span class="text-muted">Sin contenido.</span>}
+                        </div>
+                        }
+                        <small class="text-muted d-block mt-1">Información del prospecto del fabricante. Vaciar el texto elimina el prospecto.</small>
+                    </div>
+                    }
+                </div>
+
+                <!--
+                  Alternativas definidas a mano: solo lo que NO se puede deducir (la opción más
+                  económica, la que el cliente prefiere). Los equivalentes por composición aparecen abajo.
+                -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="form-label mb-0">Alternativas sugeridas</label>
+                    @if (!isReadOnly) {
+                    <button type="button" class="btn btn-sm btn-outline-primary" (click)="abrirSelectorAlternativa()">
+                        <i class="ri-add-line align-middle me-1"></i>Sugerir alternativa
+                    </button>
+                    }
+                </div>
+
+                @if (alternativasManuales.length === 0) {
+                <p class="text-muted small mb-2">Todavía no hay ninguna. Se ofrecen en el punto de venta cuando alguien pide este producto.</p>
+                }
+
+                @for (a of alternativasManuales; track a.ProductId; let ai = $index) {
+                <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1">
+                    <div>
+                        <span class="fw-semibold small">{{ a.ProductName }}</span>
+                        @if (a.CurrentStock <= 0) {
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1 fw-normal">Sin stock</span>
+                        }
+                        <small class="text-muted d-block">@if (a.Reason) {<span>{{ a.Reason }} · </span>}Bs. {{ formatCurrency(a.SalePrice) }}</small>
+                    </div>
+                    @if (!isReadOnly) {
+                    <div class="d-flex gap-1">
+                        <!-- Mover fija el orden a mano. Solo con más de una: con una sola no hay nada que ordenar. -->
+                        @if (alternativasManuales.length > 1) {
+                        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="ai === 0" title="Subir" (click)="moverAlternativa(ai, -1)"><i class="ri-arrow-up-line"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="ai === alternativasManuales.length - 1" title="Bajar" (click)="moverAlternativa(ai, 1)"><i class="ri-arrow-down-line"></i></button>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-danger" title="Quitar" (click)="quitarAlternativa(a.ProductId)"><i class="ri-delete-bin-line"></i></button>
+                    </div>
+                    }
+                </div>
+                }
+
+                <!-- El orden a mano envejece mal: siempre hay forma de devolvérselo al sistema. -->
+                @if (!isReadOnly && hayOrdenFijado) {
+                <div class="mb-2">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" (click)="ordenAutomatico()">
+                        <i class="ri-magic-line align-middle me-1"></i>Volver al orden automático
+                    </button>
+                    <small class="text-muted d-block">Hoy el orden lo fijaste vos. El automático ofrece primero lo que hay en stock y, entre esos, lo más económico.</small>
+                </div>
+                }
+
+                <!-- Equivalentes: no se cargan, se deducen de la composición. -->
+                @if (equivalentesAutomaticos.length > 0) {
+                <div class="alert alert-info py-2 mb-3">
+                    <div class="mb-1">
+                        <i class="ri-arrow-left-right-line align-middle me-1"></i>
+                        <strong>{{ equivalentesAutomaticos.length }}</strong> producto(s) con esta misma composición. El punto de venta ya los ofrece sin que cargues nada.
+                    </div>
+                    <!-- Atajo: lo común es querer destacar al equivalente más barato; el sistema ya sabe cuál es. -->
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        @for (e of equivalentesAutomaticos; track e.ProductId) {
+                        <div class="d-flex align-items-center gap-2 border rounded px-2 py-1 bg-body">
+                            <span class="small">{{ e.ProductName }} <span class="text-muted">({{ formatCurrency(e.SalePrice) }})</span></span>
+                            @if (!isReadOnly) {
+                            <button type="button" class="btn btn-sm btn-outline-primary py-0" title="Destacarlo como sugerencia en el punto de venta" (click)="sugerirEquivalente(e)">Sugerir</button>
+                            }
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+
+                <!--
+                  La vuelta de la relación. Se guarda en un solo sentido a propósito, pero sin
+                  verla desde acá un producto puede estar ofreciéndose en diez fichas sin que su dueño lo sepa.
+                -->
+                @if (sugeridoEn.length > 0) {
+                <div class="border rounded p-2 mb-3">
+                    <label class="form-label mb-1"><i class="ri-corner-down-left-line me-1"></i>Este producto se sugiere en</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        @for (s of sugeridoEn; track s.ProductId) {
+                        <span class="badge bg-body-secondary text-body border fw-normal">{{ s.ProductName }}@if (s.Reason) { <span class="text-muted">· {{ s.Reason }}</span>}</span>
+                        }
+                    </div>
+                    <small class="text-muted d-block mt-1">Se administra desde la ficha de cada uno de esos productos.</small>
+                </div>
+                }
+
+                <!--
+                  Trazabilidad. Solo en edición: activar lotes actúa sobre el stock existente,
+                  y un producto que todavía no se grabó no tiene ninguno.
+                -->
+                <h6 class="text-muted border-bottom pb-2 mb-3 mt-2">
+                    <i class="ri-stack-line align-middle me-1"></i> Trazabilidad
+                </h6>
+                <div class="row">
+                    <div class="col-12 col-md-4 mb-3">
+                        <label class="form-label d-block">Seguimiento de existencias</label>
+                        <span [class]="trackingBadge">{{ trackingText }}</span>
+                    </div>
+                    <div class="col-12 col-md-8 mb-3">
+                        @if (product.TrackingMode === 'none') {
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="isReadOnly" (click)="activateTrackingMode('lot')">
+                                <i class="ri-stack-line align-middle me-1"></i>Activar control por lotes
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="isReadOnly" (click)="activateTrackingMode('serial')">
+                                <i class="ri-barcode-line align-middle me-1"></i>Activar control por series
+                            </button>
+                        </div>
+                        <small class="d-block text-muted mt-2">
+                            <strong>Lotes</strong> para lo que llega en cajas con un mismo código y vencimiento: medicamentos.
+                            <strong>Series</strong> para lo que se identifica unidad por unidad: tensiómetros, nebulizadores y todo lo que lleva garantía.
+                        </small>
+                        <small class="d-block text-muted mt-1">
+                            Las {{ product.CurrentStock }} unidades que hay hoy quedan como existencia sin identificar y se venden primero.
+                            <strong>No se puede deshacer.</strong>
+                        </small>
+                        } @else if (product.TrackingMode === 'lot') {
+                        <small class="text-muted"><i class="ri-checkbox-circle-line text-success me-1"></i>Cada recepción registra su lote y vencimiento; la venta consume primero lo que vence antes.</small>
+                        } @else {
+                        <small class="text-muted"><i class="ri-checkbox-circle-line text-success me-1"></i>Cada recepción registra un número de serie por unidad, y la venta deja asentado cuál se entregó.</small>
+                        }
+                    </div>
+                </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<app-alternative-picker-modal
+    [visible]="selectorAbierto()"
+    [productId]="product.Id"
+    [productName]="product.ProductName"
+    [productPrice]="product.SalePrice"
+    [excludeIds]="idsExcluidos"
+    [preselected]="preseleccion"
+    [preselectedReason]="motivoPreseleccion"
+    (close)="selectorAbierto.set(false)"
+    (confirm)="confirmarAlternativa($event)" />
