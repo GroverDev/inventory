@@ -1,11 +1,6 @@
-import { Component, OnInit, EventEmitter, Output, ViewChild, ElementRef } from '@angular/core';
-import { Router, NavigationEnd } from '@angular/router';
-import { TranslateService } from '@ngx-translate/core';
+import { Component, EventEmitter, Output, ViewChild, ElementRef, effect, inject } from '@angular/core';
 
-// Menu Pachage
-// import MetisMenu from 'metismenujs';
-
-import { MENU } from './menu';
+import { MenuService } from '../../core/services/menu.service';
 import { MenuItem } from './menu.model';
 
 @Component({
@@ -14,20 +9,21 @@ import { MenuItem } from './menu.model';
     styleUrls: ['./horizontal-topbar.component.scss'],
     standalone: false
 })
-export class HorizontalTopbarComponent implements OnInit {
+export class HorizontalTopbarComponent {
 
   menu: any;
   menuItems: MenuItem[] = [];
   @ViewChild('sideMenu') sideMenu!: ElementRef;
   @Output() mobileMenuButtonClicked = new EventEmitter();
 
-  constructor(private router: Router, public translate: TranslateService) {
-    translate.setDefaultLang('en');
-  }
+  private readonly menuService = inject(MenuService);
 
-  ngOnInit(): void {
-    // Menu Items
-    this.menuItems = MENU;
+  constructor() {
+    // El menú depende de los permisos del usuario (igual que el sidebar): se rearma si cambian.
+    effect(() => {
+      this.menuItems = this.menuService.items();
+      setTimeout(() => this.initActiveMenu(), 0);
+    });
   }
 
   /***

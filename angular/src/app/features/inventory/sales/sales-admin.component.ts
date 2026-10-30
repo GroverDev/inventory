@@ -38,12 +38,12 @@ type QuickKey = (typeof QUICK_FILTERS)[number]['key'];
   imports: [FormsModule, SharedModule, PaginationComponent, PaymentBreakdownComponent],
   templateUrl: './sales-admin.component.html',
   styles: `
-    .kpi-card { background: var(--bs-tertiary-bg, #f8f9fa); border: 1px solid var(--bs-border-color); border-radius: 0.5rem; padding: 0.6rem 0.75rem; text-align: center; }
-    .kpi-card--discount { border-color: rgba(var(--bs-danger-rgb), 0.3); background: rgba(var(--bs-danger-rgb), 0.04); }
-    .kpi-card--total { border-color: rgba(var(--bs-primary-rgb), 0.35); background: rgba(var(--bs-primary-rgb), 0.06); }
-    .kpi-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color, #6c757d); margin-bottom: 0.15rem; }
+    .kpi-card { background: var(--vz-tertiary-bg, #f8f9fa); border: 1px solid var(--vz-border-color); border-radius: 0.5rem; padding: 0.6rem 0.75rem; text-align: center; }
+    .kpi-card--discount { border-color: rgba(var(--vz-danger-rgb), 0.3); background: rgba(var(--vz-danger-rgb), 0.04); }
+    .kpi-card--total { border-color: rgba(var(--vz-primary-rgb), 0.35); background: rgba(var(--vz-primary-rgb), 0.06); }
+    .kpi-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vz-secondary-color, #6c757d); margin-bottom: 0.15rem; }
     .kpi-value { font-weight: 700; font-size: 0.9rem; }
-    .kpi-sub { font-size: 0.65rem; color: var(--bs-secondary-color, #6c757d); margin-top: 0.1rem; }
+    .kpi-sub { font-size: 0.65rem; color: var(--vz-secondary-color, #6c757d); margin-top: 0.1rem; }
   `,
 })
 export class SalesAdminComponent implements OnInit {

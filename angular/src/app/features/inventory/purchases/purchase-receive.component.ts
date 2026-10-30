@@ -31,8 +31,8 @@ const newOperationUid = (): string =>
       z-index: 5;
       margin: 0.5rem -1rem 0;
       padding: 0.75rem 1rem;
-      background: var(--bs-body-bg);
-      border-top: 1px solid var(--bs-border-color);
+      background: var(--vz-body-bg);
+      border-top: 1px solid var(--vz-border-color);
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
     }
   `,

@@ -1,8 +1,7 @@
-import { Component, OnInit, EventEmitter, Output, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, EventEmitter, Output, ViewChild, ElementRef, effect, inject } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
-import { TranslateService } from '@ngx-translate/core';
 
-import { MENU } from './menu';
+import { MenuService } from '../../core/services/menu.service';
 import { MenuItem } from './menu.model';
 
 @Component({
@@ -18,13 +17,18 @@ export class TwoColumnSidebarComponent implements OnInit {
   @ViewChild('sideMenu') sideMenu!: ElementRef;
   @Output() mobileMenuButtonClicked = new EventEmitter();
 
-  constructor(private router: Router, public translate: TranslateService) {
-    translate.setDefaultLang('en');
+  private readonly menuService = inject(MenuService);
+
+  constructor(private router: Router) {
+    // El menú depende de los permisos del usuario (igual que el sidebar): se rearma si cambian.
+    effect(() => {
+      // `collapseid` enlaza cada ícono de la columna izquierda con su panel de subítems.
+      this.menuItems = this.menuService.items().map(item => ({ ...item, collapseid: `sidebar-${item.id}` }));
+      setTimeout(() => this.initActiveMenu(), 0);
+    });
   }
 
   ngOnInit(): void {
-    // Menu Items
-    this.menuItems = MENU;
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.initActiveMenu();

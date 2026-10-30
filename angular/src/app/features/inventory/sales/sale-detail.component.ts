@@ -32,25 +32,25 @@ type EnrichedLine = SaleDetail & { Returned: number; Net: number; LineReturned: 
     .cursor-pointer { cursor: pointer; }
     .cursor-pointer:hover { text-decoration: underline; }
 
-    .info-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color, #6c757d); margin-bottom: 0.1rem; }
-    .section-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color, #6c757d); border-bottom: 1px solid var(--bs-border-color); padding-bottom: 0.4rem; margin-bottom: 0.75rem; }
+    .info-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vz-secondary-color, #6c757d); margin-bottom: 0.1rem; }
+    .section-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--vz-secondary-color, #6c757d); border-bottom: 1px solid var(--vz-border-color); padding-bottom: 0.4rem; margin-bottom: 0.75rem; }
 
-    .summary-card { background: var(--bs-tertiary-bg, #f8f9fa); border-radius: 0.5rem; padding: 0.5rem 0.75rem; text-align: center; border: 1px solid var(--bs-border-color); }
-    .summary-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--bs-secondary-color, #6c757d); }
+    .summary-card { background: var(--vz-tertiary-bg, #f8f9fa); border-radius: 0.5rem; padding: 0.5rem 0.75rem; text-align: center; border: 1px solid var(--vz-border-color); }
+    .summary-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--vz-secondary-color, #6c757d); }
     .summary-value { font-weight: 600; font-size: 0.95rem; margin-top: 0.1rem; }
-    .summary-card--primary { background: var(--bs-primary); border-color: var(--bs-primary); color: #fff; }
+    .summary-card--primary { background: var(--vz-primary); border-color: var(--vz-primary); color: #fff; }
     .summary-card--primary .summary-label { color: rgba(255, 255, 255, 0.8); }
-    .summary-card--warning { background: rgba(var(--bs-warning-rgb), 0.12); border-color: rgba(var(--bs-warning-rgb), 0.35); }
+    .summary-card--warning { background: rgba(var(--vz-warning-rgb), 0.12); border-color: rgba(var(--vz-warning-rgb), 0.35); }
     .summary-card--warning .summary-value { color: #856404; }
-    .summary-card--success { background: rgba(var(--bs-success-rgb), 0.1); border-color: rgba(var(--bs-success-rgb), 0.35); }
-    .summary-card--success .summary-value { color: var(--bs-success); }
+    .summary-card--success { background: rgba(var(--vz-success-rgb), 0.1); border-color: rgba(var(--vz-success-rgb), 0.35); }
+    .summary-card--success .summary-value { color: var(--vz-success); }
 
-    .payment-chip { display: inline-flex; align-items: center; background: var(--bs-tertiary-bg, #f8f9fa); border: 1px solid var(--bs-border-color); border-radius: 2rem; padding: 0.25rem 0.85rem; font-size: 0.85rem; }
+    .payment-chip { display: inline-flex; align-items: center; background: var(--vz-tertiary-bg, #f8f9fa); border: 1px solid var(--vz-border-color); border-radius: 2rem; padding: 0.25rem 0.85rem; font-size: 0.85rem; }
 
     .history-toggle { cursor: pointer; user-select: none; padding: 0.25rem 0; border-radius: 0.25rem; }
     .history-toggle:hover { opacity: 0.8; }
-    .return-history-item { border-left: 3px solid var(--bs-warning); padding: 0.4rem 0.75rem; border-radius: 0 0.375rem 0.375rem 0; background: rgba(var(--bs-warning-rgb), 0.06); }
-    .return-chip { display: inline-block; font-size: 0.72rem; background: var(--bs-tertiary-bg, #f8f9fa); border: 1px solid var(--bs-border-color); border-radius: 0.25rem; padding: 0.1rem 0.45rem; color: var(--bs-secondary-color, #6c757d); }
+    .return-history-item { border-left: 3px solid var(--vz-warning); padding: 0.4rem 0.75rem; border-radius: 0 0.375rem 0.375rem 0; background: rgba(var(--vz-warning-rgb), 0.06); }
+    .return-chip { display: inline-block; font-size: 0.72rem; background: var(--vz-tertiary-bg, #f8f9fa); border: 1px solid var(--vz-border-color); border-radius: 0.25rem; padding: 0.1rem 0.45rem; color: var(--vz-secondary-color, #6c757d); }
   `,
 })
 export class SaleDetailComponent implements OnInit {

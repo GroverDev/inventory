@@ -67,7 +67,6 @@
               "lottie-web",
               "ngx-lightbox",
               "ngx-masonry",
-              "sweetalert2",
               "lodash",
               "@ckeditor/ckeditor5-build-classic",
               "ngx-csv/ngx-csv",

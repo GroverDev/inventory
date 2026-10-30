@@ -17,7 +17,7 @@ import { ImageLightboxComponent } from './image-lightbox.component';
   styles: `
     .modal { background: rgba(0, 0, 0, 0.5); z-index: 1080; }
     /* contain: se ve la foto entera, sin recortar los bordes del empaque. */
-    .ficha-imagen img { max-width: 100%; max-height: 240px; object-fit: contain; background: var(--bs-body-bg); }
+    .ficha-imagen img { max-width: 100%; max-height: 240px; object-fit: contain; background: var(--vz-body-bg); }
     @media (min-width: 768px) { .ficha-imagen { width: 220px; } }
     :host ::ng-deep .prospecto :is(h1, h2, h3) { font-size: 0.95rem; font-weight: 600; margin-top: 0.6rem; }
     :host ::ng-deep .prospecto p { margin-bottom: 0.4rem; font-size: 0.875rem; }

@@ -131,35 +131,48 @@
   }
 }
 
-/* ── Modal venta completada ── */
+/* ── Modal venta completada ──
+   Misma apariencia que app-dialog (shared/dialog), con más contenido. */
 .completed-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-  z-index: 1090;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2100;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 1rem;
   overflow-y: auto;
+  animation: completed-fade 0.15s ease-out;
 }
 
 .completed-card {
-  background: var(--bs-body-bg);
-  color: var(--bs-body-color);
-  border-radius: 16px;
+  background: var(--vz-secondary-bg);
+  color: var(--vz-body-color);
+  border-radius: 0.75rem;
   width: 100%;
   max-width: 420px;
-  padding: 28px 24px;
-  border: 1px solid var(--bs-border-color);
+  padding: 1.75rem 1.5rem;
+  border: 1px solid var(--vz-border-color);
+  animation: completed-pop 0.2s ease-out;
 }
 
 .completed-check-icon {
-  font-size: 4rem;
-  color: #10b981;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
   line-height: 1;
+  color: var(--vz-success);
+  background: color-mix(in srgb, var(--vz-success) 12%, transparent);
 }
+
+@keyframes completed-fade { from { opacity: 0; } }
+@keyframes completed-pop { from { opacity: 0; transform: scale(0.92); } }
 
 /* ── Recibo impresión ── */
 .receipt-print { display: none; }

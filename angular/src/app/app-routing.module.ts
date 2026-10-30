@@ -23,6 +23,9 @@ const posRoute = (path: string): Route => ({
 });
 
 const routes: Routes = [
+  // Antes que '': el '**' de las rutas hijas de '' también casa con /auth/*, y con el guard
+  // fallando redirigiría a /auth/login una y otra vez.
+  { path: 'auth', loadChildren: () => import('./account/account.routes').then(m => m.ACCOUNT_ROUTES) },
   posRoute('point-sale-admin'),
   posRoute('pos'),
   {
@@ -31,7 +34,6 @@ const routes: Routes = [
     loadChildren: () => import('./pages/pages.module').then(m => m.PagesModule),
     canActivate: [authGuard],
   },
-  { path: 'auth', loadChildren: () => import('./account/account.routes').then(m => m.ACCOUNT_ROUTES) },
   { path: '**', redirectTo: '' },
 ];
 

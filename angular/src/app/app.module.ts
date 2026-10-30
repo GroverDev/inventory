@@ -8,13 +8,13 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 
 import { LayoutsModule } from "./layouts/layouts.module";
-import { PagesModule } from "./pages/pages.module";
 
 // Auth
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { environment } from '../environments/environment';
 import { apiInterceptor } from './core/helpers/api.interceptor';
+import { DialogComponent } from './shared/dialog/dialog.component';
 
 // Language
 import { TRANSLATE_HTTP_LOADER_CONFIG, TranslateHttpLoader } from '@ngx-translate/http-loader';
@@ -45,12 +45,12 @@ export function createTranslateLoader(http: HttpClient): any {
     BrowserModule,
     AppRoutingModule,
     LayoutsModule,
+    DialogComponent,
   StoreModule.forRoot(rootReducer),
   StoreDevtoolsModule.instrument({
     maxAge: 25, // Retains last 25 states
     logOnly: environment.production, // Restrict extension to log-only mode
   }),
-    PagesModule,
     NgPipesModule], providers: [
       importProvidersFrom(
         TranslateModule.forRoot({
